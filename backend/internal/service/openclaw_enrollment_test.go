@@ -18,7 +18,7 @@ func TestOpenClawEnrollmentPrivateClientChecksProtocolAndExactReceipt(t *testing
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/cells/"+tenant+"/enrollment" || r.Header.Get("Authorization") != "Bearer "+strings.Repeat("x", 32) {
 			t.Error("private bridge routing/authentication changed")
-			http.Error(w, "unauthorized", 401)
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
 		var command openclawgateway.EnrollmentCommand

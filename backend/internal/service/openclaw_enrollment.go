@@ -74,18 +74,18 @@ func openClawEnrollmentEnabled(userID int64) bool {
 }
 
 type OpenClawEnrollmentResponse struct {
-	ID        string                          `json:"id"`
-	Client    string                          `json:"client"`
-	State     openclawgateway.EnrollmentState `json:"state"`
-	SetupCode string                          `json:"setup_code"`
-	GatewayURL string                         `json:"gateway_url"`
-	CreatedAt time.Time                       `json:"created_at"`
-	ExpiresAt time.Time                       `json:"expires_at"`
+	ID         string                          `json:"id"`
+	Client     string                          `json:"client"`
+	State      openclawgateway.EnrollmentState `json:"state"`
+	SetupCode  string                          `json:"setup_code"`
+	GatewayURL string                          `json:"gateway_url"`
+	CreatedAt  time.Time                       `json:"created_at"`
+	ExpiresAt  time.Time                       `json:"expires_at"`
 }
 
 func openClawEnrollmentSecret() []byte {
 	if path := strings.TrimSpace(os.Getenv("OPENCLAW_DEVICE_ENROLLMENT_SECRET_FILE")); path != "" {
-		if data, err := os.ReadFile(path); err == nil && len(strings.TrimSpace(string(data))) >= 32 {
+		if data, err := os.ReadFile(path); err == nil && len(strings.TrimSpace(string(data))) >= 32 { // #nosec G304 G703 -- Operator-configured secret file path, never a request parameter.
 			return []byte(strings.TrimSpace(string(data)))
 		}
 	}

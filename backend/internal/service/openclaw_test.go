@@ -52,7 +52,7 @@ func TestGatewayLaunchCannotResolveAnotherOwnersCell(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	mock.ExpectQuery(`FROM openclaw_instances WHERE id = \$1 AND user_id = \$2`).WithArgs(int64(7), int64(42)).WillReturnError(sql.ErrNoRows)
 	s := NewOpenClawService(db, nil)
 	if _, err := s.GetGatewayLaunchURL(context.Background(), 42, 7); !errors.Is(err, ErrOpenClawInstanceNotFound) {

@@ -30,7 +30,7 @@ func TestGatewayProxySeparatesNativeAndManagementIdentity(t *testing.T) {
 	}))
 	defer bridge.Close()
 	db, mock, _ := sqlmock.New()
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	mock.ExpectQuery(`SELECT i.user_id FROM openclaw_instances i`).WithArgs(tenant).WillReturnRows(sqlmock.NewRows([]string{"user_id"}).AddRow(int64(42)))
 	s := NewOpenClawService(db, NewHTTPOpenClawFleetClient(bridge.URL, strings.Repeat("m", 40)))
 	r := httptest.NewRequest("GET", "https://"+tenant+".claw.example/assets/app.js", nil)
@@ -57,7 +57,7 @@ func TestGatewayProxyDeniesWrongOriginAndWithdrawnOwner(t *testing.T) {
 	for _, state := range []string{"origin", "withdrawn", "other-owner"} {
 		t.Run(state, func(t *testing.T) {
 			db, mock, _ := sqlmock.New()
-			defer db.Close()
+			defer func() { _ = db.Close() }()
 			tenant := "u42-0123456789ab"
 			r := httptest.NewRequest("GET", "https://"+tenant+".claw.example/", nil)
 			if state == "origin" {

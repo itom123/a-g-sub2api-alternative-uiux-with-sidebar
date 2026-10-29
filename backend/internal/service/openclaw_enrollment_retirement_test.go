@@ -24,7 +24,7 @@ func TestOpenClawEnrollmentRetirementRequiresCommittedAuditAndResumesLostAcknowl
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer db.Close()
+			defer func() { _ = db.Close() }()
 			created := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Millisecond)
 			r := openclawgateway.EnrollmentReceipt{ID: "retirement-fixture", Client: "macos", State: openclawgateway.EnrollmentExpired, CreatedAtMS: created.UnixMilli(), ExpiresAtMS: created.Add(5 * time.Minute).UnixMilli(), RetirementReady: true}
 			raw, _ := json.Marshal(r)

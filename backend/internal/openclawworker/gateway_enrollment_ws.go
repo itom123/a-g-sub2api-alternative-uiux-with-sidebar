@@ -68,13 +68,13 @@ func (w *Worker) proxyEnrollmentWebSocket(rw http.ResponseWriter, r *http.Reques
 		http.Error(rw, "Workspace connection unavailable", http.StatusBadGateway)
 		return
 	}
-	defer upstream.Close()
+	defer func() { _ = upstream.Close() }()
 	client, err := enrollmentWebSocketUpgrader.Upgrade(rw, r, nil)
 	if err != nil {
 		_ = upstream.Close()
 		return
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 	client.SetReadLimit(enrollmentWebSocketReadLimit)
 	upstream.SetReadLimit(enrollmentWebSocketReadLimit)
 

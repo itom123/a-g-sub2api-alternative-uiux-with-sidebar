@@ -69,11 +69,11 @@ type EnrollmentBindingTransport struct {
 }
 
 func (b EnrollmentBinding) Transport() EnrollmentBindingTransport {
-	return EnrollmentBindingTransport{EnrollmentID: b.EnrollmentID, RequestID: b.RequestID, DeviceID: b.DeviceID, DisplayName: b.DisplayName, Platform: b.Platform, PublicKey: b.PublicKey, Roles: b.Roles, Scopes: b.Scopes}
+	return EnrollmentBindingTransport(b)
 }
 
 func (b EnrollmentBindingTransport) Binding() EnrollmentBinding {
-	return EnrollmentBinding{EnrollmentID: b.EnrollmentID, RequestID: b.RequestID, DeviceID: b.DeviceID, DisplayName: b.DisplayName, Platform: b.Platform, PublicKey: b.PublicKey, Roles: b.Roles, Scopes: b.Scopes}
+	return EnrollmentBinding(b)
 }
 
 func NewEnrollment(id string, ownerID, instanceID int64, tenant, client string, now time.Time) (Enrollment, error) {
@@ -88,7 +88,7 @@ func enrollmentRequestID(id string) bool {
 		return false
 	}
 	for _, c := range id {
-		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-' || c == '_') {
+		if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && c != '-' && c != '_' {
 			return false
 		}
 	}
@@ -147,7 +147,7 @@ func validEnrollmentBinding(b EnrollmentBinding, client string) bool {
 	}
 	roles := map[string]bool{}
 	for _, role := range b.Roles {
-		if roles[role] || (role != "operator" && !(client == "ios" && role == "node")) {
+		if roles[role] || (role != "operator" && (client != "ios" || role != "node")) {
 			return false
 		}
 		roles[role] = true

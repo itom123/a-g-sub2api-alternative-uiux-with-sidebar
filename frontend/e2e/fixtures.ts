@@ -49,7 +49,16 @@ function response(path: string): unknown {
     ...stats, stats, trend: [], models: [], groups: [], ranking: [], items: [], by_platform: [],
     stats_updated_at: '2026-01-01T09:00:00Z', start_date: '2026-01-01', end_date: '2026-01-02', granularity: 'day',
   }
-  if (path === '/payment/checkout-info') return { config: { enabled: true, payment_methods: [], payment_types: [] }, plans: [], limits: {}, subscriptions: [] }
+  // Mirrors backend checkoutInfoResponse (payment_handler.go); PaymentView reads `methods` during render.
+  if (path === '/payment/checkout-info') return {
+    methods: {}, global_min: 0, global_max: 0, subscription_allowed: true, plans: [], balance_disabled: false,
+    balance_recharge_multiplier: 1, subscription_usd_to_cny_rate: 0, recharge_fee_rate: 0, recharge_bonus_tiers: [],
+    recharge_bonus_mode: 'bonus', recharge_bonus_notice: '', help_text: '', help_image_url: '', stripe_publishable_key: '',
+    alipay_force_qrcode: false, alipay_mobile_precreate_deep_link: false,
+  }
+  // The router's requiresSubscription guard asks /payment/access before entering /subscription(s).
+  if (path === '/payment/access') return { allowed: true }
+  if (path === '/payment/sessions/my') return []
   if (path === '/payment/config' || path === '/admin/payment/config') return { enabled: true, payment_methods: [], payment_types: [] }
   if (path === '/subscriptions/summary') return { active_count: 0, subscriptions: [] }
   if (path === '/admin/plugins') return []

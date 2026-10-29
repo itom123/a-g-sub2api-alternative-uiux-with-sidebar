@@ -26,7 +26,7 @@ func (s EnrollmentStore) RetirementBatch(ctx context.Context, ownerID, instanceI
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var result []EnrollmentRetirementCandidate
 	for rows.Next() {
 		var c EnrollmentRetirementCandidate
@@ -60,7 +60,7 @@ func (s EnrollmentStore) ArchiveNativeReceipt(ctx context.Context, ownerID, inst
 	if err != nil {
 		return EnrollmentReceipt{}, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	var e Enrollment
 	var bindingRaw, archivedRaw []byte
 	err = tx.QueryRowContext(ctx, `SELECT id, owner_id, instance_id, tenant_slug, client, state, created_at, expires_at, binding, native_archived_receipt FROM openclaw_device_enrollments WHERE id = $1 AND owner_id = $2 AND instance_id = $3 FOR UPDATE`, receipt.ID, ownerID, instanceID).Scan(&e.ID, &e.OwnerID, &e.InstanceID, &e.Tenant, &e.Client, &e.State, &e.CreatedAt, &e.ExpiresAt, &bindingRaw, &archivedRaw)
@@ -140,7 +140,7 @@ func (s EnrollmentStore) ConfirmNativeRetirement(ctx context.Context, ownerID, i
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	result, err := tx.ExecContext(ctx, `UPDATE openclaw_device_enrollments SET native_retired_at = $4 WHERE id = $1 AND owner_id = $2 AND instance_id = $3 AND native_archived_receipt = $5::jsonb AND native_retired_at IS NULL`, archived.ID, ownerID, instanceID, now, string(raw))
 	if err != nil {
 		return err

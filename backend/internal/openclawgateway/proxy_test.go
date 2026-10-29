@@ -35,7 +35,7 @@ func TestGatewayWithdrawalClosesActiveWebSocket(t *testing.T) {
 		if err != nil {
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		for {
 			kind, body, err := conn.ReadMessage()
 			if err != nil {
@@ -58,7 +58,7 @@ func TestGatewayWithdrawalClosesActiveWebSocket(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	if err := conn.WriteMessage(websocket.TextMessage, []byte("authenticated-session-fixture")); err != nil {
 		t.Fatal(err)
 	}

@@ -39,7 +39,7 @@ func TestGatewayOperationsEnforceOwnershipAndLifecycle(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				defer db.Close()
+				defer func() { _ = db.Close() }()
 				query := mock.ExpectQuery(`FROM openclaw_instances WHERE id = \$1 AND user_id = \$2`).WithArgs(int64(7), int64(42))
 				if state == "missing" {
 					query.WillReturnError(sql.ErrNoRows)

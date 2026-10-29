@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"io"
+	"mime"
+	"mime/multipart"
 	"mime/quotedprintable"
 	"net"
 	"net/mail"
@@ -649,11 +651,34 @@ func (s *notificationEmailTestSMTPServer) lastMessageBody(t *testing.T) string {
 	message, err := mail.ReadMessage(strings.NewReader(s.lastMessage()))
 	require.NoError(t, err)
 
-	bodyReader := io.Reader(message.Body)
-	if strings.EqualFold(message.Header.Get("Content-Transfer-Encoding"), "quoted-printable") {
-		bodyReader = quotedprintable.NewReader(message.Body)
+	mediaType, params, err := mime.ParseMediaType(message.Header.Get("Content-Type"))
+	if err != nil || !strings.HasPrefix(mediaType, "multipart/") {
+		return decodeNotificationEmailTestPart(t, message.Header.Get("Content-Transfer-Encoding"), message.Body)
 	}
-	body, err := io.ReadAll(bodyReader)
+
+	// Multipart messages (text/plain + text/html alternatives) are decoded part
+	// by part so assertions can match the rendered content of either part.
+	var body strings.Builder
+	reader := multipart.NewReader(message.Body, params["boundary"])
+	for {
+		part, err := reader.NextPart()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		require.NoError(t, err)
+		_, _ = body.WriteString(decodeNotificationEmailTestPart(t, part.Header.Get("Content-Transfer-Encoding"), part))
+		_, _ = body.WriteString("\n")
+	}
+	return body.String()
+}
+
+func decodeNotificationEmailTestPart(t *testing.T, transferEncoding string, r io.Reader) string {
+	t.Helper()
+
+	if strings.EqualFold(transferEncoding, "quoted-printable") {
+		r = quotedprintable.NewReader(r)
+	}
+	body, err := io.ReadAll(r)
 	require.NoError(t, err)
 	return string(body)
 }

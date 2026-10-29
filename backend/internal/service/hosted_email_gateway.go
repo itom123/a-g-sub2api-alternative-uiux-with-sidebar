@@ -173,7 +173,7 @@ func NewHostedCloudflareEmailGatewayFromEnvironment() (TransactionalEmailGateway
 	if err != nil {
 		return nil, err
 	}
-	secret, err := os.ReadFile(secretFile) // #nosec G304 -- deployment configuration controls this local secret path.
+	secret, err := os.ReadFile(secretFile) // #nosec G304 G703 -- deployment configuration controls this local secret path.
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", hostedEmailGatewaySecretFileEnv, err)
 	}
@@ -194,7 +194,7 @@ func validateHostedEmailGatewaySigningSecret(secret []byte) error {
 		return errors.New("must contain unpadded base64url text encoding at least 32 random bytes")
 	}
 	for _, value := range secret {
-		if !((value >= 'A' && value <= 'Z') || (value >= 'a' && value <= 'z') || (value >= '0' && value <= '9') || value == '-' || value == '_') {
+		if (value < 'A' || value > 'Z') && (value < 'a' || value > 'z') && (value < '0' || value > '9') && value != '-' && value != '_' {
 			return errors.New("must contain unpadded base64url text encoding at least 32 random bytes")
 		}
 	}
@@ -296,7 +296,7 @@ func (g *hostedCloudflareEmailGateway) SendTransactionalEmail(ctx context.Contex
 	if err != nil {
 		return fmt.Errorf("send hosted email event: %w", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusAccepted {
 		return fmt.Errorf("hosted email gateway returned status %d", response.StatusCode)
 	}
@@ -308,14 +308,14 @@ func hostedEmailGatewayOpaqueDeliveryID(secret []byte, raw string) (string, erro
 		return "", nil
 	}
 	if len(raw) > hostedEmailGatewayMaxDeliveryID {
-		return "", fmt.Errorf("Hosted email delivery id exceeds %d bytes", hostedEmailGatewayMaxDeliveryID)
+		return "", fmt.Errorf("hosted email delivery id exceeds %d bytes", hostedEmailGatewayMaxDeliveryID)
 	}
 	if raw != strings.TrimSpace(raw) || strings.ContainsAny(raw, "\r\n") {
-		return "", errors.New("Hosted email delivery id must be a trimmed single-line value")
+		return "", errors.New("hosted email delivery id must be a trimmed single-line value")
 	}
 	for _, value := range raw {
 		if value < 0x20 || value == 0x7f {
-			return "", errors.New("Hosted email delivery id contains an unsafe control character")
+			return "", errors.New("hosted email delivery id contains an unsafe control character")
 		}
 	}
 	mac := hmac.New(sha256.New, secret)
@@ -327,7 +327,7 @@ func hostedEmailGatewayOpaqueDeliveryID(secret []byte, raw string) (string, erro
 func hostedEmailGatewayPayloadForEvent(event TransactionalEmailEvent) (hostedCloudflareEmailGatewayPayload, error) {
 	fields, ok := hostedCloudflareEmailGatewayEventFields[event.Event]
 	if !ok {
-		return hostedCloudflareEmailGatewayPayload{}, fmt.Errorf("Hosted email gateway does not support event %q", event.Event)
+		return hostedCloudflareEmailGatewayPayload{}, fmt.Errorf("hosted email gateway does not support event %q", event.Event)
 	}
 	if event.Locale != notificationEmailDefaultLocale && event.Locale != notificationEmailLocaleChinese {
 		return hostedCloudflareEmailGatewayPayload{}, fmt.Errorf("unsupported Hosted email locale %q", event.Locale)
@@ -345,7 +345,7 @@ func hostedEmailGatewayPayloadForEvent(event TransactionalEmailEvent) (hostedClo
 			return hostedCloudflareEmailGatewayPayload{}, fmt.Errorf("missing Hosted email data field %q for event %q", field, event.Event)
 		}
 		if len(value) > hostedEmailGatewayMaxDataValue {
-			return hostedCloudflareEmailGatewayPayload{}, fmt.Errorf("Hosted email data field %q exceeds %d bytes", field, hostedEmailGatewayMaxDataValue)
+			return hostedCloudflareEmailGatewayPayload{}, fmt.Errorf("hosted email data field %q exceeds %d bytes", field, hostedEmailGatewayMaxDataValue)
 		}
 		if isHostedEmailGatewayActionURLField(field) {
 			var err error

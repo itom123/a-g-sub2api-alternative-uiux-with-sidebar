@@ -22,14 +22,14 @@ func TestOpenClawCreateInstancePostgresParameterTypes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	_, err = tx.ExecContext(ctx, `
 		CREATE TEMP TABLE openclaw_hubs (id bigint PRIMARY KEY, slug varchar(64)) ON COMMIT DROP;
 		CREATE TEMP TABLE openclaw_instances (

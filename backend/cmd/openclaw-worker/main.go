@@ -26,7 +26,7 @@ func main() {
 	}
 	enrollmentSecret := []byte(strings.TrimSpace(os.Getenv("OPENCLAW_DEVICE_ENROLLMENT_SECRET")))
 	if value := strings.TrimSpace(os.Getenv("OPENCLAW_DEVICE_ENROLLMENT_SECRET_FILE")); value != "" {
-		if fileSecret, readErr := os.ReadFile(value); readErr == nil {
+		if fileSecret, readErr := os.ReadFile(value); readErr == nil { // #nosec G703 -- Local operator supplies the secret file path, never a request parameter.
 			enrollmentSecret = []byte(strings.TrimSpace(string(fileSecret)))
 		}
 	}

@@ -33,7 +33,11 @@ func TestGatewayFutureCellPolicyPreservesExistingOrigin(t *testing.T) {
 		t.Fatal(err)
 	}
 	data, _ := json.Marshal(patch["controlUi"])
-	if _, obsolete := patch["controlUi"].(map[string]any)["allowInsecureAuth"]; obsolete {
+	controlUI, ok := patch["controlUi"].(map[string]any)
+	if !ok {
+		t.Fatalf("controlUi patch has unexpected type %T", patch["controlUi"])
+	}
+	if _, obsolete := controlUI["allowInsecureAuth"]; obsolete {
 		t.Fatal("emitted an obsolete setting rejected by the deployed runtime")
 	}
 	if !gatewayOriginAllowed(data, "http://127.0.0.1:19100") || !gatewayOriginAllowed(data, "https://u1-0123456789ab.claw.example") {

@@ -56,7 +56,7 @@ func (c EnrollmentCommand) Validate() error {
 			return ErrEnrollmentTransition
 		}
 		for _, v := range c.TicketDigest {
-			if !(v >= '0' && v <= '9' || v >= 'a' && v <= 'f') {
+			if (v < '0' || v > '9') && (v < 'a' || v > 'f') {
 				return ErrEnrollmentTransition
 			}
 		}

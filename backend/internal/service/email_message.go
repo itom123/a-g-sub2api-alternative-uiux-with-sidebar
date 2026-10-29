@@ -100,7 +100,7 @@ func writeQuotedPrintableMIMEPart(message *bytes.Buffer, boundary, contentType, 
 	if err := writer.Close(); err != nil {
 		return fmt.Errorf("close %s email part encoder: %w", contentType, err)
 	}
-	message.WriteString("\r\n")
+	_, _ = message.WriteString("\r\n")
 	return nil
 }
 
@@ -116,7 +116,7 @@ func htmlToPlainText(body string) string {
 			return
 		}
 		if !strings.HasSuffix(text.String(), "\n") {
-			text.WriteByte('\n')
+			_ = text.WriteByte('\n')
 		}
 	}
 
@@ -126,7 +126,7 @@ func htmlToPlainText(body string) string {
 			return
 		}
 		if node.Type == xhtml.TextNode {
-			text.WriteString(strings.ReplaceAll(node.Data, "\u00a0", " "))
+			_, _ = text.WriteString(strings.ReplaceAll(node.Data, "\u00a0", " "))
 			return
 		}
 		if node.Type != xhtml.ElementNode && node.Type != xhtml.DocumentNode {
@@ -150,7 +150,7 @@ func htmlToPlainText(body string) string {
 			appendLineBreak()
 		}
 		if tag == "li" {
-			text.WriteString("- ")
+			_, _ = text.WriteString("- ")
 		}
 		for child := node.FirstChild; child != nil; child = child.NextSibling {
 			visit(child)
@@ -158,9 +158,9 @@ func htmlToPlainText(body string) string {
 		if tag == "a" {
 			for _, attr := range node.Attr {
 				if strings.EqualFold(attr.Key, "href") && strings.TrimSpace(attr.Val) != "" {
-					text.WriteString(" <")
-					text.WriteString(strings.TrimSpace(attr.Val))
-					text.WriteString(">")
+					_, _ = text.WriteString(" <")
+					_, _ = text.WriteString(strings.TrimSpace(attr.Val))
+					_, _ = text.WriteString(">")
 					break
 				}
 			}

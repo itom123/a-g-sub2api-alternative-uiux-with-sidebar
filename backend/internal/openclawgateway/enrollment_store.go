@@ -69,7 +69,7 @@ func (s EnrollmentStore) Create(ctx context.Context, ownerID, instanceID int64, 
 	if err != nil {
 		return Enrollment{}, "", err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	// Lock the owner row rather than an app-global lock; unrelated owners do not
 	// block each other. This also serializes creation against account deletion.
 	var lockedOwner int64
@@ -119,7 +119,7 @@ func (s EnrollmentStore) ApprovalCandidates(ctx context.Context, ownerID, instan
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	ids := make([]string, 0)
 	for rows.Next() {
 		var id string
@@ -146,7 +146,7 @@ func (s EnrollmentStore) Mutate(ctx context.Context, ownerID, instanceID int64, 
 	if err != nil {
 		return Enrollment{}, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	var e Enrollment
 	var rawBinding []byte
 	err = tx.QueryRowContext(ctx, `SELECT id, owner_id, instance_id, tenant_slug, client, state, created_at, expires_at, binding FROM openclaw_device_enrollments WHERE id = $1 AND owner_id = $2 AND instance_id = $3 FOR UPDATE`, id, ownerID, instanceID).Scan(&e.ID, &e.OwnerID, &e.InstanceID, &e.Tenant, &e.Client, &e.State, &e.CreatedAt, &e.ExpiresAt, &rawBinding)

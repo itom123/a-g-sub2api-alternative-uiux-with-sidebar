@@ -29,7 +29,7 @@ func TestEnrollmentApprovalCandidatesUseDurableOwnerScopedRecords(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	e, b, _ := enrollmentFixture(t)
 	query := `SELECT id FROM openclaw_device_enrollments WHERE owner_id = $1 AND instance_id = $2 AND (binding->>'request_id' = $4 OR (native_archived_receipt IS NULL AND (binding->>'device_id' = $3 OR binding IS NULL))) ORDER BY created_at DESC LIMIT 101`
 	mock.ExpectQuery(regexp.QuoteMeta(query)).WithArgs(e.OwnerID, e.InstanceID, b.DeviceID, b.RequestID).WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(e.ID))
@@ -66,7 +66,7 @@ func TestEnrollmentStorePersistsExactBindingWithAtomicAudit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	e, b, now := enrollmentFixture(t)
 	mock.ExpectBegin()
 	mock.ExpectQuery("SELECT id, owner_id.*FOR UPDATE").WithArgs(e.ID, e.OwnerID, e.InstanceID).WillReturnRows(enrollmentRows(e, nil))
@@ -87,7 +87,7 @@ func TestEnrollmentStoreCommitsExpiryDespiteRejectedApproval(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	e, b, now := enrollmentFixture(t)
 	if err := e.Bind(b, now); err != nil {
 		t.Fatal(err)
@@ -111,7 +111,7 @@ func TestEnrollmentStoreUsesNativeDeliveryTimeWithoutExtendingAdmission(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	e, b, now := enrollmentFixture(t)
 	if err := e.Bind(b, now); err != nil {
 		t.Fatal(err)
@@ -140,7 +140,7 @@ func TestEnrollmentStoreDoesNotPromoteUnapprovedNativeDelivery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	e, b, now := enrollmentFixture(t)
 	if err := e.Bind(b, now); err != nil {
 		t.Fatal(err)
@@ -161,7 +161,7 @@ func TestEnrollmentStoreAuditFailureRollsBackBinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	e, b, now := enrollmentFixture(t)
 	mock.ExpectBegin()
 	mock.ExpectQuery("SELECT id, owner_id.*FOR UPDATE").WithArgs(e.ID, e.OwnerID, e.InstanceID).WillReturnRows(enrollmentRows(e, nil))
@@ -181,7 +181,7 @@ func TestEnrollmentStoreDoesNotExposeAnotherOwnersEnrollment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	e, _, now := enrollmentFixture(t)
 	mock.ExpectBegin()
 	mock.ExpectQuery("SELECT id, owner_id.*WHERE id = \\$1 AND owner_id = \\$2 AND instance_id = \\$3 FOR UPDATE").WithArgs(e.ID, int64(43), e.InstanceID).WillReturnError(sql.ErrNoRows)
@@ -199,7 +199,7 @@ func TestEnrollmentStoreRejectsChangedGrantWithoutMutation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	e, b, now := enrollmentFixture(t)
 	if err := e.Bind(b, now); err != nil {
 		t.Fatal(err)
@@ -251,6 +251,6 @@ func TestEnrollmentStoreCreateStoresOnlyDigestAndChecksQuotaUnderOwnerLock(t *te
 		if err := mock.ExpectationsWereMet(); err != nil {
 			t.Fatal(err)
 		}
-		db.Close()
+		_ = db.Close()
 	}
 }
