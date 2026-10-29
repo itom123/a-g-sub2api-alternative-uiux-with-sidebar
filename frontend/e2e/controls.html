@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Shared control acceptance</title></head>
+  <body>
+    <div id="app"></div>
+    <script type="module">
+      import { createApp } from 'vue'
+      import { createPinia } from 'pinia'
+      import { i18n, initI18n } from '/src/i18n/index.ts'
+      import Controls from './Controls.vue'
+      import '/src/style.css'
+      import '/src/styles/goblin.css'
+      document.documentElement.classList.toggle('dark', localStorage.getItem('theme') === 'dark')
+      await initI18n()
+      createApp(Controls).use(createPinia()).use(i18n).mount('#app')
+    </script>
+  </body>
+</html>

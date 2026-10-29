@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">AG</title>
+  <path fill="#000" d="M0 0H512V512H0Z"/>
+  <g fill="#fff">
+    <path d="M58 356L96 164H224L264 356H186L176 342H144L138 356Z"/>
+    <path d="M288 164H454V223H349V297H396V274H375V239H454V356H288Z"/>
+  </g>
+</svg>

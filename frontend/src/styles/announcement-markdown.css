@@ -1,0 +1,25 @@
+/* Shared, bounded rich text for announcement dialogs and bell details. */
+.markdown-body { font-size: 16px; line-height: 1.7; color: var(--ag-ink); overflow-wrap: anywhere; }
+.markdown-body :is(h1, h2, h3, h4) { font-weight: 700; line-height: 1.35; margin: 24px 0 12px; }
+.markdown-body h1 { font-size: 28px; }
+.markdown-body h2 { font-size: 24px; }
+.markdown-body h3 { font-size: 20px; }
+.markdown-body h4 { font-size: 18px; }
+.markdown-body > :first-child { margin-top: 0; }
+.markdown-body p { margin: 0 0 16px; }
+.markdown-body a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.markdown-body ul { list-style: disc; }
+.markdown-body ol { list-style: decimal; }
+.markdown-body :is(ul, ol) { margin: 0 0 16px; padding-left: 24px; }
+.markdown-body li { padding-left: 4px; margin-top: 8px; }
+.markdown-body blockquote { border-left: 2px solid var(--ag-rule); padding: 12px 16px; margin: 20px 0; }
+.markdown-body code { font-size: .9em; border: 1px solid var(--ag-rule); padding: 1px 4px; }
+.markdown-body pre { max-width: 100%; overflow-x: auto; border: 1px solid var(--ag-rule); padding: 16px; margin: 20px 0; }
+.markdown-body pre code { border: 0; padding: 0; white-space: pre; }
+.markdown-body hr { border-top: 1px solid var(--ag-rule); margin: 24px 0; }
+.markdown-body table { width: 100%; table-layout: fixed; border-collapse: collapse; margin: 20px 0; }
+.markdown-body th, .markdown-body td { border: 1px solid var(--ag-rule); padding: 10px; text-align: left; overflow-wrap: anywhere; }
+.markdown-body th { font-weight: 700; }
+.markdown-body img { max-width: 100%; height: auto; margin: 20px 0; }
+.markdown-body strong { font-weight: 700; }
+.markdown-body em { font-style: italic; }
