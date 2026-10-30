@@ -110,7 +110,7 @@
                 {{ t('modelPlaza.table.reasoningMultiplierBadge', { effort, multiplier }) }}
               </span>
             </div>
-            <ModelHealth v-if="!period" :platform="m.platform" :model="m.name" />
+            <ModelHealth v-if="!period" :platform="m.platform" :model="m.name" :group-id="groupId" />
           </td>
 
           <!-- token 计费:输入 / 输出 / 缓存(写/读),有阶梯时每档一行;档位标签只放输入列,其余列按行对齐 -->
@@ -180,6 +180,9 @@
                 </div>
               </div>
               <span v-else class="text-gray-400 dark:text-dark-500">暂未提供</span>
+              <div v-for="tier in m.cache_write_12h_prices" :key="tier.min_tokens" class="mt-1 text-xs leading-5" data-testid="paid-cache-12h">
+                写入 12h<span v-if="(m.cache_write_12h_prices?.length ?? 0) > 1"> · {{ cacheTierLabel(tier) }}</span> {{ paidPerMillion(tier.price, period) }}
+              </div>
             </td>
           </template>
 
@@ -278,6 +281,9 @@
               </div>
             </div>
             <span v-else class="text-gray-400 dark:text-dark-500">暂未提供</span>
+            <div v-for="tier in m.official_pricing?.cache_write_12h_prices" :key="tier.min_tokens" class="mt-1 text-xs leading-5" data-testid="official-cache-12h">
+              写入 12h<span v-if="(m.official_pricing?.cache_write_12h_prices?.length ?? 0) > 1"> · {{ cacheTierLabel(tier) }}</span> {{ official(tier.price) }}
+            </div>
           </td>
 
           <!-- 折扣倍率(分时时段行展示 生效倍率×时段倍率;生图独立倍率行展示独立倍率;专属倍率划线展示原倍率) -->
@@ -320,7 +326,7 @@ import {
   REASONING_EFFORT_LEVELS,
   type BillingMode
 } from '@/constants/channel'
-import type { PlazaModel, PlazaTimePricingPeriod } from '@/api/modelPlaza'
+import type { PlazaCacheWritePrice, PlazaModel, PlazaTimePricingPeriod } from '@/api/modelPlaza'
 import type { UserPricingInterval } from '@/api/channels'
 
 function reasoningEffortMultipliers(model: PlazaModel): [string, number][] {
@@ -337,6 +343,7 @@ const props = defineProps<{
   models: PlazaModel[]
   /** 分组平台;实付分区底色随平台着色,未知平台回退品牌青。 */
   platform?: string
+  groupId?: number
   /** 分组默认倍率。 */
   rateMultiplier: number
   /** 用户专属倍率;与默认不同,实付价按此计算并划线展示原倍率。 */
@@ -560,6 +567,10 @@ function formatTokenCount(n: number): string {
   if (n >= 1_000_000) return `${trimZero(n / 1_000_000)}M`
   if (n >= 1_000) return `${trimZero(n / 1_000)}K`
   return String(n)
+}
+
+function cacheTierLabel(tier: PlazaCacheWritePrice): string {
+  return tier.max_tokens == null ? `>${formatTokenCount(tier.min_tokens)}` : `≤${formatTokenCount(tier.max_tokens)}`
 }
 
 function trimZero(n: number): string {

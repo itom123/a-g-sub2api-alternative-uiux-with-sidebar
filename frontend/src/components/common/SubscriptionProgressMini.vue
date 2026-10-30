@@ -258,7 +258,7 @@ function getProgressWidth(used: number | undefined, limit: number | null | undef
 }
 
 function formatUsage(used: number | undefined, limit: number | null | undefined): string {
-  return `¥${cnyNumber(used || 0)}/${limit == null ? '∞' : `¥${cnyNumber(limit)}`}`
+  return `¥${cnyNumber(used || 0, 0)}/${limit == null ? '∞' : `¥${cnyNumber(limit, 0)}`}`
 }
 
 function formatDaysRemaining(expiresAt: string): string {

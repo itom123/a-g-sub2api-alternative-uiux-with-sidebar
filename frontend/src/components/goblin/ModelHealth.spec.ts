@@ -9,6 +9,24 @@ beforeEach(() => {
   mock.state = reactive({ row: null, statusError: false, monitorEnabled: true, hasObservation: false, stale: false, interval: 60, filter: { groupIds: [] }, snapshot: null, findModel: () => mock.state.row })
 })
 describe('live health presentation', () => {
+  it('keeps stale or failed observations unknown and links to the exact group and model', async () => {
+    mock.state.row = { health: { overall: 'healthy', minimum_sample: 50 }, metrics: { ttft: { p50_ms: 100 } } }
+    mock.state.snapshot = { coverage: { data_through: '0001-01-01T00:00:00Z' } }
+    const wrapper = mount(ModelHealth, {
+      props: { platform: 'openai', model: 'gpt-6.1-terra', groupId: 9 },
+      global: { stubs: { RouterLink: { name: 'RouterLink', props: ['to'], template: '<a><slot /></a>' } } }
+    })
+    expect(wrapper.getComponent({ name: 'RouterLink' }).props('to')).toEqual({ path: '/monitor', query: { group: '9', platform: 'openai', model: 'openai\u0000gpt-6.1-terra' } })
+    expect(wrapper.get('.ag-status').attributes('title')).not.toContain('观测截至')
+    mock.state.stale = true
+    await wrapper.vm.$nextTick()
+    expect(wrapper.get('.ag-status').text()).toBe('待观测')
+    expect(wrapper.text()).toContain('观测数据更新延迟')
+    mock.state.statusError = true
+    await wrapper.vm.$nextTick()
+    expect(wrapper.get('.ag-status').text()).toBe('待观测')
+    expect(wrapper.text()).toContain('状态获取失败')
+  })
   it('keeps absent models observable and updates every authoritative health enum', async () => {
     const wrapper = mount(ModelHealth, { props: { platform: 'openai', model: 'luna' } })
     expect(wrapper.text()).toContain('待观测'); expect(wrapper.text()).toContain('暂无此模型的近期观测记录')

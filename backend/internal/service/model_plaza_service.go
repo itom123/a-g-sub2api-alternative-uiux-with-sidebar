@@ -10,11 +10,12 @@ import (
 // PlazaOfficialPricing 模型广场展示用的官方参考价（USD per token），与计费同源：
 // LiteLLM → 内置兜底价卡 → 模型策略。字段为 nil 表示该项缺失（0 视为未配置）。
 type PlazaOfficialPricing struct {
-	InputPrice        *float64
-	OutputPrice       *float64
-	CacheWritePrice   *float64 // 5m 缓存写入（= LiteLLM cache_creation）
-	CacheWrite1hPrice *float64 // 1h 缓存写入，仅计费会区分 5m/1h 时给出
-	CacheReadPrice    *float64
+	InputPrice          *float64
+	OutputPrice         *float64
+	CacheWritePrice     *float64 // 5m 缓存写入（= LiteLLM cache_creation）
+	CacheWrite1hPrice   *float64 // 1h 缓存写入，仅计费会区分 5m/1h 时给出
+	CacheReadPrice      *float64
+	CacheWrite12hPrices []PlazaCacheWritePrice
 	// Intervals 官方长上下文阶梯（多档时给出），不受分组开关影响。
 	Intervals []PricingInterval
 }
@@ -28,7 +29,15 @@ type PlazaModel struct {
 	// LongContextBasis 多档时的计价基准（整单 / 仅超出部分），单档为空。
 	LongContextBasis ContextPricingBasis
 	// TimePricing 计费会生效的分时倍率时段；无分时为 nil。
-	TimePricing *TimePricingSchedule
+	TimePricing         *TimePricingSchedule
+	CacheWrite12hPrices []PlazaCacheWritePrice
+}
+
+// PlazaCacheWritePrice is display-only; it never changes channel price cards.
+type PlazaCacheWritePrice struct {
+	MinTokens int      `json:"min_tokens"`
+	MaxTokens *int     `json:"max_tokens"`
+	Price     *float64 `json:"price"`
 }
 
 // PlazaGroup 模型广场中以分组为顶层的条目。
@@ -58,6 +67,12 @@ type PlazaGroup struct {
 	VideoRateMultiplier  float64
 	// LongContextPricingEnabled 分组是否按上下文长度应用阶梯价；关闭时模型展示的是最低档。
 	LongContextPricingEnabled bool
+	DailyLimitUSD             *float64
+	WeeklyLimitUSD            *float64
+	MonthlyLimitUSD           *float64
+	MaxReasoningEffort        string
+	ReasoningEffortOverLimit  string
+	RPMLimit                  int
 	Models                    []PlazaModel
 }
 
@@ -143,6 +158,12 @@ func (s *ModelPlazaService) ListGroups(ctx context.Context) ([]PlazaGroup, error
 			VideoRateIndependent:      g.VideoRateIndependent,
 			VideoRateMultiplier:       g.VideoRateMultiplier,
 			LongContextPricingEnabled: g.LongContextPricingEnabled,
+			DailyLimitUSD:             g.DailyLimitUSD,
+			WeeklyLimitUSD:            g.WeeklyLimitUSD,
+			MonthlyLimitUSD:           g.MonthlyLimitUSD,
+			MaxReasoningEffort:        g.MaxReasoningEffort,
+			ReasoningEffortOverLimit:  g.MaxReasoningEffortOverLimit,
+			RPMLimit:                  g.RPMLimit,
 		}
 		groupEnt[g.ID] = g
 		order = append(order, g.ID)
@@ -207,6 +228,17 @@ func (s *ModelPlazaService) ListGroups(ctx context.Context) ([]PlazaGroup, error
 	out := make([]PlazaGroup, 0, len(order))
 	for _, gid := range order {
 		pg := byGroup[gid]
+		g := groupEnt[gid]
+		// Team subscription pools can route through their assigned accounts without
+		// a separate channel card. Show their exact allowlist using their own billing
+		// resolver, while keeping the existing permission filtering in the handler.
+		if len(pg.Models) == 0 && g.SubscriptionType == SubscriptionTypeSubscription && g.AccountCount > 0 && g.ModelAllowlist.Enabled && isConcreteRequestPlatform(g.Platform) {
+			for _, name := range g.ModelAllowlist.Models {
+				if name != "" && name != "__other__" && !strings.Contains(name, "*") {
+					pg.Models = append(pg.Models, PlazaModel{Name: name, Platform: g.Platform})
+				}
+			}
+		}
 		if len(pg.Models) == 0 {
 			continue
 		}
@@ -216,7 +248,6 @@ func (s *ModelPlazaService) ListGroups(ctx context.Context) ([]PlazaGroup, error
 			}
 			return pg.Models[i].Platform < pg.Models[j].Platform
 		})
-		g := groupEnt[gid]
 		for j := range pg.Models {
 			s.fillDisplayPricing(ctx, &pg.Models[j], g)
 			pg.Models[j].OfficialPricing = s.lookupOfficialPricing(ctx, pg.Models[j].Name, officialMemo)
@@ -239,6 +270,11 @@ func (s *ModelPlazaService) ListGroups(ctx context.Context) ([]PlazaGroup, error
 func (s *ModelPlazaService) fillDisplayPricing(ctx context.Context, m *PlazaModel, g *Group) {
 	if groupPricing := matchGroupModelPricing(g, m.Name); groupPricing != nil {
 		m.Pricing = groupPricing
+		// 分组模型级固定价就是实收价，不能再被分组图片兜底档位覆盖。
+		// 否则模型广场会显示 image_price_1k/2k/4k，而实际按 model_pricing 扣费。
+		if groupPricing.BillingMode == BillingModeImage || groupPricing.BillingMode == BillingModePerRequest {
+			return
+		}
 	}
 	if s.billingService != nil && s.resolver != nil {
 		sched, err := s.billingService.ResolveContextPricingSchedule(ctx, s.resolver, ContextPricingScheduleInput{
@@ -247,6 +283,7 @@ func (s *ModelPlazaService) fillDisplayPricing(ctx context.Context, m *PlazaMode
 			Platform: m.Platform,
 		})
 		if err == nil && sched != nil && len(sched.Tiers) > 0 {
+			m.CacheWrite12hPrices = plazaCacheWrite12hPrices(sched.Tiers)
 			m.Pricing = plazaPricingFromSchedule(m.Pricing, sched)
 			if len(sched.Tiers) > 1 {
 				m.LongContextBasis = sched.Basis
@@ -256,6 +293,16 @@ func (s *ModelPlazaService) fillDisplayPricing(ctx context.Context, m *PlazaMode
 		}
 	}
 	m.Pricing = plazaImageDisplayPricing(m.Pricing, g)
+}
+
+func plazaCacheWrite12hPrices(tiers []ContextPricingTier) []PlazaCacheWritePrice {
+	var prices []PlazaCacheWritePrice
+	for _, tier := range tiers {
+		if tier.CacheWrite12h != nil {
+			prices = append(prices, PlazaCacheWritePrice{MinTokens: tier.MinTokens, MaxTokens: tier.MaxTokens, Price: tier.CacheWrite12h})
+		}
+	}
+	return prices
 }
 
 // plazaPricingFromSchedule 把阶梯表压成展示用的 ChannelModelPricing：
@@ -369,8 +416,11 @@ func (s *ModelPlazaService) lookupOfficialPricing(ctx context.Context, modelName
 		}
 		if s.resolver != nil {
 			sched, schedErr := s.billingService.ResolveContextPricingSchedule(ctx, s.resolver, ContextPricingScheduleInput{Model: modelName})
-			if schedErr == nil && sched != nil && len(sched.Tiers) > 1 {
-				result.Intervals = plazaIntervalsFromTiers(sched.Tiers)
+			if schedErr == nil && sched != nil {
+				result.CacheWrite12hPrices = plazaCacheWrite12hPrices(sched.Tiers)
+				if len(sched.Tiers) > 1 {
+					result.Intervals = plazaIntervalsFromTiers(sched.Tiers)
+				}
 			}
 		}
 		if result.InputPrice == nil && result.OutputPrice == nil && result.CacheWritePrice == nil &&

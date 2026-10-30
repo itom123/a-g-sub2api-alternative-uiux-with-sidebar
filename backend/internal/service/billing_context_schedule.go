@@ -21,14 +21,15 @@ const ContextPricingBasisWholeRequest ContextPricingBasis = "whole_request"
 // ContextPricingTier (MinTokens, MaxTokens] 区间内的有效 per-token 单价（USD）。
 // nil 表示该项无价/不计费；MaxTokens 为 nil 表示无上限。
 type ContextPricingTier struct {
-	MinTokens    int
-	MaxTokens    *int
-	Label        string
-	Input        *float64
-	Output       *float64
-	CacheWrite   *float64
-	CacheWrite1h *float64
-	CacheRead    *float64
+	MinTokens     int
+	MaxTokens     *int
+	Label         string
+	Input         *float64
+	Output        *float64
+	CacheWrite    *float64
+	CacheWrite1h  *float64
+	CacheWrite12h *float64
+	CacheRead     *float64
 }
 
 // TimePricingPeriod 分时倍率时段：配置时区当天 [StartTime, EndTime) 内整单费用乘 Multiplier。
@@ -299,6 +300,15 @@ func probeContextTier(seg contextSegment, resolved *ResolvedPricing, probe func(
 	if err != nil {
 		return tier, err
 	}
+	if resolved.BasePricing == nil || !resolved.BasePricing.SupportsCacheBreakdown {
+		tier.CacheWrite1h = nil
+	}
+	if resolved.BasePricing != nil && resolved.BasePricing.CacheCreation12hPrice > 0 {
+		tier.CacheWrite12h, err = probeComponentPrice(func(n int) UsageTokens { return UsageTokens{CacheCreationTokens: n, CacheCreation12hTokens: n} }, c, delta, probe)
+		if err != nil {
+			return tier, err
+		}
+	}
 	tier.Output, err = probeComponentPrice(func(n int) UsageTokens { return UsageTokens{InputTokens: c, OutputTokens: n} }, 0, contextProbeDelta, probe)
 	if err != nil {
 		return tier, err
@@ -406,7 +416,7 @@ func mergeEqualContextTiers(tiers []ContextPricingTier) []ContextPricingTier {
 
 func sameContextPrices(a, b ContextPricingTier) bool {
 	return samePricePtr(a.Input, b.Input) && samePricePtr(a.Output, b.Output) &&
-		samePricePtr(a.CacheWrite, b.CacheWrite) && samePricePtr(a.CacheWrite1h, b.CacheWrite1h) && samePricePtr(a.CacheRead, b.CacheRead)
+		samePricePtr(a.CacheWrite, b.CacheWrite) && samePricePtr(a.CacheWrite1h, b.CacheWrite1h) && samePricePtr(a.CacheWrite12h, b.CacheWrite12h) && samePricePtr(a.CacheRead, b.CacheRead)
 }
 
 func samePricePtr(a, b *float64) bool {

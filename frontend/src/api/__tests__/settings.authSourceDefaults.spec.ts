@@ -267,7 +267,7 @@ describe("sanitizePlatformQuotasMap", () => {
     const result = sanitizePlatformQuotasMap({
       anthropic: { daily: 10.5, weekly: 0, monthly: null },
     });
-    expect(result.anthropic?.daily).toBe(10.5);
+    expect(result.anthropic?.daily).toBe(11);
     expect(result.anthropic?.weekly).toBe(0);
     expect(result.anthropic?.monthly).toBe(null);
   });

@@ -261,9 +261,9 @@
                     ></div>
                   </div>
                   <span class="usage-amount">
-                    ¥{{ cnyNumber(row.daily_usage_usd ?? 0, 2) }}
+                    ¥{{ cnyNumber(row.daily_usage_usd ?? 0, 0) }}
                     <span class="text-gray-400">/</span>
-                    ¥{{ cnyNumber(row.group?.daily_limit_usd, 2) }}
+                    ¥{{ cnyNumber(row.group?.daily_limit_usd, 0) }}
                   </span>
                 </div>
                 <div class="reset-info" v-if="row.daily_window_start">
@@ -298,9 +298,9 @@
                     ></div>
                   </div>
                   <span class="usage-amount">
-                    ¥{{ cnyNumber(row.weekly_usage_usd ?? 0, 2) }}
+                    ¥{{ cnyNumber(row.weekly_usage_usd ?? 0, 0) }}
                     <span class="text-gray-400">/</span>
-                    ¥{{ cnyNumber(row.group?.weekly_limit_usd, 2) }}
+                    ¥{{ cnyNumber(row.group?.weekly_limit_usd, 0) }}
                   </span>
                 </div>
                 <div class="reset-info" v-if="row.weekly_window_start">
@@ -335,9 +335,9 @@
                     ></div>
                   </div>
                   <span class="usage-amount">
-                    ¥{{ cnyNumber(row.monthly_usage_usd ?? 0, 2) }}
+                    ¥{{ cnyNumber(row.monthly_usage_usd ?? 0, 0) }}
                     <span class="text-gray-400">/</span>
-                    ¥{{ cnyNumber(row.group?.monthly_limit_usd, 2) }}
+                    ¥{{ cnyNumber(row.group?.monthly_limit_usd, 0) }}
                   </span>
                 </div>
                 <div class="reset-info" v-if="row.monthly_window_start">

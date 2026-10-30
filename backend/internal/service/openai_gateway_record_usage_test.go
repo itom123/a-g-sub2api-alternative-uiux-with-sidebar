@@ -1217,6 +1217,28 @@ func TestOpenAIGatewayServiceRecordUsage_GPT56SeparatesCacheWriteForBillingAndSt
 	require.InDelta(t, usageRepo.lastLog.TotalCost*1.1, usageRepo.lastLog.ActualCost, 1e-12)
 }
 
+func TestOpenAIGatewayServiceRecordUsage_OpenAI12hCacheChargesPreciseLedgerCost(t *testing.T) {
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	svc := newOpenAIRecordUsageServiceForTest(usageRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{}, nil)
+	svc.billingService = NewBillingService(svc.cfg, nil)
+	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
+		Result: &OpenAIForwardResult{
+			RequestID: "resp_mixed_cache_lifetimes",
+			Model:     "gpt-6.1-sol",
+			Usage:     OpenAIUsage{InputTokens: 12000, OutputTokens: 100, CacheReadInputTokens: 4000, CacheCreationInputTokens: 7000, CacheCreation12hInputTokens: 4000},
+			Duration:  time.Second,
+		},
+		APIKey: &APIKey{ID: 1056}, User: &User{ID: 2056}, Account: &Account{ID: 3056},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, usageRepo.lastLog)
+	require.Equal(t, 1000, usageRepo.lastLog.InputTokens)
+	require.Equal(t, 12100, usageRepo.lastLog.TotalTokens())
+	require.InDelta(t, 0.0275, usageRepo.lastLog.CacheCreationCost, 1e-12)
+	require.InDelta(t, 0.0309, usageRepo.lastLog.TotalCost, 1e-12)
+	require.InDelta(t, 0.03399, usageRepo.lastLog.ActualCost, 1e-12)
+}
+
 func TestOpenAIGatewayServiceRecordUsage_Gpt54LongContextBillingDisabledWhenGroupAndAccountOff(t *testing.T) {
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	userRepo := &openAIRecordUsageUserRepoStub{}

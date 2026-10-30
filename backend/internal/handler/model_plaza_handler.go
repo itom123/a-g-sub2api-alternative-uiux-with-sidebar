@@ -38,11 +38,12 @@ func NewModelPlazaHandler(
 
 // modelPlazaOfficialPricing 官方参考价（USD per token，与计费目录同源）。
 type modelPlazaOfficialPricing struct {
-	InputPrice        *float64 `json:"input_price"`
-	OutputPrice       *float64 `json:"output_price"`
-	CacheWritePrice   *float64 `json:"cache_write_price"`
-	CacheWrite1hPrice *float64 `json:"cache_write_1h_price,omitempty"`
-	CacheReadPrice    *float64 `json:"cache_read_price"`
+	InputPrice          *float64                       `json:"input_price"`
+	OutputPrice         *float64                       `json:"output_price"`
+	CacheWritePrice     *float64                       `json:"cache_write_price"`
+	CacheWrite1hPrice   *float64                       `json:"cache_write_1h_price,omitempty"`
+	CacheReadPrice      *float64                       `json:"cache_read_price"`
+	CacheWrite12hPrices []service.PlazaCacheWritePrice `json:"cache_write_12h_prices,omitempty"`
 	// Intervals 官方长上下文阶梯，仅多档模型给出。
 	Intervals []userPricingIntervalDTO `json:"intervals,omitempty"`
 }
@@ -71,7 +72,8 @@ type modelPlazaModel struct {
 	// LongContextBasis 多档时的计价基准："whole_request"（整单按档）| "marginal"（仅超出部分）。
 	LongContextBasis string `json:"long_context_basis,omitempty"`
 	// TimePricing 分时倍率时段，落在时段内的请求整单乘倍率；无分时省略。
-	TimePricing *modelPlazaTimePricing `json:"time_pricing,omitempty"`
+	TimePricing         *modelPlazaTimePricing         `json:"time_pricing,omitempty"`
+	CacheWrite12hPrices []service.PlazaCacheWritePrice `json:"cache_write_12h_prices,omitempty"`
 }
 
 // modelPlazaGroup 广场分组条目（白名单字段）。
@@ -96,6 +98,12 @@ type modelPlazaGroup struct {
 	VideoRateMultiplier  float64 `json:"video_rate_multiplier"`
 	// 分组是否启用长上下文阶梯计费；关闭时模型实付列只展示最低档/基础价。
 	LongContextPricingEnabled bool              `json:"long_context_pricing_enabled"`
+	DailyLimitUSD             *float64          `json:"daily_limit_usd"`
+	WeeklyLimitUSD            *float64          `json:"weekly_limit_usd"`
+	MonthlyLimitUSD           *float64          `json:"monthly_limit_usd"`
+	MaxReasoningEffort        string            `json:"max_reasoning_effort"`
+	ReasoningEffortOverLimit  string            `json:"reasoning_effort_over_limit"`
+	RPMLimit                  int               `json:"rpm_limit"`
 	Models                    []modelPlazaModel `json:"models"`
 }
 
@@ -202,12 +210,13 @@ func toModelPlazaGroupDTO(g *service.PlazaGroup, userRates map[int64]float64) mo
 	for i := range g.Models {
 		m := &g.Models[i]
 		models = append(models, modelPlazaModel{
-			Name:             m.Name,
-			Platform:         m.Platform,
-			Pricing:          toUserPricing(m.Pricing),
-			OfficialPricing:  toModelPlazaOfficialPricing(m.OfficialPricing),
-			LongContextBasis: string(m.LongContextBasis),
-			TimePricing:      toModelPlazaTimePricing(m.TimePricing),
+			Name:                m.Name,
+			Platform:            m.Platform,
+			Pricing:             toUserPricing(m.Pricing),
+			OfficialPricing:     toModelPlazaOfficialPricing(m.OfficialPricing),
+			LongContextBasis:    string(m.LongContextBasis),
+			TimePricing:         toModelPlazaTimePricing(m.TimePricing),
+			CacheWrite12hPrices: m.CacheWrite12hPrices,
 		})
 	}
 	dto := modelPlazaGroup{
@@ -227,6 +236,12 @@ func toModelPlazaGroupDTO(g *service.PlazaGroup, userRates map[int64]float64) mo
 		VideoRateIndependent:      g.VideoRateIndependent,
 		VideoRateMultiplier:       g.VideoRateMultiplier,
 		LongContextPricingEnabled: g.LongContextPricingEnabled,
+		DailyLimitUSD:             g.DailyLimitUSD,
+		WeeklyLimitUSD:            g.WeeklyLimitUSD,
+		MonthlyLimitUSD:           g.MonthlyLimitUSD,
+		MaxReasoningEffort:        g.MaxReasoningEffort,
+		ReasoningEffortOverLimit:  g.ReasoningEffortOverLimit,
+		RPMLimit:                  g.RPMLimit,
 		Models:                    models,
 	}
 	if rate, ok := userRates[g.ID]; ok {
@@ -257,11 +272,12 @@ func toModelPlazaOfficialPricing(p *service.PlazaOfficialPricing) *modelPlazaOff
 		return nil
 	}
 	return &modelPlazaOfficialPricing{
-		InputPrice:        p.InputPrice,
-		OutputPrice:       p.OutputPrice,
-		CacheWritePrice:   p.CacheWritePrice,
-		CacheWrite1hPrice: p.CacheWrite1hPrice,
-		CacheReadPrice:    p.CacheReadPrice,
-		Intervals:         toUserPricingIntervals(p.Intervals),
+		InputPrice:          p.InputPrice,
+		OutputPrice:         p.OutputPrice,
+		CacheWritePrice:     p.CacheWritePrice,
+		CacheWrite1hPrice:   p.CacheWrite1hPrice,
+		CacheReadPrice:      p.CacheReadPrice,
+		CacheWrite12hPrices: p.CacheWrite12hPrices,
+		Intervals:           toUserPricingIntervals(p.Intervals),
 	}
 }

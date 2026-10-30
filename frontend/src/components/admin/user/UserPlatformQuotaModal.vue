@@ -33,6 +33,7 @@
               <td class="px-3 py-2">
                 <div class="flex items-center gap-1">
                   <CurrencyInput
+                    whole
                     v-model.number="row.daily_limit_usd"
                     type="number"
                     min="0"
@@ -52,6 +53,7 @@
               <td class="px-3 py-2">
                 <div class="flex items-center gap-1">
                   <CurrencyInput
+                    whole
                     v-model.number="row.weekly_limit_usd"
                     type="number"
                     min="0"
@@ -71,6 +73,7 @@
               <td class="px-3 py-2">
                 <div class="flex items-center gap-1">
                   <CurrencyInput
+                    whole
                     v-model.number="row.monthly_limit_usd"
                     type="number"
                     min="0"
@@ -120,7 +123,7 @@ import CurrencyInput from '@/components/common/CurrencyInput.vue'
 import { ref, reactive, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
-import { formatCny } from '@/utils/currency'
+import { formatCny, roundCnyQuota } from '@/utils/currency'
 import { adminAPI } from '@/api/admin'
 import { platformQuotaPlatforms } from '@/api/admin/users'
 import type { AdminUser, PlatformQuotaItem, PlatformQuotaPlatform, PlatformQuotaWindow } from '@/types'
@@ -195,7 +198,7 @@ function normalize(items: PlatformQuotaItem[]): QuotaRow[] {
 
 function formatUsage(n: number): string {
   if (n == null || Number.isNaN(n)) return '-'
-  return formatCny(n)
+  return formatCny(n, 0)
 }
 
 async function load() {
@@ -271,7 +274,7 @@ async function onSave() {
 // 调用方在保存前拦截非法数值（见 onSave）。
 function normalizeLimit(v: number | null | undefined): number | null {
   if (v === null || v === undefined) return null
-  if (typeof v === 'number' && Number.isFinite(v) && v >= 0) return v
+  if (typeof v === 'number' && Number.isFinite(v) && v >= 0) return roundCnyQuota(v)
   return null
 }
 

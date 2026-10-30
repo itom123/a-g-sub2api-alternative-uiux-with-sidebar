@@ -25,12 +25,13 @@ type FrameConn interface {
 }
 
 type Usage struct {
-	InputTokens              int
-	ImageInputTokens         int
-	OutputTokens             int
-	CacheCreationInputTokens int
-	CacheReadInputTokens     int
-	ImageOutputTokens        int
+	InputTokens                 int
+	ImageInputTokens            int
+	OutputTokens                int
+	CacheCreationInputTokens    int
+	CacheCreation12hInputTokens int
+	CacheReadInputTokens        int
+	ImageOutputTokens           int
 }
 
 type RelayResult struct {
@@ -1156,12 +1157,13 @@ func parseUsageAndAccumulate(
 		))
 	}
 	parsedUsage := Usage{
-		InputTokens:              inputTokens,
-		ImageInputTokens:         int(imageInputTokens),
-		OutputTokens:             outputTokens,
-		CacheCreationInputTokens: openAICacheCreationTokensFromUsage(usageResult),
-		CacheReadInputTokens:     cachedTokens,
-		ImageOutputTokens:        int(imageTokens),
+		InputTokens:                 inputTokens,
+		ImageInputTokens:            int(imageInputTokens),
+		OutputTokens:                outputTokens,
+		CacheCreationInputTokens:    openAICacheCreationTokensFromUsage(usageResult),
+		CacheCreation12hInputTokens: min(max(int(usageResult.Get("input_tokens_details.cache_write_tokens_details.ttl_12h_tokens").Int()), 0), openAICacheCreationTokensFromUsage(usageResult)),
+		CacheReadInputTokens:        cachedTokens,
+		ImageOutputTokens:           int(imageTokens),
 	}
 
 	if isTerminalEvent(strings.TrimSpace(eventType)) {
@@ -1193,6 +1195,7 @@ func mergeRelayUsageNonZero(dst *Usage, src Usage) {
 	}
 	if src.CacheCreationInputTokens > 0 {
 		dst.CacheCreationInputTokens = src.CacheCreationInputTokens
+		dst.CacheCreation12hInputTokens = src.CacheCreation12hInputTokens
 	}
 	if src.CacheReadInputTokens > 0 {
 		dst.CacheReadInputTokens = src.CacheReadInputTokens
@@ -1214,6 +1217,7 @@ func finalizeRelayTurnUsage(state *relayState) Usage {
 	state.usage.ImageInputTokens += turnUsage.ImageInputTokens
 	state.usage.OutputTokens += turnUsage.OutputTokens
 	state.usage.CacheCreationInputTokens += turnUsage.CacheCreationInputTokens
+	state.usage.CacheCreation12hInputTokens += turnUsage.CacheCreation12hInputTokens
 	state.usage.CacheReadInputTokens += turnUsage.CacheReadInputTokens
 	state.usage.ImageOutputTokens += turnUsage.ImageOutputTokens
 	state.turnUsage = Usage{}

@@ -94,6 +94,12 @@ function mountSection(g: ModelPlazaGroup) {
 const NOTE = 'modelPlaza.detail.longContextDisabledNote'
 
 describe('PlazaGroupSection 长上下文说明', () => {
+  it('shows subscription quotas as whole CNY and exposes the actual reasoning cap', () => {
+    const wrapper = mountSection(group({ subscription_type: 'subscription', daily_limit_usd: 12.6, weekly_limit_usd: null, monthly_limit_usd: 100.4, max_reasoning_effort: 'xhigh', reasoning_effort_over_limit: 'downgrade', rpm_limit: 30 }))
+    expect(wrapper.text()).toContain('日 ¥13 / 月 ¥100 · 同一账户订阅内共享')
+    expect(wrapper.text()).toContain('xhigh · 超出时自动降级')
+    expect(wrapper.text()).toContain('30 次／分钟')
+  })
   it('passes video-specific rates to the pricing table', () => {
     const wrapper = mountSection(group({ video_rate_independent: true, video_rate_multiplier: 0 }))
     expect(wrapper.findComponent(PlazaModelPricingTable).props()).toMatchObject({

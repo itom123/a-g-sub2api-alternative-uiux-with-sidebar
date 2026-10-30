@@ -336,10 +336,9 @@ function quotaBarClass(p: number): string {
   return 'bg-green-500'
 }
 
-// 与 formatBalance 一致使用 Intl.NumberFormat 做半偶舍入，避免 toFixed 在不同 JS 引擎
-// 下偶发截断而非四舍五入（与后端展示精度不一致）。
+// Quota summaries use whole yuan; request cost summaries retain their precision.
 function formatUsd(n: number): string {
-  return cnyNumber(n, 4)
+  return cnyNumber(n, 0)
 }
 
 function formatResetTime(iso: string | null | undefined): string {

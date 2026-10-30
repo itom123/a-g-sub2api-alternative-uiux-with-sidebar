@@ -31,6 +31,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { PlatformQuotaItem } from '@/api/admin/users'
 import { listPlatformIds } from '@/constants/platformCatalog'
+import { cnyNumber } from '@/utils/currency'
 
 const props = defineProps<{ quotas?: PlatformQuotaItem[] }>()
 const { t } = useI18n()
@@ -55,10 +56,9 @@ const configured = computed(() => {
     .sort((a, b) => platformRank(a.platform) - platformRank(b.platform))
 })
 
-// 去尾零、最多 2 位小数：100→"100"，90.5→"90.5"，0.42→"0.42"
+// Convert USD ledger amounts to whole-yuan quota values.
 function fmtUsd(n: number): string {
-  if (n == null || Number.isNaN(n)) return '0'
-  return String(Math.round(n * 100) / 100)
+  return cnyNumber(n, 0)
 }
 function fmtLimit(n: number | null): string {
   return n == null ? '—' : fmtUsd(n)

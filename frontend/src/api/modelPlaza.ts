@@ -7,6 +7,12 @@
 import { apiClient } from './client'
 import type { UserPricingInterval, UserSupportedModelPricing } from './channels'
 
+export interface PlazaCacheWritePrice {
+  min_tokens: number
+  max_tokens: number | null
+  price: number | null
+}
+
 /** 官方参考价（USD per token，与计费目录同源；字段缺失 = 目录未覆盖）。 */
 export interface PlazaOfficialPricing {
   input_price: number | null
@@ -16,6 +22,7 @@ export interface PlazaOfficialPricing {
   /** 1h 缓存写入（LiteLLM cache_creation_above_1hr），多数模型缺失。 */
   cache_write_1h_price?: number | null
   cache_read_price: number | null
+  cache_write_12h_prices?: PlazaCacheWritePrice[]
   /** 官方长上下文阶梯（多档模型才有），不受分组开关影响。 */
   intervals?: UserPricingInterval[]
 }
@@ -49,6 +56,7 @@ export interface PlazaModel {
   /** 实收口径的展示定价：档位可提供绝对单价或相对基础价倍率；均为标准时段价。 */
   pricing: UserSupportedModelPricing | null
   official_pricing: PlazaOfficialPricing | null
+  cache_write_12h_prices?: PlazaCacheWritePrice[]
   /** 仅多档模型返回。 */
   long_context_basis?: PlazaLongContextBasis
   /** 仅配置了分时倍率的模型返回。 */
@@ -78,6 +86,12 @@ export interface ModelPlazaGroup {
   video_rate_multiplier: number
   /** 分组是否启用长上下文阶梯计费；false 时实付列只展示最低档，官方阶梯仅供参考。 */
   long_context_pricing_enabled: boolean
+  daily_limit_usd?: number | null
+  weekly_limit_usd?: number | null
+  monthly_limit_usd?: number | null
+  max_reasoning_effort?: string
+  reasoning_effort_over_limit?: string
+  rpm_limit?: number
   models: PlazaModel[]
 }
 

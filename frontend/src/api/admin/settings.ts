@@ -4,6 +4,7 @@
  */
 
 import { apiClient } from "../client";
+import { roundCnyQuota } from "@/utils/currency";
 import { listPlatformIds } from "@/constants/platformCatalog";
 import type {
   AccountPlatform,
@@ -95,7 +96,7 @@ export function normalizePlatformQuotasMap(input?: DefaultPlatformQuotasMap | nu
 
 /** 提交前清洗：非有限数/负数/空字符串 → null（保留 0 = 显式禁用），返回全部平台嵌套 map */
 export function sanitizePlatformQuotasMap(input?: DefaultPlatformQuotasMap | null): DefaultPlatformQuotasMap {
-  const clean = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : null)
+  const clean = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? roundCnyQuota(v) : null)
   const result: DefaultPlatformQuotasMap = {}
   for (const p of listPlatformIds()) {
     const src = input?.[p]

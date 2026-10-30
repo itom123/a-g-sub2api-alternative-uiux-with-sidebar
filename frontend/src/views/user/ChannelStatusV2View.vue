@@ -2,6 +2,10 @@
   <AppLayout>
     <div class="ag-page space-y-6 pb-12">
       <StatusFreshness />
+      <div class="flex flex-wrap items-start justify-between gap-3 border-y py-3 text-sm leading-6">
+        <p class="max-w-prose">状态来自所选时间窗口内的实际请求，不是主动探测。新增模型尚无足够样本时显示待观测，不代表不可调用。切换分组可查看本组数据。</p>
+        <RouterLink :to="{ path: '/model-plaza', query: filter.groupIds.length === 1 ? { group: String(filter.groupIds[0]) } : {} }" class="shrink-0 underline underline-offset-4">查看模型与分组价格</RouterLink>
+      </div>
       <p v-if="live.statusError" role="alert">观测数据刷新失败。{{ snapshot ? '已保留上次数据，请留意观测时间。' : '请点击刷新重试。' }}</p>
       <!-- Ops-style elevated shell: title toolbar + filters (mirrors OpsDashboardHeader) -->
       <section
@@ -486,6 +490,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import { isChannelMonitorThroughputHidden, isChannelMonitorUserRankingHidden } from '@/utils/featureFlags'
+import { groupDisplayName } from '@/utils/groupDisplayName'
 import * as api from '@/api/channelMonitorV2'
 import type {
   HealthState,
@@ -595,7 +600,7 @@ const groupOptions = computed(() =>
     )
     .map((item) => ({
       value: String(item.id),
-      label: item.platform ? `${item.platform} / ${item.name || `#${item.id}`}` : item.name || `#${item.id}`,
+      label: item.platform ? `${item.platform} / ${groupDisplayName(item.name || `#${item.id}`, item.platform)}` : item.name || `#${item.id}`,
     }))
 )
 const modelOptions = computed(() =>

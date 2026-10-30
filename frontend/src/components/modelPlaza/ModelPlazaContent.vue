@@ -47,12 +47,19 @@
         @update:search="searchQuery = $event"
       />
 
-      <label v-if="groupOptions.length" class="ag-toolbar text-sm">近期状态
+      <label v-if="groupOptions.length" class="ag-toolbar text-sm">模型近期观测
         <select v-model="selectedHealth" class="input !w-auto"><option value="all">全部状态</option><option value="healthy">正常</option><option value="warning">性能下降</option><option value="critical">异常</option><option value="unknown">待观测</option></select>
       </label>
       <!-- 分组分节的模型清单(默认按生效倍率升序) -->
-      <div v-if="filteredGroups.length > 0" class="space-y-5">
-        <PlazaGroupSection v-for="g in filteredGroups" :key="g.id" :group="g" />
+      <div v-if="filteredGroups.length > 0" class="space-y-8">
+        <nav aria-label="跳转到分组" class="flex flex-wrap gap-x-5 gap-y-2 border-y py-3 text-sm">
+          <a v-for="group in filteredGroups" :key="group.id" :href="`#plaza-group-${group.id}`" class="underline underline-offset-4">{{ groupDisplayName(group.name, group.platform) }}</a>
+        </nav>
+        <p class="max-w-prose text-sm leading-6">Token 单价以人民币／百万 Token 展示，使用当前汇率换算。额度按整数元展示，实际请求按精确用量累计。分组白名单决定可用模型；目录收录与近期健康观测分别更新。</p>
+        <section v-for="collection in groupCollections" :key="collection.key" class="space-y-4">
+          <div class="border-b pb-3"><h2 class="text-lg font-semibold">{{ collection.title }}</h2><p class="mt-1 text-sm">{{ collection.description }}</p></div>
+          <PlazaGroupSection v-for="g in collection.groups" :id="`plaza-group-${g.id}`" :key="g.id" :group="g" class="scroll-mt-6" />
+        </section>
       </div>
       <div
         v-else
@@ -100,6 +107,11 @@ const route = useRoute()
 const selectedGroupId = ref<number | 'all'>(Number(route.query.group) || 'all')
 const selectedRate = ref<number | 'all'>('all')
 const searchQuery = ref('')
+
+watch([selectedGroupId, selectedPlatform], ([group, platform]) => {
+  live.filter.groupIds = group === 'all' ? [] : [group]
+  live.filter.platforms = platform === 'all' ? [] : [platform]
+}, { immediate: true })
 
 const searchActive = computed(() => searchQuery.value.trim() !== '' || selectedPlatform.value !== 'all' || selectedGroupId.value !== 'all' || selectedRate.value !== 'all' || selectedHealth.value !== 'all')
 
@@ -168,6 +180,12 @@ const filteredGroups = computed(() => {
     (a, b) => effectiveRate(a) - effectiveRate(b) || taskOrder(a) - taskOrder(b) || a.name.localeCompare(b.name)
   )
 })
+
+const groupCollections = computed(() => [
+  { key: 'standard', title: '按用量使用', description: '根据任务选择模型和推理强度；使用账户余额与个人平台额度。', groups: filteredGroups.value.filter(g => g.subscription_type !== 'subscription' && !g.is_exclusive) },
+  { key: 'subscription', title: '团队订阅分组', description: '同一账户的密钥共享该账户订阅额度，不同账户分别计量；请使用本人获授权的分组。', groups: filteredGroups.value.filter(g => g.subscription_type === 'subscription') },
+  { key: 'exclusive', title: '专属分组', description: '仅向获得授权的账户展示，价格与规则以各组配置为准。', groups: filteredGroups.value.filter(g => g.subscription_type !== 'subscription' && g.is_exclusive) },
+].filter(collection => collection.groups.length > 0))
 </script>
 
 <style scoped>

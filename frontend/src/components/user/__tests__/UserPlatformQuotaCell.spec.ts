@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { beforeEach, describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 
 // t() 回显 key，便于断言文案键
@@ -12,6 +12,11 @@ vi.mock('vue-i18n', async () => {
 
 import UserPlatformQuotaCell from '../UserPlatformQuotaCell.vue'
 import type { PlatformQuotaItem } from '@/api/admin/users'
+import { currencyRate } from '@/utils/currency'
+
+beforeEach(() => {
+  currencyRate.value = { cnyPerUsd: 7, source: 'test', rateDate: '', updatedAt: '', nextRefreshAt: '' }
+})
 
 function item(over: Partial<PlatformQuotaItem> & { platform: PlatformQuotaItem['platform'] }): PlatformQuotaItem {
   return {
@@ -40,7 +45,7 @@ describe('UserPlatformQuotaCell', () => {
     expect(w.html()).toContain('admin.users.platformQuota.cellNotConfigured')
   })
 
-  it('已配置平台渲染 已用/限额，null 档显示 —，金额去尾零', () => {
+  it('converts usage and limits to whole CNY and preserves unlimited windows', () => {
     const w = mount(UserPlatformQuotaCell, {
       props: {
         quotas: [
@@ -52,9 +57,9 @@ describe('UserPlatformQuotaCell', () => {
     })
     const html = w.html()
     expect(html).toContain('anthropic')
-    expect(html).toContain('30/100')
+    expect(html).toContain('210/700')
     expect(html).toContain('0/—')
-    expect(html).toContain('90.5/2000')
+    expect(html).toContain('634/14000')
   })
 
   it('多平台按固定顺序展示 TypeSafe，且仅展示有限额的平台', () => {

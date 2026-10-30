@@ -60,6 +60,14 @@ function mountTable(
 }
 
 describe('PlazaModelPricingTable', () => {
+  it('shows separate 12-hour write tiers and applies the group rate exactly once', () => {
+    const tiers = [{ min_tokens: 0, max_tokens: 272000, price: 5e-6 }, { min_tokens: 272000, max_tokens: null, price: 10e-6 }]
+    const model = tokenModel({ name: 'gpt-6.1-sol', platform: 'openai', cache_write_12h_prices: tiers })
+    model.official_pricing!.cache_write_12h_prices = tiers
+    const wrapper = mountTable([model], 0.25)
+    expect(wrapper.findAll('[data-testid="paid-cache-12h"]').map(row => row.text())).toEqual(['写入 12h · ≤272K ¥1.25', '写入 12h · >272K ¥2.50'])
+    expect(wrapper.findAll('[data-testid="official-cache-12h"]').map(row => row.text())).toEqual(['写入 12h · ≤272K ¥5.00', '写入 12h · >272K ¥10.00'])
+  })
   it.each([
     { enabled: true, multiplier: 1, userRate: 0.05, expected: 1 },
     { enabled: true, multiplier: 0.5, userRate: null, expected: 0.5 },

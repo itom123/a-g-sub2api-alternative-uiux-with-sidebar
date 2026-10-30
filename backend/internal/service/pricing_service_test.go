@@ -367,7 +367,7 @@ func TestGPT56DedicatedFallbacksUseOfficialRates(t *testing.T) {
 		model                             string
 		input, cached, cacheWrite, output float64
 	}{
-		{model: "gpt-5.6-sol", input: 5e-6, cached: 0.5e-6, cacheWrite: 6.25e-6, output: 30e-6},
+		{model: "gpt-5.6-sol", input: 4e-6, cached: 0.4e-6, cacheWrite: 5e-6, output: 20e-6},
 		{model: "gpt-5.6-terra", input: 2e-6, cached: 0.2e-6, cacheWrite: 2.5e-6, output: 12e-6},
 		{model: "gpt-5.6-luna", input: 0.2e-6, cached: 0.02e-6, cacheWrite: 0.25e-6, output: 1.2e-6},
 	}
@@ -398,8 +398,10 @@ func assertGPT56FallbackPricing(t *testing.T, pricing *ModelPricing, input, cach
 	require.InDelta(t, cached, pricing.CacheReadPricePerToken, 1e-12)
 	require.InDelta(t, cacheWrite, pricing.CacheCreationPricePerToken, 1e-12)
 	require.InDelta(t, output, pricing.OutputPricePerToken, 1e-12)
-	// 静态兜底只兜基础价；阶梯由目录数据（above_272k 折算或显式字段）驱动。
-	require.Zero(t, pricing.LongContextInputThreshold)
+	// The verified fallback retains the published whole-request context tier.
+	require.Equal(t, 272000, pricing.LongContextInputThreshold)
+	require.Equal(t, 2.0, pricing.LongContextInputMultiplier)
+	require.Equal(t, 1.5, pricing.LongContextOutputMultiplier)
 }
 
 func TestParsePricingData_KeepsImageOnlyPricing(t *testing.T) {

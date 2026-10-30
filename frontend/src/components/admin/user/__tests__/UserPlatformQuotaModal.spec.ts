@@ -60,9 +60,9 @@ async function openDialog() {
 describe('UserPlatformQuotaModal currency display', () => {
   it('converts daily, weekly and rolling monthly usage to labelled CNY', async () => {
     const wrapper = await openDialog()
-    expect(wrapper.get('tbody tr td:last-child').text()).toBe('\u00a520.36 / \u00a536.81 / \u00a548.52')
+    expect(wrapper.get('tbody tr td:last-child').text()).toBe('\u00a520 / \u00a537 / \u00a549')
     expect(wrapper.findAll('input').map(input => input.element.value)).toEqual([
-      '20.076387', '66.92129', '66.92129',
+      '20', '67', '67',
     ])
   })
 
@@ -70,7 +70,7 @@ describe('UserPlatformQuotaModal currency display', () => {
     const wrapper = await openDialog()
     currencyRate.value = { ...currencyRate.value!, cnyPerUsd: 7 }
     await nextTick()
-    expect(wrapper.get('tbody tr td:last-child').text()).toBe('\u00a521.30 / \u00a538.50 / \u00a550.75')
+    expect(wrapper.get('tbody tr td:last-child').text()).toBe('\u00a521 / \u00a539 / \u00a551')
   })
 
   it('does not display USD as CNY when the exchange rate is unavailable', async () => {
@@ -79,7 +79,7 @@ describe('UserPlatformQuotaModal currency display', () => {
     expect(wrapper.get('tbody tr td:last-child').text()).toBe('- / - / -')
   })
 
-  it('shows zero usage as CNY without changing saved USD limits', async () => {
+  it('saves the whole-yuan limits shown in the form using precise USD units', async () => {
     mocks.getPlatformQuotas.mockResolvedValue({
       platform_quotas: [{
         platform: 'openai',
@@ -92,11 +92,11 @@ describe('UserPlatformQuotaModal currency display', () => {
       }],
     })
     const wrapper = await openDialog()
-    expect(wrapper.get('tbody tr td:last-child').text()).toBe('\u00a50.00 / \u00a50.00 / \u00a50.00')
+    expect(wrapper.get('tbody tr td:last-child').text()).toBe('\u00a50 / \u00a50 / \u00a50')
     await wrapper.findAll('button').find(button => button.text() === 'admin.users.platformQuota.save')!.trigger('click')
     await flushPromises()
     expect(mocks.updatePlatformQuotas).toHaveBeenCalledWith(12, [{
-      platform: 'openai', daily_limit_usd: 3, weekly_limit_usd: 10, monthly_limit_usd: 10,
+      platform: 'openai', daily_limit_usd: 20 / 6.692129, weekly_limit_usd: 67 / 6.692129, monthly_limit_usd: 67 / 6.692129,
     }])
   })
 })

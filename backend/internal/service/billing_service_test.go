@@ -2033,7 +2033,7 @@ func TestNewModelPricingCatalogFallbackAndContext(t *testing.T) {
 	data, err := os.ReadFile("../../resources/model-pricing/model_prices_and_context_window.json")
 	require.NoError(t, err)
 	catalog := &PricingService{}
-	catalog.pricingData, err = catalog.parsePricingData(data)
+	catalog.pricingData, err = catalog.parseCatalogPricingData(data)
 	require.NoError(t, err)
 	sources := map[string]*BillingService{
 		"billing fallback": newTestBillingService(),
@@ -2049,6 +2049,8 @@ func TestNewModelPricingCatalogFallbackAndContext(t *testing.T) {
 			input, output, write, read float64
 		}{
 			{"gpt-6.1-sol", 2e-6, 10e-6, 2.5e-6, 0.1e-6},
+			{"gpt-6.1-terra", 1e-6, 5e-6, 1.25e-6, 0.05e-6},
+			{"openai/gpt-6.1-terra-max", 1e-6, 5e-6, 1.25e-6, 0.05e-6},
 			{"gpt-6-sol", 2e-6, 10e-6, 2.5e-6, 0.2e-6},
 			{"gpt-6-luna", 0.1e-6, 0.5e-6, 0.125e-6, 0.01e-6},
 		} {
@@ -2102,7 +2104,7 @@ func TestNewModelPricingCatalogFallbackAndContext(t *testing.T) {
 				require.NoError(t, err)
 				require.InDelta(t, 100_000*2e-6, cost.InputCost, 1e-10)
 				require.InDelta(t, 400*2.5e-6+600*4e-6, cost.CacheCreationCost, 1e-10)
-				require.InDelta(t, 1000*0.2e-6, cost.CacheReadCost, 1e-10)
+				require.InDelta(t, 1000*0.1e-6, cost.CacheReadCost, 1e-10)
 				require.InDelta(t, 500*10e-6, cost.OutputCost, 1e-10)
 				require.False(t, cost.LongContextBillingApplied)
 			})

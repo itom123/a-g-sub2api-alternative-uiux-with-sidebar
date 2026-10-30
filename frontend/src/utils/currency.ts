@@ -20,6 +20,12 @@ export function fromCny(cny: number): number {
   return cny / currencyRate.value.cnyPerUsd
 }
 
+/** Quota settings use whole yuan; the returned ledger amount remains in USD. */
+export function roundCnyQuota(usd: number, minimum = 0): number {
+  const value = toCny(usd)
+  return Number.isFinite(value) ? fromCny(Math.max(minimum, Math.round(Number(value.toPrecision(12))))) : usd
+}
+
 export function cnyNumber(usd: number | string | null | undefined, digits = 2): string {
   const value = toCny(usd)
   return Number.isFinite(value) ? value.toFixed(digits) : '-'

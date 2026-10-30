@@ -14,7 +14,7 @@
 
 This repository is the private Sub2API build used to connect approved AI provider accounts to a single, observable service. It gives colleagues one place to create and manage provider connections, distribute controlled API access, route requests to the right account or model, and understand what is happening when traffic succeeds, slows down, or fails.
 
-The approved `main` line carries the official 0.2.18 baseline plus our deployment and internal UI conventions. Separate worktrees and branches hold custom feature work until it has been reviewed and merged. This keeps production changes traceable while allowing the private build to evolve around real operating needs.
+The approved `main` line carries the official 0.2.19 baseline plus our deployment and internal UI conventions. Separate worktrees and branches hold custom feature work until it has been reviewed and merged. This keeps production changes traceable while allowing the private build to evolve around real operating needs.
 
 ## The product in everyday terms
 

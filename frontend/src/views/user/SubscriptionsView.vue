@@ -103,8 +103,8 @@
                   {{ t('userSubscriptions.daily') }}
                 </span>
                 <span class="text-sm text-gray-500 dark:text-dark-400">
-                  ¥{{ cnyNumber((subscription.daily_usage_usd || 0), 2) }} / ¥{{
-                    cnyNumber(subscription.group.daily_limit_usd, 2)
+                  ¥{{ cnyNumber((subscription.daily_usage_usd || 0), 0) }} / ¥{{
+                    cnyNumber(subscription.group.daily_limit_usd, 0)
                   }}
                 </span>
               </div>
@@ -140,8 +140,8 @@
                   {{ t('userSubscriptions.weekly') }}
                 </span>
                 <span class="text-sm text-gray-500 dark:text-dark-400">
-                  ¥{{ cnyNumber((subscription.weekly_usage_usd || 0), 2) }} / ¥{{
-                    cnyNumber(subscription.group.weekly_limit_usd, 2)
+                  ¥{{ cnyNumber((subscription.weekly_usage_usd || 0), 0) }} / ¥{{
+                    cnyNumber(subscription.group.weekly_limit_usd, 0)
                   }}
                 </span>
               </div>
@@ -181,8 +181,8 @@
                   {{ t('userSubscriptions.monthly') }}
                 </span>
                 <span class="text-sm text-gray-500 dark:text-dark-400">
-                  ¥{{ cnyNumber((subscription.monthly_usage_usd || 0), 2) }} / ¥{{
-                    cnyNumber(subscription.group.monthly_limit_usd, 2)
+                  ¥{{ cnyNumber((subscription.monthly_usage_usd || 0), 0) }} / ¥{{
+                    cnyNumber(subscription.group.monthly_limit_usd, 0)
                   }}
                 </span>
               </div>

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { currencyRate, cnyNumber, cnyPreciseNumber, formatCny, fromCny, toCny } from '../currency'
+import { currencyRate, cnyNumber, cnyPreciseNumber, formatCny, fromCny, roundCnyQuota, toCny } from '../currency'
 import { formatScaled } from '../pricing'
 import { formatPaymentAmount } from '@/components/payment/currency'
 
@@ -8,6 +8,15 @@ beforeEach(() => {
 })
 
 describe('CNY presentation over the unchanged USD ledger', () => {
+  it('rounds quota settings after conversion while preserving fractional usage costs', () => {
+    expect(roundCnyQuota(10)).toBe(71 / 7.123456)
+    expect(cnyNumber(roundCnyQuota(10), 0)).toBe('71')
+    expect(roundCnyQuota(0)).toBe(0)
+    expect(roundCnyQuota(0.01, 1)).toBe(1 / 7.123456)
+    expect(cnyNumber(0.00001234, 6)).toBe('0.000088')
+    currencyRate.value = null
+    expect(roundCnyQuota(10)).toBe(10)
+  })
   it('converts before rounding and keeps input round trips exact', () => {
     expect(formatCny(10)).toBe('¥71.23')
     expect(cnyNumber(0.00001234, 8)).toBe('0.00008790')
