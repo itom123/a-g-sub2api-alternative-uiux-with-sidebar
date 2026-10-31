@@ -8,6 +8,13 @@ afterEach(() => {
 })
 
 describe('chart theme', () => {
+  it('keeps a single observed point visible without inventing a trend', () => {
+    const chart = { config: { type: 'line', options: {} }, data: { datasets: [{ data: [2.5] }] } } as unknown as Chart
+    applyChartTheme(chart)
+    expect(chart.data.datasets[0]).toHaveProperty('pointRadius', 3)
+    expect(chart.data.datasets[0].data).toEqual([2.5])
+  })
+
   it('gives all five token series different strokes without empty point markers', () => {
     const datasets = Array.from({ length: 5 }, (_, i) => ({ label: `series-${i}`, data: [i, i + 1] }))
     const chart = { config: { type: 'line', options: {} }, data: { datasets } } as unknown as Chart

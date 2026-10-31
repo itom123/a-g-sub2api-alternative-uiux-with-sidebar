@@ -341,7 +341,7 @@ const flagTelegram = () => telegramAvailable.value
 function buildSelfNavItems(withDashboard: boolean): NavItem[] {
   const items: NavItem[] = []
   if (withDashboard) {
-    items.push({ path: '/dashboard', label: t('nav.dashboard'), icon: DashboardIcon })
+    items.push({ path: '/dashboard', label: t('dashboard.title'), icon: DashboardIcon })
   }
   items.push(
     { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon },
