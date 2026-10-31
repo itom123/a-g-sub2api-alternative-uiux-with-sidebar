@@ -2083,7 +2083,8 @@ describe("admin SettingsView platform quota matrix", () => {
     const quotas = payload["default_platform_quotas"] as Record<string, Record<string, unknown>>;
 
     expect(quotas["anthropic"]?.["daily"]).toBe(5);
-    expect(quotas["openai"]?.["weekly"]).toBe(12.5);
+    // Quota inputs are rounded to whole yuan before conversion back to ledger USD.
+    expect(quotas["openai"]?.["weekly"]).toBe(13);
     // 缺失平台应补全为 null
     expect(quotas["gemini"]).toEqual({ daily: null, weekly: null, monthly: null });
     expect(quotas["antigravity"]).toEqual({ daily: null, weekly: null, monthly: null });

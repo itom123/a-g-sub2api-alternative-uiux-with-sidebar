@@ -68,6 +68,16 @@ jobs:
       - name: Portal day/night and mobile acceptance
         working-directory: frontend
         run: pnpm run test:ui
+      - name: Build production frontend
+        working-directory: frontend
+        run: pnpm run build
+      - name: Save production frontend
+        uses: actions/upload-artifact@v4
+        with:
+          name: sub2api-frontend
+          path: backend/internal/web/dist/
+          if-no-files-found: error
+          retention-days: 14
       - name: Save theme acceptance evidence
         if: always()
         uses: actions/upload-artifact@v4

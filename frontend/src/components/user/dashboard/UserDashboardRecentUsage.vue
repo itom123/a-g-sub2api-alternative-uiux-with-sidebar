@@ -2,7 +2,7 @@
   <div class="card">
     <div class="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-dark-700">
       <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('dashboard.recentUsage') }}</h2>
-      <span class="badge badge-gray">{{ t('dashboard.last7Days') }}</span>
+      <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('dashboard.selectedRange', { start: startDate, end: endDate }) }}</span>
     </div>
     <div class="p-6">
       <div v-if="loading" class="flex items-center justify-center py-12">
@@ -12,13 +12,13 @@
         <EmptyState :title="t('dashboard.noUsageRecords')" :description="t('dashboard.startUsingApi')" />
       </div>
       <div v-else class="space-y-3">
-        <div v-for="log in data" :key="log.id" class="flex items-center justify-between rounded-xl bg-gray-50 p-4 transition-colors hover:bg-gray-100 dark:bg-dark-800/50 dark:hover:bg-dark-800">
-          <div class="flex items-center gap-4">
+        <div v-for="log in data" :key="log.id" class="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-gray-50 p-4 transition-colors hover:bg-gray-100 dark:bg-dark-800/50 dark:hover:bg-dark-800">
+          <div class="flex min-w-0 items-center gap-4">
             <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-100 dark:bg-primary-900/30">
               <Icon name="beaker" size="md" class="text-primary-600 dark:text-primary-400" />
             </div>
-            <div>
-              <p class="text-sm font-medium text-gray-900 dark:text-white">{{ log.model }}</p>
+            <div class="min-w-0">
+              <p class="break-all text-sm font-medium text-gray-900 dark:text-white">{{ log.model }}</p>
               <p class="text-xs text-gray-500 dark:text-dark-400">{{ formatDateTime(log.created_at) }}</p>
             </div>
           </div>
@@ -27,7 +27,7 @@
               <span class="text-green-600 dark:text-green-400" :title="t('dashboard.actual')">¥{{ formatCost(log.actual_cost) }}</span>
               <span class="font-normal text-gray-400 dark:text-gray-500" :title="t('dashboard.standard')"> / ¥{{ formatCost(log.total_cost) }}</span>
             </p>
-            <p class="text-xs text-gray-500 dark:text-dark-400">{{ (log.input_tokens + log.output_tokens).toLocaleString() }} tokens</p>
+            <p class="text-xs text-gray-500 dark:text-dark-400">{{ ((log.input_tokens || 0) + (log.output_tokens || 0) + (log.cache_creation_tokens || 0) + (log.cache_read_tokens || 0)).toLocaleString() }} tokens</p>
           </div>
         </div>
 
@@ -53,6 +53,8 @@ import type { UsageLog } from '@/types'
 defineProps<{
   data: UsageLog[]
   loading: boolean
+  startDate: string
+  endDate: string
 }>()
 const { t } = useI18n()
 const formatCost = (c: number) => cnyNumber(c, 4)

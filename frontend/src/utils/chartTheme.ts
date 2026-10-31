@@ -105,7 +105,7 @@ export function applyChartTheme(chart: Chart) {
       style.pointBackgroundColor = paper
       style.pointBorderColor = ink
       style.pointStyle = ['circle', 'rect', 'triangle', 'cross'][index % 4]
-      style.pointRadius = 0
+      style.pointRadius = dataset.data.length === 1 ? 3 : 0
       style.pointHoverRadius = 4
       style.fill = false
       style.tension = .15

@@ -7,9 +7,6 @@
           <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('dashboard.timeRange') }}:</span>
           <DateRangePicker :start-date="startDate" :end-date="endDate" @update:startDate="$emit('update:startDate', $event)" @update:endDate="$emit('update:endDate', $event)" @change="$emit('dateRangeChange', $event)" />
         </div>
-        <button @click="$emit('refresh')" :disabled="loading" class="btn btn-secondary">
-          {{ t('common.refresh') }}
-        </button>
         <div class="flex min-w-0 flex-wrap items-center gap-2 sm:ml-auto">
           <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('dashboard.granularity') }}:</span>
           <div class="w-28">
@@ -18,6 +15,21 @@
         </div>
       </div>
     </div>
+
+    <section class="card min-w-0 p-4" data-testid="account-spending-trend">
+      <div class="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+        <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('dashboard.costTrend') }}</h3>
+        <p class="text-sm text-gray-600 dark:text-gray-300">
+          {{ t('dashboard.periodSpent') }}:
+          <strong class="tabular-nums text-gray-900 dark:text-white">¥{{ formatCost(models.reduce((sum, model) => sum + model.actual_cost, 0)) }}</strong>
+        </p>
+      </div>
+      <div class="relative h-52 min-w-0">
+        <LoadingSpinner v-if="loading" class="mx-auto" />
+        <Line v-else-if="costData" :data="costData" :options="costOptions" role="img" :aria-label="t('dashboard.costTrend')" />
+        <p v-else class="flex h-full items-center justify-center text-sm text-gray-500 dark:text-gray-400">{{ t('dashboard.noDataAvailable') }}</p>
+      </div>
+    </section>
 
     <!-- Charts Grid -->
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -69,16 +81,42 @@ import { useI18n } from 'vue-i18n'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import Select from '@/components/common/Select.vue'
-import { Doughnut } from 'vue-chartjs'
+import { Doughnut, Line } from 'vue-chartjs'
+import { toCny, currencyRate } from '@/utils/currency'
 import TokenUsageTrend from '@/components/charts/TokenUsageTrend.vue'
 import type { TrendDataPoint, ModelStat } from '@/types'
 import { formatCostFixed as formatCost, formatNumberLocaleString as formatNumber, formatTokensK as formatTokens } from '@/utils/format'
-import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, ArcElement, Title, Tooltip, Legend, Filler } from 'chart.js'
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, ArcElement, Title, Tooltip, Legend, Filler, type ChartOptions } from 'chart.js'
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ArcElement, Title, Tooltip, Legend, Filler)
 
 const props = defineProps<{ loading: boolean, startDate: string, endDate: string, granularity: string, trend: TrendDataPoint[], models: ModelStat[] }>()
-defineEmits(['update:startDate', 'update:endDate', 'update:granularity', 'dateRangeChange', 'granularityChange', 'refresh'])
+defineEmits(['update:startDate', 'update:endDate', 'update:granularity', 'dateRangeChange', 'granularityChange'])
 const { t } = useI18n()
+
+const costData = computed(() => !props.trend.length || !currencyRate.value ? null : {
+  labels: props.trend.map(point => point.date),
+  datasets: [{
+    label: t('dashboard.actual'),
+    data: props.trend.map(point => toCny(point.actual_cost)),
+    borderColor: '#000000',
+    borderWidth: 1.5,
+    pointRadius: 0,
+    fill: false,
+  }],
+})
+const costOptions: ChartOptions<'line'> = {
+  responsive: true,
+  maintainAspectRatio: false,
+  animation: false,
+  plugins: {
+    legend: { display: false },
+    tooltip: { callbacks: { label: context => '¥' + Number(context.parsed.y).toFixed(4) } },
+  },
+  scales: {
+    y: { beginAtZero: true, ticks: { callback: value => '¥' + value } },
+    x: { ticks: { maxTicksLimit: 8, maxRotation: 0 } },
+  },
+}
 
 const modelData = computed(() => !props.models?.length ? null : {
   labels: props.models.map((m: ModelStat) => m.model),

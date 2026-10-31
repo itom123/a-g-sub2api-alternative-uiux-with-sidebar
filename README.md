@@ -8,6 +8,8 @@
 
 [Official baseline](backend/cmd/server/VERSION) · [Developer guide](DEV_GUIDE.md) · [Windows → Mac workflow](docs/LOCAL-HOST-MAC-DEPLOYMENT.md) · [Deployment guide](deploy/README.md)
 
+The signed-in sidebar now includes [Usage & balance](docs/ACCOUNT_USAGE_PORTAL.md), with automatic account refresh, spending diagrams, allowances and recent calls.
+
 </div>
 
 ## What this build is for
