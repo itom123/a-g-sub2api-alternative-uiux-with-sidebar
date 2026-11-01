@@ -2,6 +2,22 @@
 
 FRONTEND_CRITICAL_VITEST := \
 	src/views/user/__tests__/DashboardView.spec.ts \
+	src/components/user/dashboard/__tests__/UserDashboardStats.spec.ts \
+	src/components/user/dashboard/core/__tests__/UserDashboardDatePresets.spec.ts \
+	src/components/user/dashboard/core/__tests__/UserDashboardRefreshControl.spec.ts \
+	src/components/user/dashboard/core/__tests__/UserDashboardBalanceWarning.spec.ts \
+	src/components/user/dashboard/core/__tests__/UserDashboardHealthChip.spec.ts \
+	src/components/user/dashboard/core/__tests__/UserDashboardRolling30d.spec.ts \
+	src/api/__tests__/usage.dashboard-v2.spec.ts \
+	src/components/user/dashboard/insights/__tests__/UserDashboardCharts.spec.ts \
+	src/components/user/dashboard/insights/__tests__/UserDashboardKeyRanking.spec.ts \
+	src/components/user/dashboard/insights/__tests__/UserDashboardKeyDrilldown.spec.ts \
+	src/components/user/dashboard/insights/__tests__/UserDashboardActiveNow.spec.ts \
+	src/components/user/dashboard/insights/__tests__/UserDashboardConsistency.spec.ts \
+	src/components/user/dashboard/insights/__tests__/UserDashboardErrors.spec.ts \
+	src/components/user/dashboard/insights/__tests__/exportCsv.spec.ts \
+	src/components/user/dashboard/insights/__tests__/aggregate.spec.ts \
+	src/components/user/dashboard/insights/aggregate.ts \
 	src/utils/__tests__/chartTheme.spec.ts \
 	src/i18n/__tests__/localeKeyCompleteness.spec.ts \
 	src/components/icons/__tests__/Icon.symmetry.spec.ts \

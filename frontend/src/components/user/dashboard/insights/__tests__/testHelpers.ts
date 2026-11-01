@@ -1,0 +1,62 @@
+import type { UsageLog } from '@/types'
+
+export function usage(overrides: Partial<UsageLog> = {}): UsageLog {
+  return {
+    id: 1,
+    user_id: 7,
+    api_key_id: 11,
+    account_id: null,
+    request_id: 'request-1',
+    model: 'claude-sonnet',
+    group_id: null,
+    subscription_id: null,
+    input_tokens: 10,
+    output_tokens: 20,
+    cache_creation_tokens: 0,
+    cache_read_tokens: 0,
+    cache_creation_5m_tokens: 0,
+    cache_creation_1h_tokens: 0,
+    input_cost: 0,
+    output_cost: 0,
+    cache_creation_cost: 0,
+    cache_read_cost: 0,
+    total_cost: 0.2,
+    actual_cost: 0.1,
+    rate_multiplier: 1,
+    long_context_billing_applied: false,
+    billing_type: 0,
+    stream: false,
+    native_compaction_v2: false,
+    duration_ms: 100,
+    first_token_ms: 20,
+    image_count: 0,
+    image_size: null,
+    image_input_size: null,
+    image_output_size: null,
+    image_size_source: null,
+    image_size_breakdown: null,
+    image_input_tokens: 0,
+    image_input_cost: 0,
+    image_output_tokens: 0,
+    image_output_cost: 0,
+    user_agent: null,
+    cache_ttl_overridden: false,
+    created_at: '2026-10-31T12:00:00.000Z',
+    ...overrides,
+  }
+}
+
+export function trendPoint(overrides: Partial<{ date: string; requests: number; total_tokens: number; actual_cost: number; input_tokens: number; output_tokens: number; cache_creation_tokens: number; cache_read_tokens: number }> = {}) {
+  return {
+    date: '2026-10-31',
+    requests: 1,
+    input_tokens: 10,
+    output_tokens: 20,
+    cache_creation_tokens: 0,
+    cache_read_tokens: 0,
+    total_tokens: 30,
+    cost: 0.2,
+    actual_cost: 0.1,
+    ...overrides,
+  }
+}

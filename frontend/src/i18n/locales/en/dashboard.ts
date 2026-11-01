@@ -31,7 +31,7 @@ export default {
     groupDistribution: 'Group Usage Distribution',
     platformBreakdown: 'Per-platform Breakdown',
     platformBreakdownEmpty: 'No platform usage yet',
-    platformCount: '{count} platforms',
+    platformCount: '{n} platform | {n} platforms',
     platformOther: 'Other',
     platformQuota: {
       title: 'Quota Usage',
