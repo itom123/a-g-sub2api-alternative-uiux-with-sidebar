@@ -23,8 +23,8 @@ import type {
  * Get current user profile
  * @returns User profile data
  */
-export async function getProfile(): Promise<User> {
-  const { data } = await apiClient.get<User>('/user/profile')
+export async function getProfile(options: { signal?: AbortSignal } = {}): Promise<User> {
+  const { data } = await apiClient.get<User>('/user/profile', options)
   return data
 }
 
@@ -189,8 +189,8 @@ export async function transferAffiliateQuota(): Promise<AffiliateTransferRespons
 /**
  * 获取当前用户的平台限额 + 用量。
  */
-export async function getMyPlatformQuotas(): Promise<PlatformQuotasResponse> {
-  const { data } = await apiClient.get<PlatformQuotasResponse>('/user/platform-quotas')
+export async function getMyPlatformQuotas(options: { signal?: AbortSignal } = {}): Promise<PlatformQuotasResponse> {
+  const { data } = await apiClient.get<PlatformQuotasResponse>('/user/platform-quotas', options)
   return data
 }
 

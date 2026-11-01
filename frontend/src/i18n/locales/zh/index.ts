@@ -8,6 +8,7 @@ import admin from './admin'
 import misc from './misc'
 import connections from './connections'
 import telegramBot from './telegramBot'
+import accountInsights from './accountInsights'
 
 export default {
   adminAccessKeys,
@@ -20,4 +21,5 @@ export default {
   ...misc,
   ...connections,
   ...telegramBot,
+  accountInsights,
 }
