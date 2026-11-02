@@ -284,6 +284,34 @@ func (_c *UserCreate) SetNillableRestrictPublicGroups(v *bool) *UserCreate {
 	return _c
 }
 
+// SetBalanceOverflowAdminAllowed sets the "balance_overflow_admin_allowed" field.
+func (_c *UserCreate) SetBalanceOverflowAdminAllowed(v bool) *UserCreate {
+	_c.mutation.SetBalanceOverflowAdminAllowed(v)
+	return _c
+}
+
+// SetNillableBalanceOverflowAdminAllowed sets the "balance_overflow_admin_allowed" field if the given value is not nil.
+func (_c *UserCreate) SetNillableBalanceOverflowAdminAllowed(v *bool) *UserCreate {
+	if v != nil {
+		_c.SetBalanceOverflowAdminAllowed(*v)
+	}
+	return _c
+}
+
+// SetBalanceOverflowEnabled sets the "balance_overflow_enabled" field.
+func (_c *UserCreate) SetBalanceOverflowEnabled(v bool) *UserCreate {
+	_c.mutation.SetBalanceOverflowEnabled(v)
+	return _c
+}
+
+// SetNillableBalanceOverflowEnabled sets the "balance_overflow_enabled" field if the given value is not nil.
+func (_c *UserCreate) SetNillableBalanceOverflowEnabled(v *bool) *UserCreate {
+	if v != nil {
+		_c.SetBalanceOverflowEnabled(*v)
+	}
+	return _c
+}
+
 // SetBalanceNotifyEnabled sets the "balance_notify_enabled" field.
 func (_c *UserCreate) SetBalanceNotifyEnabled(v bool) *UserCreate {
 	_c.mutation.SetBalanceNotifyEnabled(v)
@@ -654,6 +682,14 @@ func (_c *UserCreate) defaults() error {
 		v := user.DefaultRestrictPublicGroups
 		_c.mutation.SetRestrictPublicGroups(v)
 	}
+	if _, ok := _c.mutation.BalanceOverflowAdminAllowed(); !ok {
+		v := user.DefaultBalanceOverflowAdminAllowed
+		_c.mutation.SetBalanceOverflowAdminAllowed(v)
+	}
+	if _, ok := _c.mutation.BalanceOverflowEnabled(); !ok {
+		v := user.DefaultBalanceOverflowEnabled
+		_c.mutation.SetBalanceOverflowEnabled(v)
+	}
 	if _, ok := _c.mutation.BalanceNotifyEnabled(); !ok {
 		v := user.DefaultBalanceNotifyEnabled
 		_c.mutation.SetBalanceNotifyEnabled(v)
@@ -750,6 +786,12 @@ func (_c *UserCreate) check() error {
 	}
 	if _, ok := _c.mutation.RestrictPublicGroups(); !ok {
 		return &ValidationError{Name: "restrict_public_groups", err: errors.New(`ent: missing required field "User.restrict_public_groups"`)}
+	}
+	if _, ok := _c.mutation.BalanceOverflowAdminAllowed(); !ok {
+		return &ValidationError{Name: "balance_overflow_admin_allowed", err: errors.New(`ent: missing required field "User.balance_overflow_admin_allowed"`)}
+	}
+	if _, ok := _c.mutation.BalanceOverflowEnabled(); !ok {
+		return &ValidationError{Name: "balance_overflow_enabled", err: errors.New(`ent: missing required field "User.balance_overflow_enabled"`)}
 	}
 	if _, ok := _c.mutation.BalanceNotifyEnabled(); !ok {
 		return &ValidationError{Name: "balance_notify_enabled", err: errors.New(`ent: missing required field "User.balance_notify_enabled"`)}
@@ -868,6 +910,14 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.RestrictPublicGroups(); ok {
 		_spec.SetField(user.FieldRestrictPublicGroups, field.TypeBool, value)
 		_node.RestrictPublicGroups = value
+	}
+	if value, ok := _c.mutation.BalanceOverflowAdminAllowed(); ok {
+		_spec.SetField(user.FieldBalanceOverflowAdminAllowed, field.TypeBool, value)
+		_node.BalanceOverflowAdminAllowed = value
+	}
+	if value, ok := _c.mutation.BalanceOverflowEnabled(); ok {
+		_spec.SetField(user.FieldBalanceOverflowEnabled, field.TypeBool, value)
+		_node.BalanceOverflowEnabled = value
 	}
 	if value, ok := _c.mutation.BalanceNotifyEnabled(); ok {
 		_spec.SetField(user.FieldBalanceNotifyEnabled, field.TypeBool, value)
@@ -1421,6 +1471,30 @@ func (u *UserUpsert) UpdateRestrictPublicGroups() *UserUpsert {
 	return u
 }
 
+// SetBalanceOverflowAdminAllowed sets the "balance_overflow_admin_allowed" field.
+func (u *UserUpsert) SetBalanceOverflowAdminAllowed(v bool) *UserUpsert {
+	u.Set(user.FieldBalanceOverflowAdminAllowed, v)
+	return u
+}
+
+// UpdateBalanceOverflowAdminAllowed sets the "balance_overflow_admin_allowed" field to the value that was provided on create.
+func (u *UserUpsert) UpdateBalanceOverflowAdminAllowed() *UserUpsert {
+	u.SetExcluded(user.FieldBalanceOverflowAdminAllowed)
+	return u
+}
+
+// SetBalanceOverflowEnabled sets the "balance_overflow_enabled" field.
+func (u *UserUpsert) SetBalanceOverflowEnabled(v bool) *UserUpsert {
+	u.Set(user.FieldBalanceOverflowEnabled, v)
+	return u
+}
+
+// UpdateBalanceOverflowEnabled sets the "balance_overflow_enabled" field to the value that was provided on create.
+func (u *UserUpsert) UpdateBalanceOverflowEnabled() *UserUpsert {
+	u.SetExcluded(user.FieldBalanceOverflowEnabled)
+	return u
+}
+
 // SetBalanceNotifyEnabled sets the "balance_notify_enabled" field.
 func (u *UserUpsert) SetBalanceNotifyEnabled(v bool) *UserUpsert {
 	u.Set(user.FieldBalanceNotifyEnabled, v)
@@ -1867,6 +1941,34 @@ func (u *UserUpsertOne) SetRestrictPublicGroups(v bool) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateRestrictPublicGroups() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateRestrictPublicGroups()
+	})
+}
+
+// SetBalanceOverflowAdminAllowed sets the "balance_overflow_admin_allowed" field.
+func (u *UserUpsertOne) SetBalanceOverflowAdminAllowed(v bool) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetBalanceOverflowAdminAllowed(v)
+	})
+}
+
+// UpdateBalanceOverflowAdminAllowed sets the "balance_overflow_admin_allowed" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateBalanceOverflowAdminAllowed() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateBalanceOverflowAdminAllowed()
+	})
+}
+
+// SetBalanceOverflowEnabled sets the "balance_overflow_enabled" field.
+func (u *UserUpsertOne) SetBalanceOverflowEnabled(v bool) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetBalanceOverflowEnabled(v)
+	})
+}
+
+// UpdateBalanceOverflowEnabled sets the "balance_overflow_enabled" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateBalanceOverflowEnabled() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateBalanceOverflowEnabled()
 	})
 }
 
@@ -2498,6 +2600,34 @@ func (u *UserUpsertBulk) SetRestrictPublicGroups(v bool) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateRestrictPublicGroups() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateRestrictPublicGroups()
+	})
+}
+
+// SetBalanceOverflowAdminAllowed sets the "balance_overflow_admin_allowed" field.
+func (u *UserUpsertBulk) SetBalanceOverflowAdminAllowed(v bool) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetBalanceOverflowAdminAllowed(v)
+	})
+}
+
+// UpdateBalanceOverflowAdminAllowed sets the "balance_overflow_admin_allowed" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateBalanceOverflowAdminAllowed() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateBalanceOverflowAdminAllowed()
+	})
+}
+
+// SetBalanceOverflowEnabled sets the "balance_overflow_enabled" field.
+func (u *UserUpsertBulk) SetBalanceOverflowEnabled(v bool) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetBalanceOverflowEnabled(v)
+	})
+}
+
+// UpdateBalanceOverflowEnabled sets the "balance_overflow_enabled" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateBalanceOverflowEnabled() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateBalanceOverflowEnabled()
 	})
 }
 

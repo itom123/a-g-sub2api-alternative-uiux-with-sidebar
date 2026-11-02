@@ -25,11 +25,13 @@ type User struct {
 	DeletedAt     *time.Time `json:"deleted_at,omitempty"`
 
 	// 余额不足通知
-	BalanceNotifyEnabled       bool               `json:"balance_notify_enabled"`
-	BalanceNotifyThresholdType string             `json:"balance_notify_threshold_type"`
-	BalanceNotifyThreshold     *float64           `json:"balance_notify_threshold"`
-	BalanceNotifyExtraEmails   []NotifyEmailEntry `json:"balance_notify_extra_emails"`
-	TotalRecharged             float64            `json:"total_recharged"`
+	BalanceNotifyEnabled        bool               `json:"balance_notify_enabled"`
+	BalanceNotifyThresholdType  string             `json:"balance_notify_threshold_type"`
+	BalanceNotifyThreshold      *float64           `json:"balance_notify_threshold"`
+	BalanceNotifyExtraEmails    []NotifyEmailEntry `json:"balance_notify_extra_emails"`
+	BalanceOverflowEnabled      bool               `json:"balance_overflow_enabled"`
+	BalanceOverflowAdminAllowed bool               `json:"balance_overflow_admin_allowed"`
+	TotalRecharged              float64            `json:"total_recharged"`
 
 	// RPMLimit 用户级每分钟请求数上限（0 = 不限制），仅在所用分组未设置 rpm_limit 时作为兜底生效。
 	RPMLimit int `json:"rpm_limit"`
@@ -175,6 +177,10 @@ type AdminGroup struct {
 	ForceOpenAIFast bool `json:"force_openai_fast"`
 	// FreeOpenAIFast 是管理端计费策略，用户侧分组 DTO 无需暴露。
 	FreeOpenAIFast bool `json:"free_openai_fast"`
+	// 订阅额度共享配置（可使用的订阅分组、额度用完转扣余额）是管理端配置，用户侧无需暴露。
+	SubscriptionSourceGroupIDs    []int64 `json:"subscription_source_group_ids"`
+	SubscriptionOverflowToBalance bool    `json:"subscription_overflow_to_balance"`
+	SubscriptionSourceAny         bool    `json:"subscription_source_any"`
 
 	// 分组利润控制（五个 token 平台分组可启用；margin/buffer 为小数存储）。
 	// 仅管理员可见：这三个字段与同响应中的 rate_multiplier 相乘即可反推出

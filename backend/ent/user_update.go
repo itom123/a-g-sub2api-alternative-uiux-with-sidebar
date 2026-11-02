@@ -335,6 +335,34 @@ func (_u *UserUpdate) SetNillableRestrictPublicGroups(v *bool) *UserUpdate {
 	return _u
 }
 
+// SetBalanceOverflowAdminAllowed sets the "balance_overflow_admin_allowed" field.
+func (_u *UserUpdate) SetBalanceOverflowAdminAllowed(v bool) *UserUpdate {
+	_u.mutation.SetBalanceOverflowAdminAllowed(v)
+	return _u
+}
+
+// SetNillableBalanceOverflowAdminAllowed sets the "balance_overflow_admin_allowed" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableBalanceOverflowAdminAllowed(v *bool) *UserUpdate {
+	if v != nil {
+		_u.SetBalanceOverflowAdminAllowed(*v)
+	}
+	return _u
+}
+
+// SetBalanceOverflowEnabled sets the "balance_overflow_enabled" field.
+func (_u *UserUpdate) SetBalanceOverflowEnabled(v bool) *UserUpdate {
+	_u.mutation.SetBalanceOverflowEnabled(v)
+	return _u
+}
+
+// SetNillableBalanceOverflowEnabled sets the "balance_overflow_enabled" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableBalanceOverflowEnabled(v *bool) *UserUpdate {
+	if v != nil {
+		_u.SetBalanceOverflowEnabled(*v)
+	}
+	return _u
+}
+
 // SetBalanceNotifyEnabled sets the "balance_notify_enabled" field.
 func (_u *UserUpdate) SetBalanceNotifyEnabled(v bool) *UserUpdate {
 	_u.mutation.SetBalanceNotifyEnabled(v)
@@ -1085,6 +1113,12 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.RestrictPublicGroups(); ok {
 		_spec.SetField(user.FieldRestrictPublicGroups, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.BalanceOverflowAdminAllowed(); ok {
+		_spec.SetField(user.FieldBalanceOverflowAdminAllowed, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.BalanceOverflowEnabled(); ok {
+		_spec.SetField(user.FieldBalanceOverflowEnabled, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.BalanceNotifyEnabled(); ok {
 		_spec.SetField(user.FieldBalanceNotifyEnabled, field.TypeBool, value)
@@ -2028,6 +2062,34 @@ func (_u *UserUpdateOne) SetNillableRestrictPublicGroups(v *bool) *UserUpdateOne
 	return _u
 }
 
+// SetBalanceOverflowAdminAllowed sets the "balance_overflow_admin_allowed" field.
+func (_u *UserUpdateOne) SetBalanceOverflowAdminAllowed(v bool) *UserUpdateOne {
+	_u.mutation.SetBalanceOverflowAdminAllowed(v)
+	return _u
+}
+
+// SetNillableBalanceOverflowAdminAllowed sets the "balance_overflow_admin_allowed" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableBalanceOverflowAdminAllowed(v *bool) *UserUpdateOne {
+	if v != nil {
+		_u.SetBalanceOverflowAdminAllowed(*v)
+	}
+	return _u
+}
+
+// SetBalanceOverflowEnabled sets the "balance_overflow_enabled" field.
+func (_u *UserUpdateOne) SetBalanceOverflowEnabled(v bool) *UserUpdateOne {
+	_u.mutation.SetBalanceOverflowEnabled(v)
+	return _u
+}
+
+// SetNillableBalanceOverflowEnabled sets the "balance_overflow_enabled" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableBalanceOverflowEnabled(v *bool) *UserUpdateOne {
+	if v != nil {
+		_u.SetBalanceOverflowEnabled(*v)
+	}
+	return _u
+}
+
 // SetBalanceNotifyEnabled sets the "balance_notify_enabled" field.
 func (_u *UserUpdateOne) SetBalanceNotifyEnabled(v bool) *UserUpdateOne {
 	_u.mutation.SetBalanceNotifyEnabled(v)
@@ -2808,6 +2870,12 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if value, ok := _u.mutation.RestrictPublicGroups(); ok {
 		_spec.SetField(user.FieldRestrictPublicGroups, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.BalanceOverflowAdminAllowed(); ok {
+		_spec.SetField(user.FieldBalanceOverflowAdminAllowed, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.BalanceOverflowEnabled(); ok {
+		_spec.SetField(user.FieldBalanceOverflowEnabled, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.BalanceNotifyEnabled(); ok {
 		_spec.SetField(user.FieldBalanceNotifyEnabled, field.TypeBool, value)

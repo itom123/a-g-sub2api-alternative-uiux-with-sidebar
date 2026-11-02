@@ -22101,6 +22101,10 @@ type GroupMutation struct {
 	duplicate_operation_id                  *string
 	platform                                *string
 	subscription_type                       *string
+	subscription_source_group_ids           *[]int64
+	appendsubscription_source_group_ids     []int64
+	subscription_overflow_to_balance        *bool
+	subscription_source_any                 *bool
 	daily_limit_usd                         *float64
 	adddaily_limit_usd                      *float64
 	weekly_limit_usd                        *float64
@@ -22956,6 +22960,129 @@ func (m *GroupMutation) OldSubscriptionType(ctx context.Context) (v string, err 
 // ResetSubscriptionType resets all changes to the "subscription_type" field.
 func (m *GroupMutation) ResetSubscriptionType() {
 	m.subscription_type = nil
+}
+
+// SetSubscriptionSourceGroupIds sets the "subscription_source_group_ids" field.
+func (m *GroupMutation) SetSubscriptionSourceGroupIds(i []int64) {
+	m.subscription_source_group_ids = &i
+	m.appendsubscription_source_group_ids = nil
+}
+
+// SubscriptionSourceGroupIds returns the value of the "subscription_source_group_ids" field in the mutation.
+func (m *GroupMutation) SubscriptionSourceGroupIds() (r []int64, exists bool) {
+	v := m.subscription_source_group_ids
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSubscriptionSourceGroupIds returns the old "subscription_source_group_ids" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldSubscriptionSourceGroupIds(ctx context.Context) (v []int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSubscriptionSourceGroupIds is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSubscriptionSourceGroupIds requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSubscriptionSourceGroupIds: %w", err)
+	}
+	return oldValue.SubscriptionSourceGroupIds, nil
+}
+
+// AppendSubscriptionSourceGroupIds adds i to the "subscription_source_group_ids" field.
+func (m *GroupMutation) AppendSubscriptionSourceGroupIds(i []int64) {
+	m.appendsubscription_source_group_ids = append(m.appendsubscription_source_group_ids, i...)
+}
+
+// AppendedSubscriptionSourceGroupIds returns the list of values that were appended to the "subscription_source_group_ids" field in this mutation.
+func (m *GroupMutation) AppendedSubscriptionSourceGroupIds() ([]int64, bool) {
+	if len(m.appendsubscription_source_group_ids) == 0 {
+		return nil, false
+	}
+	return m.appendsubscription_source_group_ids, true
+}
+
+// ResetSubscriptionSourceGroupIds resets all changes to the "subscription_source_group_ids" field.
+func (m *GroupMutation) ResetSubscriptionSourceGroupIds() {
+	m.subscription_source_group_ids = nil
+	m.appendsubscription_source_group_ids = nil
+}
+
+// SetSubscriptionOverflowToBalance sets the "subscription_overflow_to_balance" field.
+func (m *GroupMutation) SetSubscriptionOverflowToBalance(b bool) {
+	m.subscription_overflow_to_balance = &b
+}
+
+// SubscriptionOverflowToBalance returns the value of the "subscription_overflow_to_balance" field in the mutation.
+func (m *GroupMutation) SubscriptionOverflowToBalance() (r bool, exists bool) {
+	v := m.subscription_overflow_to_balance
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSubscriptionOverflowToBalance returns the old "subscription_overflow_to_balance" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldSubscriptionOverflowToBalance(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSubscriptionOverflowToBalance is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSubscriptionOverflowToBalance requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSubscriptionOverflowToBalance: %w", err)
+	}
+	return oldValue.SubscriptionOverflowToBalance, nil
+}
+
+// ResetSubscriptionOverflowToBalance resets all changes to the "subscription_overflow_to_balance" field.
+func (m *GroupMutation) ResetSubscriptionOverflowToBalance() {
+	m.subscription_overflow_to_balance = nil
+}
+
+// SetSubscriptionSourceAny sets the "subscription_source_any" field.
+func (m *GroupMutation) SetSubscriptionSourceAny(b bool) {
+	m.subscription_source_any = &b
+}
+
+// SubscriptionSourceAny returns the value of the "subscription_source_any" field in the mutation.
+func (m *GroupMutation) SubscriptionSourceAny() (r bool, exists bool) {
+	v := m.subscription_source_any
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSubscriptionSourceAny returns the old "subscription_source_any" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldSubscriptionSourceAny(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSubscriptionSourceAny is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSubscriptionSourceAny requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSubscriptionSourceAny: %w", err)
+	}
+	return oldValue.SubscriptionSourceAny, nil
+}
+
+// ResetSubscriptionSourceAny resets all changes to the "subscription_source_any" field.
+func (m *GroupMutation) ResetSubscriptionSourceAny() {
+	m.subscription_source_any = nil
 }
 
 // SetDailyLimitUsd sets the "daily_limit_usd" field.
@@ -25997,7 +26124,7 @@ func (m *GroupMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *GroupMutation) Fields() []string {
-	fields := make([]string, 0, 68)
+	fields := make([]string, 0, 71)
 	if m.created_at != nil {
 		fields = append(fields, group.FieldCreatedAt)
 	}
@@ -26045,6 +26172,15 @@ func (m *GroupMutation) Fields() []string {
 	}
 	if m.subscription_type != nil {
 		fields = append(fields, group.FieldSubscriptionType)
+	}
+	if m.subscription_source_group_ids != nil {
+		fields = append(fields, group.FieldSubscriptionSourceGroupIds)
+	}
+	if m.subscription_overflow_to_balance != nil {
+		fields = append(fields, group.FieldSubscriptionOverflowToBalance)
+	}
+	if m.subscription_source_any != nil {
+		fields = append(fields, group.FieldSubscriptionSourceAny)
 	}
 	if m.daily_limit_usd != nil {
 		fields = append(fields, group.FieldDailyLimitUsd)
@@ -26242,6 +26378,12 @@ func (m *GroupMutation) Field(name string) (ent.Value, bool) {
 		return m.Platform()
 	case group.FieldSubscriptionType:
 		return m.SubscriptionType()
+	case group.FieldSubscriptionSourceGroupIds:
+		return m.SubscriptionSourceGroupIds()
+	case group.FieldSubscriptionOverflowToBalance:
+		return m.SubscriptionOverflowToBalance()
+	case group.FieldSubscriptionSourceAny:
+		return m.SubscriptionSourceAny()
 	case group.FieldDailyLimitUsd:
 		return m.DailyLimitUsd()
 	case group.FieldWeeklyLimitUsd:
@@ -26387,6 +26529,12 @@ func (m *GroupMutation) OldField(ctx context.Context, name string) (ent.Value, e
 		return m.OldPlatform(ctx)
 	case group.FieldSubscriptionType:
 		return m.OldSubscriptionType(ctx)
+	case group.FieldSubscriptionSourceGroupIds:
+		return m.OldSubscriptionSourceGroupIds(ctx)
+	case group.FieldSubscriptionOverflowToBalance:
+		return m.OldSubscriptionOverflowToBalance(ctx)
+	case group.FieldSubscriptionSourceAny:
+		return m.OldSubscriptionSourceAny(ctx)
 	case group.FieldDailyLimitUsd:
 		return m.OldDailyLimitUsd(ctx)
 	case group.FieldWeeklyLimitUsd:
@@ -26611,6 +26759,27 @@ func (m *GroupMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetSubscriptionType(v)
+		return nil
+	case group.FieldSubscriptionSourceGroupIds:
+		v, ok := value.([]int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSubscriptionSourceGroupIds(v)
+		return nil
+	case group.FieldSubscriptionOverflowToBalance:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSubscriptionOverflowToBalance(v)
+		return nil
+	case group.FieldSubscriptionSourceAny:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSubscriptionSourceAny(v)
 		return nil
 	case group.FieldDailyLimitUsd:
 		v, ok := value.(float64)
@@ -27534,6 +27703,15 @@ func (m *GroupMutation) ResetField(name string) error {
 		return nil
 	case group.FieldSubscriptionType:
 		m.ResetSubscriptionType()
+		return nil
+	case group.FieldSubscriptionSourceGroupIds:
+		m.ResetSubscriptionSourceGroupIds()
+		return nil
+	case group.FieldSubscriptionOverflowToBalance:
+		m.ResetSubscriptionOverflowToBalance()
+		return nil
+	case group.FieldSubscriptionSourceAny:
+		m.ResetSubscriptionSourceAny()
 		return nil
 	case group.FieldDailyLimitUsd:
 		m.ResetDailyLimitUsd()
@@ -50929,83 +51107,85 @@ func (m *UsageLogMutation) ResetEdge(name string) error {
 // UserMutation represents an operation that mutates the User nodes in the graph.
 type UserMutation struct {
 	config
-	op                            Op
-	typ                           string
-	id                            *int64
-	created_at                    *time.Time
-	updated_at                    *time.Time
-	deleted_at                    *time.Time
-	email                         *string
-	password_hash                 *string
-	role                          *string
-	balance                       *float64
-	addbalance                    *float64
-	frozen_balance                *float64
-	addfrozen_balance             *float64
-	concurrency                   *int
-	addconcurrency                *int
-	status                        *string
-	username                      *string
-	notes                         *string
-	totp_secret_encrypted         *string
-	totp_enabled                  *bool
-	totp_enabled_at               *time.Time
-	signup_source                 *string
-	last_login_at                 *time.Time
-	last_active_at                *time.Time
-	restrict_public_groups        *bool
-	balance_notify_enabled        *bool
-	balance_notify_threshold_type *string
-	balance_notify_threshold      *float64
-	addbalance_notify_threshold   *float64
-	balance_notify_extra_emails   *string
-	total_recharged               *float64
-	addtotal_recharged            *float64
-	rpm_limit                     *int
-	addrpm_limit                  *int
-	clearedFields                 map[string]struct{}
-	api_keys                      map[int64]struct{}
-	removedapi_keys               map[int64]struct{}
-	clearedapi_keys               bool
-	redeem_codes                  map[int64]struct{}
-	removedredeem_codes           map[int64]struct{}
-	clearedredeem_codes           bool
-	subscriptions                 map[int64]struct{}
-	removedsubscriptions          map[int64]struct{}
-	clearedsubscriptions          bool
-	assigned_subscriptions        map[int64]struct{}
-	removedassigned_subscriptions map[int64]struct{}
-	clearedassigned_subscriptions bool
-	announcement_reads            map[int64]struct{}
-	removedannouncement_reads     map[int64]struct{}
-	clearedannouncement_reads     bool
-	allowed_groups                map[int64]struct{}
-	removedallowed_groups         map[int64]struct{}
-	clearedallowed_groups         bool
-	usage_logs                    map[int64]struct{}
-	removedusage_logs             map[int64]struct{}
-	clearedusage_logs             bool
-	attribute_values              map[int64]struct{}
-	removedattribute_values       map[int64]struct{}
-	clearedattribute_values       bool
-	promo_code_usages             map[int64]struct{}
-	removedpromo_code_usages      map[int64]struct{}
-	clearedpromo_code_usages      bool
-	payment_orders                map[int64]struct{}
-	removedpayment_orders         map[int64]struct{}
-	clearedpayment_orders         bool
-	auth_identities               map[int64]struct{}
-	removedauth_identities        map[int64]struct{}
-	clearedauth_identities        bool
-	pending_auth_sessions         map[int64]struct{}
-	removedpending_auth_sessions  map[int64]struct{}
-	clearedpending_auth_sessions  bool
-	platform_quotas               map[int64]struct{}
-	removedplatform_quotas        map[int64]struct{}
-	clearedplatform_quotas        bool
-	done                          bool
-	oldValue                      func(context.Context) (*User, error)
-	predicates                    []predicate.User
+	op                             Op
+	typ                            string
+	id                             *int64
+	created_at                     *time.Time
+	updated_at                     *time.Time
+	deleted_at                     *time.Time
+	email                          *string
+	password_hash                  *string
+	role                           *string
+	balance                        *float64
+	addbalance                     *float64
+	frozen_balance                 *float64
+	addfrozen_balance              *float64
+	concurrency                    *int
+	addconcurrency                 *int
+	status                         *string
+	username                       *string
+	notes                          *string
+	totp_secret_encrypted          *string
+	totp_enabled                   *bool
+	totp_enabled_at                *time.Time
+	signup_source                  *string
+	last_login_at                  *time.Time
+	last_active_at                 *time.Time
+	restrict_public_groups         *bool
+	balance_overflow_admin_allowed *bool
+	balance_overflow_enabled       *bool
+	balance_notify_enabled         *bool
+	balance_notify_threshold_type  *string
+	balance_notify_threshold       *float64
+	addbalance_notify_threshold    *float64
+	balance_notify_extra_emails    *string
+	total_recharged                *float64
+	addtotal_recharged             *float64
+	rpm_limit                      *int
+	addrpm_limit                   *int
+	clearedFields                  map[string]struct{}
+	api_keys                       map[int64]struct{}
+	removedapi_keys                map[int64]struct{}
+	clearedapi_keys                bool
+	redeem_codes                   map[int64]struct{}
+	removedredeem_codes            map[int64]struct{}
+	clearedredeem_codes            bool
+	subscriptions                  map[int64]struct{}
+	removedsubscriptions           map[int64]struct{}
+	clearedsubscriptions           bool
+	assigned_subscriptions         map[int64]struct{}
+	removedassigned_subscriptions  map[int64]struct{}
+	clearedassigned_subscriptions  bool
+	announcement_reads             map[int64]struct{}
+	removedannouncement_reads      map[int64]struct{}
+	clearedannouncement_reads      bool
+	allowed_groups                 map[int64]struct{}
+	removedallowed_groups          map[int64]struct{}
+	clearedallowed_groups          bool
+	usage_logs                     map[int64]struct{}
+	removedusage_logs              map[int64]struct{}
+	clearedusage_logs              bool
+	attribute_values               map[int64]struct{}
+	removedattribute_values        map[int64]struct{}
+	clearedattribute_values        bool
+	promo_code_usages              map[int64]struct{}
+	removedpromo_code_usages       map[int64]struct{}
+	clearedpromo_code_usages       bool
+	payment_orders                 map[int64]struct{}
+	removedpayment_orders          map[int64]struct{}
+	clearedpayment_orders          bool
+	auth_identities                map[int64]struct{}
+	removedauth_identities         map[int64]struct{}
+	clearedauth_identities         bool
+	pending_auth_sessions          map[int64]struct{}
+	removedpending_auth_sessions   map[int64]struct{}
+	clearedpending_auth_sessions   bool
+	platform_quotas                map[int64]struct{}
+	removedplatform_quotas         map[int64]struct{}
+	clearedplatform_quotas         bool
+	done                           bool
+	oldValue                       func(context.Context) (*User, error)
+	predicates                     []predicate.User
 }
 
 var _ ent.Mutation = (*UserMutation)(nil)
@@ -51913,6 +52093,78 @@ func (m *UserMutation) OldRestrictPublicGroups(ctx context.Context) (v bool, err
 // ResetRestrictPublicGroups resets all changes to the "restrict_public_groups" field.
 func (m *UserMutation) ResetRestrictPublicGroups() {
 	m.restrict_public_groups = nil
+}
+
+// SetBalanceOverflowAdminAllowed sets the "balance_overflow_admin_allowed" field.
+func (m *UserMutation) SetBalanceOverflowAdminAllowed(b bool) {
+	m.balance_overflow_admin_allowed = &b
+}
+
+// BalanceOverflowAdminAllowed returns the value of the "balance_overflow_admin_allowed" field in the mutation.
+func (m *UserMutation) BalanceOverflowAdminAllowed() (r bool, exists bool) {
+	v := m.balance_overflow_admin_allowed
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBalanceOverflowAdminAllowed returns the old "balance_overflow_admin_allowed" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldBalanceOverflowAdminAllowed(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBalanceOverflowAdminAllowed is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBalanceOverflowAdminAllowed requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBalanceOverflowAdminAllowed: %w", err)
+	}
+	return oldValue.BalanceOverflowAdminAllowed, nil
+}
+
+// ResetBalanceOverflowAdminAllowed resets all changes to the "balance_overflow_admin_allowed" field.
+func (m *UserMutation) ResetBalanceOverflowAdminAllowed() {
+	m.balance_overflow_admin_allowed = nil
+}
+
+// SetBalanceOverflowEnabled sets the "balance_overflow_enabled" field.
+func (m *UserMutation) SetBalanceOverflowEnabled(b bool) {
+	m.balance_overflow_enabled = &b
+}
+
+// BalanceOverflowEnabled returns the value of the "balance_overflow_enabled" field in the mutation.
+func (m *UserMutation) BalanceOverflowEnabled() (r bool, exists bool) {
+	v := m.balance_overflow_enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBalanceOverflowEnabled returns the old "balance_overflow_enabled" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldBalanceOverflowEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBalanceOverflowEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBalanceOverflowEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBalanceOverflowEnabled: %w", err)
+	}
+	return oldValue.BalanceOverflowEnabled, nil
+}
+
+// ResetBalanceOverflowEnabled resets all changes to the "balance_overflow_enabled" field.
+func (m *UserMutation) ResetBalanceOverflowEnabled() {
+	m.balance_overflow_enabled = nil
 }
 
 // SetBalanceNotifyEnabled sets the "balance_notify_enabled" field.
@@ -52941,7 +53193,7 @@ func (m *UserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserMutation) Fields() []string {
-	fields := make([]string, 0, 25)
+	fields := make([]string, 0, 27)
 	if m.created_at != nil {
 		fields = append(fields, user.FieldCreatedAt)
 	}
@@ -52998,6 +53250,12 @@ func (m *UserMutation) Fields() []string {
 	}
 	if m.restrict_public_groups != nil {
 		fields = append(fields, user.FieldRestrictPublicGroups)
+	}
+	if m.balance_overflow_admin_allowed != nil {
+		fields = append(fields, user.FieldBalanceOverflowAdminAllowed)
+	}
+	if m.balance_overflow_enabled != nil {
+		fields = append(fields, user.FieldBalanceOverflowEnabled)
 	}
 	if m.balance_notify_enabled != nil {
 		fields = append(fields, user.FieldBalanceNotifyEnabled)
@@ -53063,6 +53321,10 @@ func (m *UserMutation) Field(name string) (ent.Value, bool) {
 		return m.LastActiveAt()
 	case user.FieldRestrictPublicGroups:
 		return m.RestrictPublicGroups()
+	case user.FieldBalanceOverflowAdminAllowed:
+		return m.BalanceOverflowAdminAllowed()
+	case user.FieldBalanceOverflowEnabled:
+		return m.BalanceOverflowEnabled()
 	case user.FieldBalanceNotifyEnabled:
 		return m.BalanceNotifyEnabled()
 	case user.FieldBalanceNotifyThresholdType:
@@ -53122,6 +53384,10 @@ func (m *UserMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldLastActiveAt(ctx)
 	case user.FieldRestrictPublicGroups:
 		return m.OldRestrictPublicGroups(ctx)
+	case user.FieldBalanceOverflowAdminAllowed:
+		return m.OldBalanceOverflowAdminAllowed(ctx)
+	case user.FieldBalanceOverflowEnabled:
+		return m.OldBalanceOverflowEnabled(ctx)
 	case user.FieldBalanceNotifyEnabled:
 		return m.OldBalanceNotifyEnabled(ctx)
 	case user.FieldBalanceNotifyThresholdType:
@@ -53275,6 +53541,20 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetRestrictPublicGroups(v)
+		return nil
+	case user.FieldBalanceOverflowAdminAllowed:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBalanceOverflowAdminAllowed(v)
+		return nil
+	case user.FieldBalanceOverflowEnabled:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBalanceOverflowEnabled(v)
 		return nil
 	case user.FieldBalanceNotifyEnabled:
 		v, ok := value.(bool)
@@ -53537,6 +53817,12 @@ func (m *UserMutation) ResetField(name string) error {
 		return nil
 	case user.FieldRestrictPublicGroups:
 		m.ResetRestrictPublicGroups()
+		return nil
+	case user.FieldBalanceOverflowAdminAllowed:
+		m.ResetBalanceOverflowAdminAllowed()
+		return nil
+	case user.FieldBalanceOverflowEnabled:
+		m.ResetBalanceOverflowEnabled()
 		return nil
 	case user.FieldBalanceNotifyEnabled:
 		m.ResetBalanceNotifyEnabled()

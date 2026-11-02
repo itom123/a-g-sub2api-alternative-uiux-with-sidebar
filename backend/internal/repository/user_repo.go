@@ -154,6 +154,10 @@ func (r *userRepository) create(ctx context.Context, userIn *service.User, guard
 		SetNillableLastActiveAt(userIn.LastActiveAt).
 		SetRpmLimit(userIn.RPMLimit).
 		SetRestrictPublicGroups(userIn.RestrictPublicGroups).
+		// 新用户一律默认允许订阅额度用完后使用余额（注册、OAuth、邀请等创建路径都不设置这两个字段）；
+		// 管理员创建时显式关闭的，由 admin CreateUser 随后更新。
+		SetBalanceOverflowAdminAllowed(true).
+		SetBalanceOverflowEnabled(true).
 		Save(txCtx)
 	if err != nil {
 		return translatePersistenceError(err, nil, service.ErrEmailExists)
@@ -319,6 +323,12 @@ func (r *userRepository) Update(ctx context.Context, userIn *service.User, field
 	}
 	if fields.RestrictPublicGroups {
 		updateOp = updateOp.SetRestrictPublicGroups(userIn.RestrictPublicGroups)
+	}
+	if fields.BalanceOverflowAdminAllowed {
+		updateOp = updateOp.SetBalanceOverflowAdminAllowed(userIn.BalanceOverflowAdminAllowed)
+	}
+	if fields.BalanceOverflowEnabled {
+		updateOp = updateOp.SetBalanceOverflowEnabled(userIn.BalanceOverflowEnabled)
 	}
 	if fields.BalanceNotifySettings {
 		updateOp = updateOp.
@@ -1537,6 +1547,8 @@ func applyUserEntityToService(dst *service.User, src *dbent.User) {
 	dst.LastActiveAt = src.LastActiveAt
 	dst.CreatedAt = src.CreatedAt
 	dst.UpdatedAt = src.UpdatedAt
+	dst.BalanceOverflowAdminAllowed = src.BalanceOverflowAdminAllowed
+	dst.BalanceOverflowEnabled = src.BalanceOverflowEnabled
 }
 
 func userSignupSourceOrDefault(signupSource string) string {

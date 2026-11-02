@@ -52,6 +52,12 @@ type Group struct {
 	Platform string `json:"platform,omitempty"`
 	// SubscriptionType holds the value of the "subscription_type" field.
 	SubscriptionType string `json:"subscription_type,omitempty"`
+	// SubscriptionSourceGroupIds holds the value of the "subscription_source_group_ids" field.
+	SubscriptionSourceGroupIds []int64 `json:"subscription_source_group_ids,omitempty"`
+	// SubscriptionOverflowToBalance holds the value of the "subscription_overflow_to_balance" field.
+	SubscriptionOverflowToBalance bool `json:"subscription_overflow_to_balance,omitempty"`
+	// SubscriptionSourceAny holds the value of the "subscription_source_any" field.
+	SubscriptionSourceAny bool `json:"subscription_source_any,omitempty"`
 	// DailyLimitUsd holds the value of the "daily_limit_usd" field.
 	DailyLimitUsd *float64 `json:"daily_limit_usd,omitempty"`
 	// WeeklyLimitUsd holds the value of the "weekly_limit_usd" field.
@@ -262,9 +268,9 @@ func (*Group) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case group.FieldI18n, group.FieldVideoModelPrices, group.FieldModelPricing, group.FieldModelRouting, group.FieldSupportedModelScopes, group.FieldMessagesDispatchModelConfig, group.FieldModelAllowlist, group.FieldCodexModelsManifestConfig, group.FieldReasoningEffortMappings:
+		case group.FieldI18n, group.FieldSubscriptionSourceGroupIds, group.FieldVideoModelPrices, group.FieldModelPricing, group.FieldModelRouting, group.FieldSupportedModelScopes, group.FieldMessagesDispatchModelConfig, group.FieldModelAllowlist, group.FieldCodexModelsManifestConfig, group.FieldReasoningEffortMappings:
 			values[i] = new([]byte)
-		case group.FieldPeakRateEnabled, group.FieldIsExclusive, group.FieldAllowImageGeneration, group.FieldAllowBatchImageGeneration, group.FieldImageCountBilling, group.FieldImageRateIndependent, group.FieldVideoRateIndependent, group.FieldLongContextPricingEnabled, group.FieldClaudeCodeOnly, group.FieldModelRoutingEnabled, group.FieldMcpXMLInject, group.FieldAllowMessagesDispatch, group.FieldAllowLive, group.FieldForceOpenaiFast, group.FieldFreeOpenaiFast, group.FieldRequireOauthOnly, group.FieldRequirePrivacySet, group.FieldProfitControlEnabled:
+		case group.FieldPeakRateEnabled, group.FieldIsExclusive, group.FieldSubscriptionOverflowToBalance, group.FieldSubscriptionSourceAny, group.FieldAllowImageGeneration, group.FieldAllowBatchImageGeneration, group.FieldImageCountBilling, group.FieldImageRateIndependent, group.FieldVideoRateIndependent, group.FieldLongContextPricingEnabled, group.FieldClaudeCodeOnly, group.FieldModelRoutingEnabled, group.FieldMcpXMLInject, group.FieldAllowMessagesDispatch, group.FieldAllowLive, group.FieldForceOpenaiFast, group.FieldFreeOpenaiFast, group.FieldRequireOauthOnly, group.FieldRequirePrivacySet, group.FieldProfitControlEnabled:
 			values[i] = new(sql.NullBool)
 		case group.FieldRateMultiplier, group.FieldPeakRateMultiplier, group.FieldDailyLimitUsd, group.FieldWeeklyLimitUsd, group.FieldMonthlyLimitUsd, group.FieldImageRateMultiplier, group.FieldImagePrice1k, group.FieldImagePrice2k, group.FieldImagePrice4k, group.FieldBatchImageDiscountMultiplier, group.FieldBatchImageHoldMultiplier, group.FieldVideoRateMultiplier, group.FieldVideoPrice480p, group.FieldVideoPrice720p, group.FieldVideoPrice1080p, group.FieldWebSearchPricePerCall, group.FieldSearchPricePer1k, group.FieldAudioRealtimePricePerMin, group.FieldAudioTtsPricePerMillionChars, group.FieldAudioSttPricePerHour, group.FieldProfitMinMargin, group.FieldProfitSafetyBuffer:
 			values[i] = new(sql.NullFloat64)
@@ -395,6 +401,26 @@ func (_m *Group) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field subscription_type", values[i])
 			} else if value.Valid {
 				_m.SubscriptionType = value.String
+			}
+		case group.FieldSubscriptionSourceGroupIds:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field subscription_source_group_ids", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.SubscriptionSourceGroupIds); err != nil {
+					return fmt.Errorf("unmarshal field subscription_source_group_ids: %w", err)
+				}
+			}
+		case group.FieldSubscriptionOverflowToBalance:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field subscription_overflow_to_balance", values[i])
+			} else if value.Valid {
+				_m.SubscriptionOverflowToBalance = value.Bool
+			}
+		case group.FieldSubscriptionSourceAny:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field subscription_source_any", values[i])
+			} else if value.Valid {
+				_m.SubscriptionSourceAny = value.Bool
 			}
 		case group.FieldDailyLimitUsd:
 			if value, ok := values[i].(*sql.NullFloat64); !ok {
@@ -869,6 +895,15 @@ func (_m *Group) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("subscription_type=")
 	builder.WriteString(_m.SubscriptionType)
+	builder.WriteString(", ")
+	builder.WriteString("subscription_source_group_ids=")
+	builder.WriteString(fmt.Sprintf("%v", _m.SubscriptionSourceGroupIds))
+	builder.WriteString(", ")
+	builder.WriteString("subscription_overflow_to_balance=")
+	builder.WriteString(fmt.Sprintf("%v", _m.SubscriptionOverflowToBalance))
+	builder.WriteString(", ")
+	builder.WriteString("subscription_source_any=")
+	builder.WriteString(fmt.Sprintf("%v", _m.SubscriptionSourceAny))
 	builder.WriteString(", ")
 	if v := _m.DailyLimitUsd; v != nil {
 		builder.WriteString("daily_limit_usd=")

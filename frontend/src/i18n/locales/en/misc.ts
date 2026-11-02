@@ -150,6 +150,13 @@ export default {
     noActiveSubscriptions: 'No Active Subscriptions',
     noActiveSubscriptionsDesc:
       "You don't have any active subscriptions. Contact administrator to get one.",
+    balanceOverflow: {
+      title: 'Keep using models with your balance after the quota is used up',
+      description:
+        'When on, usage beyond your daily/weekly/monthly subscription quota is charged to your balance so you can keep working. When off, usage stops at the quota until it resets.',
+      adminDisabled: 'An administrator has turned this off. Contact an administrator to enable it.',
+      saved: 'Setting saved'
+    },
     failedToLoad: 'Failed to load subscriptions',
     status: {
       active: 'Active',

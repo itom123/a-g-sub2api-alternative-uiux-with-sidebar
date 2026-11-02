@@ -14,25 +14,27 @@ func UserFromServiceShallow(u *service.User) *User {
 		return nil
 	}
 	return &User{
-		ID:                         u.ID,
-		Email:                      u.Email,
-		Username:                   u.Username,
-		Role:                       u.Role,
-		Balance:                    u.Balance,
-		FrozenBalance:              u.FrozenBalance,
-		Concurrency:                u.Concurrency,
-		Status:                     u.Status,
-		AllowedGroups:              u.AllowedGroups,
-		LastActiveAt:               u.LastActiveAt,
-		CreatedAt:                  u.CreatedAt,
-		UpdatedAt:                  u.UpdatedAt,
-		BalanceNotifyEnabled:       u.BalanceNotifyEnabled,
-		BalanceNotifyThresholdType: u.BalanceNotifyThresholdType,
-		BalanceNotifyThreshold:     u.BalanceNotifyThreshold,
-		BalanceNotifyExtraEmails:   NotifyEmailEntriesFromService(u.BalanceNotifyExtraEmails),
-		TotalRecharged:             u.TotalRecharged,
-		RPMLimit:                   u.RPMLimit,
-		DeletedAt:                  u.DeletedAt,
+		ID:                          u.ID,
+		Email:                       u.Email,
+		Username:                    u.Username,
+		Role:                        u.Role,
+		Balance:                     u.Balance,
+		FrozenBalance:               u.FrozenBalance,
+		Concurrency:                 u.Concurrency,
+		Status:                      u.Status,
+		AllowedGroups:               u.AllowedGroups,
+		LastActiveAt:                u.LastActiveAt,
+		CreatedAt:                   u.CreatedAt,
+		UpdatedAt:                   u.UpdatedAt,
+		BalanceNotifyEnabled:        u.BalanceNotifyEnabled,
+		BalanceNotifyThresholdType:  u.BalanceNotifyThresholdType,
+		BalanceNotifyThreshold:      u.BalanceNotifyThreshold,
+		BalanceNotifyExtraEmails:    NotifyEmailEntriesFromService(u.BalanceNotifyExtraEmails),
+		TotalRecharged:              u.TotalRecharged,
+		BalanceOverflowEnabled:      u.BalanceOverflowEnabled,
+		BalanceOverflowAdminAllowed: u.BalanceOverflowAdminAllowed,
+		RPMLimit:                    u.RPMLimit,
+		DeletedAt:                   u.DeletedAt,
 	}
 }
 
@@ -147,25 +149,28 @@ func GroupFromServiceAdmin(g *service.Group) *AdminGroup {
 		return nil
 	}
 	out := &AdminGroup{
-		Group:                       groupFromServiceBase(g),
-		ForceOpenAIFast:             g.ForceOpenAIFast,
-		FreeOpenAIFast:              g.FreeOpenAIFast,
-		ProfitControlEnabled:        g.ProfitControlEnabled,
-		ProfitMinMargin:             g.ProfitMinMargin,
-		ProfitSafetyBuffer:          g.ProfitSafetyBuffer,
-		ModelPricing:                g.ModelPricing,
-		ModelRouting:                g.ModelRouting,
-		ModelRoutingEnabled:         g.ModelRoutingEnabled,
-		MCPXMLInject:                g.MCPXMLInject,
-		DefaultMappedModel:          g.DefaultMappedModel,
-		MessagesDispatchModelConfig: g.MessagesDispatchModelConfig,
-		ModelAllowlist:              g.ModelAllowlist,
-		CodexModelsManifestConfig:   g.CodexModelsManifestConfig,
-		SupportedModelScopes:        g.SupportedModelScopes,
-		AccountCount:                g.AccountCount,
-		ActiveAccountCount:          g.ActiveAccountCount,
-		RateLimitedAccountCount:     g.RateLimitedAccountCount,
-		SortOrder:                   g.SortOrder,
+		Group:                         groupFromServiceBase(g),
+		ForceOpenAIFast:               g.ForceOpenAIFast,
+		FreeOpenAIFast:                g.FreeOpenAIFast,
+		SubscriptionSourceGroupIDs:    nonNilInt64Slice(g.SubscriptionSourceGroupIDs),
+		SubscriptionSourceAny:         g.SubscriptionSourceAny,
+		SubscriptionOverflowToBalance: g.SubscriptionOverflowToBalance,
+		ProfitControlEnabled:          g.ProfitControlEnabled,
+		ProfitMinMargin:               g.ProfitMinMargin,
+		ProfitSafetyBuffer:            g.ProfitSafetyBuffer,
+		ModelPricing:                  g.ModelPricing,
+		ModelRouting:                  g.ModelRouting,
+		ModelRoutingEnabled:           g.ModelRoutingEnabled,
+		MCPXMLInject:                  g.MCPXMLInject,
+		DefaultMappedModel:            g.DefaultMappedModel,
+		MessagesDispatchModelConfig:   g.MessagesDispatchModelConfig,
+		ModelAllowlist:                g.ModelAllowlist,
+		CodexModelsManifestConfig:     g.CodexModelsManifestConfig,
+		SupportedModelScopes:          g.SupportedModelScopes,
+		AccountCount:                  g.AccountCount,
+		ActiveAccountCount:            g.ActiveAccountCount,
+		RateLimitedAccountCount:       g.RateLimitedAccountCount,
+		SortOrder:                     g.SortOrder,
 	}
 	if len(g.AccountGroups) > 0 {
 		out.AccountGroups = make([]AccountGroup, 0, len(g.AccountGroups))
@@ -964,4 +969,11 @@ func PromoCodeUsageFromService(u *service.PromoCodeUsage) *PromoCodeUsage {
 		UsedAt:      u.UsedAt,
 		User:        UserFromServiceShallow(u.User),
 	}
+}
+
+func nonNilInt64Slice(v []int64) []int64 {
+	if v == nil {
+		return []int64{}
+	}
+	return v
 }

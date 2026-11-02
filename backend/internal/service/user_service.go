@@ -113,7 +113,9 @@ type UserUpdateFields struct {
 	// AllowedGroups 为 true 时才同步 user_allowed_groups 关联表。
 	AllowedGroups bool
 	// RestrictPublicGroups 覆盖 restrict_public_groups 列。
-	RestrictPublicGroups bool
+	RestrictPublicGroups        bool
+	BalanceOverflowAdminAllowed bool
+	BalanceOverflowEnabled      bool
 }
 
 // BalanceChange 记录一次余额变更前后的值。
@@ -258,6 +260,7 @@ type UpdateProfileRequest struct {
 	Concurrency            *int     `json:"concurrency"`
 	BalanceNotifyEnabled   *bool    `json:"balance_notify_enabled"`
 	BalanceNotifyThreshold *float64 `json:"balance_notify_threshold"`
+	BalanceOverflowEnabled *bool    `json:"balance_overflow_enabled"`
 }
 
 type UserAvatar struct {
@@ -468,38 +471,40 @@ func (s *UserService) UnbindUserAuthProviderWithResult(ctx context.Context, user
 func (s *UserService) UpdateProfile(ctx context.Context, userID int64, req UpdateProfileRequest) (*User, error) {
 	if txRunner, ok := s.userRepo.(userProfileIdentityTxRunner); ok {
 		var (
-			updated        *User
-			oldConcurrency int
+			updated            *User
+			oldConcurrency     int
+			oldOverflowEnabled bool
 		)
 		if err := txRunner.WithUserProfileIdentityTx(ctx, func(txCtx context.Context) error {
 			var err error
-			updated, oldConcurrency, err = s.updateProfile(txCtx, userID, req)
+			updated, oldConcurrency, oldOverflowEnabled, err = s.updateProfile(txCtx, userID, req)
 			return err
 		}); err != nil {
 			return nil, err
 		}
-		if s.authCacheInvalidator != nil && updated != nil && updated.Concurrency != oldConcurrency {
+		if s.authCacheInvalidator != nil && updated != nil && (updated.Concurrency != oldConcurrency || updated.BalanceOverflowEnabled != oldOverflowEnabled) {
 			s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, userID)
 		}
 		return updated, nil
 	}
 
-	updated, oldConcurrency, err := s.updateProfile(ctx, userID, req)
+	updated, oldConcurrency, oldOverflowEnabled, err := s.updateProfile(ctx, userID, req)
 	if err != nil {
 		return nil, err
 	}
-	if s.authCacheInvalidator != nil && updated.Concurrency != oldConcurrency {
+	if s.authCacheInvalidator != nil && (updated.Concurrency != oldConcurrency || updated.BalanceOverflowEnabled != oldOverflowEnabled) {
 		s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, userID)
 	}
 	return updated, nil
 }
 
-func (s *UserService) updateProfile(ctx context.Context, userID int64, req UpdateProfileRequest) (*User, int, error) {
+func (s *UserService) updateProfile(ctx context.Context, userID int64, req UpdateProfileRequest) (*User, int, bool, error) {
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
-		return nil, 0, fmt.Errorf("get user: %w", err)
+		return nil, 0, false, fmt.Errorf("get user: %w", err)
 	}
 	oldConcurrency := user.Concurrency
+	oldOverflowEnabled := user.BalanceOverflowEnabled
 
 	// fields 只登记本次请求真正带上的字段。余额、状态等列不由这里回写，
 	// 否则并发的扣费与状态变更会被这份快照回滚。
@@ -510,10 +515,10 @@ func (s *UserService) updateProfile(ctx context.Context, userID int64, req Updat
 		// 检查新邮箱是否已被使用
 		exists, err := s.userRepo.ExistsByEmail(ctx, *req.Email)
 		if err != nil {
-			return nil, oldConcurrency, fmt.Errorf("check email exists: %w", err)
+			return nil, oldConcurrency, oldOverflowEnabled, fmt.Errorf("check email exists: %w", err)
 		}
 		if exists && *req.Email != user.Email {
-			return nil, oldConcurrency, ErrEmailExists
+			return nil, oldConcurrency, oldOverflowEnabled, ErrEmailExists
 		}
 		user.Email = *req.Email
 		fields.Email = true
@@ -527,7 +532,7 @@ func (s *UserService) updateProfile(ctx context.Context, userID int64, req Updat
 	if req.AvatarURL != nil {
 		avatar, err := s.SetAvatar(ctx, userID, *req.AvatarURL)
 		if err != nil {
-			return nil, oldConcurrency, err
+			return nil, oldConcurrency, oldOverflowEnabled, err
 		}
 		applyUserAvatar(user, avatar)
 	}
@@ -541,6 +546,10 @@ func (s *UserService) updateProfile(ctx context.Context, userID int64, req Updat
 		user.BalanceNotifyEnabled = *req.BalanceNotifyEnabled
 		fields.BalanceNotifySettings = true
 	}
+	if req.BalanceOverflowEnabled != nil {
+		user.BalanceOverflowEnabled = *req.BalanceOverflowEnabled
+		fields.BalanceOverflowEnabled = true
+	}
 	if req.BalanceNotifyThreshold != nil {
 		if *req.BalanceNotifyThreshold <= 0 {
 			user.BalanceNotifyThreshold = nil // clear to system default
@@ -551,10 +560,10 @@ func (s *UserService) updateProfile(ctx context.Context, userID int64, req Updat
 	}
 
 	if err := s.userRepo.Update(ctx, user, fields); err != nil {
-		return nil, oldConcurrency, fmt.Errorf("update user: %w", err)
+		return nil, oldConcurrency, oldOverflowEnabled, fmt.Errorf("update user: %w", err)
 	}
 
-	return user, oldConcurrency, nil
+	return user, oldConcurrency, oldOverflowEnabled, nil
 }
 
 func (s *UserService) SetAvatar(ctx context.Context, userID int64, raw string) (*UserAvatar, error) {
