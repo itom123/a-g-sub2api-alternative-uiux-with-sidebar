@@ -48,6 +48,12 @@ const (
 	FieldPlatform = "platform"
 	// FieldSubscriptionType holds the string denoting the subscription_type field in the database.
 	FieldSubscriptionType = "subscription_type"
+	// FieldSubscriptionSourceGroupIds holds the string denoting the subscription_source_group_ids field in the database.
+	FieldSubscriptionSourceGroupIds = "subscription_source_group_ids"
+	// FieldSubscriptionOverflowToBalance holds the string denoting the subscription_overflow_to_balance field in the database.
+	FieldSubscriptionOverflowToBalance = "subscription_overflow_to_balance"
+	// FieldSubscriptionSourceAny holds the string denoting the subscription_source_any field in the database.
+	FieldSubscriptionSourceAny = "subscription_source_any"
 	// FieldDailyLimitUsd holds the string denoting the daily_limit_usd field in the database.
 	FieldDailyLimitUsd = "daily_limit_usd"
 	// FieldWeeklyLimitUsd holds the string denoting the weekly_limit_usd field in the database.
@@ -243,6 +249,9 @@ var Columns = []string{
 	FieldDuplicateOperationID,
 	FieldPlatform,
 	FieldSubscriptionType,
+	FieldSubscriptionSourceGroupIds,
+	FieldSubscriptionOverflowToBalance,
+	FieldSubscriptionSourceAny,
 	FieldDailyLimitUsd,
 	FieldWeeklyLimitUsd,
 	FieldMonthlyLimitUsd,
@@ -364,6 +373,12 @@ var (
 	DefaultSubscriptionType string
 	// SubscriptionTypeValidator is a validator for the "subscription_type" field. It is called by the builders before save.
 	SubscriptionTypeValidator func(string) error
+	// DefaultSubscriptionSourceGroupIds holds the default value on creation for the "subscription_source_group_ids" field.
+	DefaultSubscriptionSourceGroupIds []int64
+	// DefaultSubscriptionOverflowToBalance holds the default value on creation for the "subscription_overflow_to_balance" field.
+	DefaultSubscriptionOverflowToBalance bool
+	// DefaultSubscriptionSourceAny holds the default value on creation for the "subscription_source_any" field.
+	DefaultSubscriptionSourceAny bool
 	// DefaultDefaultValidityDays holds the default value on creation for the "default_validity_days" field.
 	DefaultDefaultValidityDays int
 	// DefaultAllowImageGeneration holds the default value on creation for the "allow_image_generation" field.
@@ -527,6 +542,16 @@ func ByPlatform(opts ...sql.OrderTermOption) OrderOption {
 // BySubscriptionType orders the results by the subscription_type field.
 func BySubscriptionType(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldSubscriptionType, opts...).ToFunc()
+}
+
+// BySubscriptionOverflowToBalance orders the results by the subscription_overflow_to_balance field.
+func BySubscriptionOverflowToBalance(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSubscriptionOverflowToBalance, opts...).ToFunc()
+}
+
+// BySubscriptionSourceAny orders the results by the subscription_source_any field.
+func BySubscriptionSourceAny(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSubscriptionSourceAny, opts...).ToFunc()
 }
 
 // ByDailyLimitUsd orders the results by the daily_limit_usd field.

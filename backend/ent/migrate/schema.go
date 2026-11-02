@@ -919,6 +919,9 @@ var (
 		{Name: "duplicate_operation_id", Type: field.TypeString, Nullable: true, Size: 64},
 		{Name: "platform", Type: field.TypeString, Size: 50, Default: "anthropic"},
 		{Name: "subscription_type", Type: field.TypeString, Size: 20, Default: "standard"},
+		{Name: "subscription_source_group_ids", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},
+		{Name: "subscription_overflow_to_balance", Type: field.TypeBool, Default: false},
+		{Name: "subscription_source_any", Type: field.TypeBool, Default: false},
 		{Name: "daily_limit_usd", Type: field.TypeFloat64, Nullable: true, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
 		{Name: "weekly_limit_usd", Type: field.TypeFloat64, Nullable: true, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
 		{Name: "monthly_limit_usd", Type: field.TypeFloat64, Nullable: true, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
@@ -1006,7 +1009,7 @@ var (
 			{
 				Name:    "group_sort_order",
 				Unique:  false,
-				Columns: []*schema.Column{GroupsColumns[51]},
+				Columns: []*schema.Column{GroupsColumns[54]},
 			},
 			{
 				Name:    "idx_groups_duplicate_operation_id_active",
@@ -1858,6 +1861,8 @@ var (
 		{Name: "last_login_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
 		{Name: "last_active_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
 		{Name: "restrict_public_groups", Type: field.TypeBool, Default: false},
+		{Name: "balance_overflow_admin_allowed", Type: field.TypeBool, Default: true},
+		{Name: "balance_overflow_enabled", Type: field.TypeBool, Default: true},
 		{Name: "balance_notify_enabled", Type: field.TypeBool, Default: true},
 		{Name: "balance_notify_threshold_type", Type: field.TypeString, Default: "fixed"},
 		{Name: "balance_notify_threshold", Type: field.TypeFloat64, Nullable: true, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},

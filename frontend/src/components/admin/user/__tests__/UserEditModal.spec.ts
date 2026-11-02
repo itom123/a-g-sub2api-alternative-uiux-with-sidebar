@@ -87,4 +87,16 @@ describe('UserEditModal concurrency', () => {
     expect(showError).toHaveBeenCalledWith('admin.users.concurrencyNonNegative')
     expect(update).not.toHaveBeenCalled()
   })
+
+  it('submits the admin balance-overflow permission and defaults it to allowed', async () => {
+    const wrapper = mountModal(1)
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(update).toHaveBeenLastCalledWith(7, expect.objectContaining({ balance_overflow_admin_allowed: true }))
+
+    await wrapper.get('[data-test="balance-overflow-admin-toggle"]').trigger('click')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(update).toHaveBeenLastCalledWith(7, expect.objectContaining({ balance_overflow_admin_allowed: false }))
+  })
 })

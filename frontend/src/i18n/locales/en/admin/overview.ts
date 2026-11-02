@@ -593,7 +593,9 @@ export default {
         concurrencyPlaceholder: '0 = unlimited',
         concurrencyHint: 'Max concurrent requests for this user; 0 = unlimited.',
         rpmLimitPlaceholder: '0 = unlimited',
-        rpmLimitHint: 'Max requests per minute for this user; 0 = unlimited. Acts as a fallback only when the group has no rpm_limit set.'
+        rpmLimitHint: 'Max requests per minute for this user; 0 = unlimited. Acts as a fallback only when the group has no rpm_limit set.',
+        balanceOverflowAdminAllowed: 'Allow balance after the subscription quota is used up',
+        balanceOverflowAdminAllowedHint: 'When off, this user stops at the quota and cannot turn it on. When on, the user can turn it off or back on under My Subscriptions.'
       },
       columns: {
         user: 'User',
@@ -1079,7 +1081,12 @@ export default {
         monthlyLimit: 'Monthly Limit (CNY)',
         defaultValidityDays: 'Default Validity (Days)',
         validityHint: 'Number of days the subscription is valid when assigned to a user',
-        noLimit: 'No limit'
+        noLimit: 'No limit',
+        sourceGroups: 'Subscription quota sources',
+        sourceGroupsPlaceholder: 'Select a subscription group',
+        sourceGroupsHint: 'Usage in this group by users who hold a selected subscription is charged to that subscription quota first, then to their balance once it is used up. The first subscription in list order that still has quota is used.',
+        sourceAny: 'Use any subscription quota',
+        sourceAnyHint: "When on, usage in this group is charged to any of the user's active subscriptions (any campus), earliest-expiring first. Once all are used up, the user's 'allow balance' setting decides whether the balance pays or usage stops."
       },
       imagePricing: {
         title: 'Image Generation Pricing',

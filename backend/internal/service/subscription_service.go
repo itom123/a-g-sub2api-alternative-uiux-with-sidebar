@@ -146,6 +146,7 @@ func (s *SubscriptionService) InvalidateSubCache(userID, groupID int64) {
 		return
 	}
 	s.subCacheL1.Del(subCacheKey(userID, groupID))
+	s.subCacheL1.Del(subListCacheKey(userID))
 }
 
 // InvalidateSubCacheSync 失效订阅 L1 缓存并等待 Ristretto 删除操作生效。
@@ -158,6 +159,14 @@ func (s *SubscriptionService) invalidateSubCacheKeySync(key string) {
 		return
 	}
 	s.subCacheL1.Del(key)
+	// 「任意订阅」分组使用的按用户订阅列表随该用户任一订阅变化一起失效（key 形如 sub:<user>:<group>）。
+	if rest, ok := strings.CutPrefix(key, "sub:"); ok {
+		if userPart, _, ok := strings.Cut(rest, ":"); ok {
+			if userID, err := strconv.ParseInt(userPart, 10, 64); err == nil {
+				s.subCacheL1.Del(subListCacheKey(userID))
+			}
+		}
+	}
 	s.subCacheL1.Wait()
 }
 

@@ -165,29 +165,20 @@ func APIKeyAuthWithSubscriptionGoogle(apiKeyService *service.APIKeyService, subs
 			return
 		}
 
-		isSubscriptionType := apiKey.Group != nil && apiKey.Group.IsSubscriptionType()
-		if isSubscriptionType && subscriptionService != nil {
-			subscription, err := subscriptionService.GetActiveSubscription(
-				c.Request.Context(),
-				apiKey.User.ID,
-				apiKey.Group.ID,
-			)
+		// 订阅解析：订阅分组走自身订阅（可配置额度用完转扣余额），标准分组可按配置共享订阅额度；
+		// 返回 nil 表示本次请求按余额计费。
+		var subscription *service.UserSubscription
+		if subscriptionService != nil {
+			sub, err := subscriptionService.ResolveBillingSubscription(c.Request.Context(), apiKey.User, apiKey.Group, !apiKeyBalanceBelowAuthThreshold(apiKey.User.Balance, cfg))
 			if err != nil {
-				abortWithGoogleError(c, 403, "No active subscription found for this group")
-				return
-			}
-
-			needsMaintenance, err := subscriptionService.ValidateAndCheckLimits(subscription, apiKey.Group)
-			if needsMaintenance {
-				refreshed, maintenanceErr := subscriptionService.EnsureWindowMaintenance(c.Request.Context(), subscription)
-				if maintenanceErr != nil {
+				if errors.Is(err, service.ErrSubscriptionNotFound) {
+					abortWithGoogleError(c, 403, "No active subscription found for this group")
+					return
+				}
+				if errors.Is(err, service.ErrSubscriptionMaintenanceFailed) {
 					abortWithGoogleError(c, 500, "Failed to maintain subscription usage windows")
 					return
 				}
-				subscription = refreshed
-				_, err = subscriptionService.ValidateAndCheckLimits(subscription, apiKey.Group)
-			}
-			if err != nil {
 				status := 403
 				if errors.Is(err, service.ErrDailyLimitExceeded) ||
 					errors.Is(err, service.ErrWeeklyLimitExceeded) ||
@@ -197,13 +188,14 @@ func APIKeyAuthWithSubscriptionGoogle(apiKeyService *service.APIKeyService, subs
 				abortWithGoogleError(c, status, err.Error())
 				return
 			}
+			subscription = sub
+		}
 
+		if subscription != nil {
 			c.Set(string(ContextKeySubscription), subscription)
-		} else {
-			if apiKeyBalanceBelowAuthThreshold(apiKey.User.Balance, cfg) {
-				abortWithGoogleError(c, 403, "Insufficient account balance")
-				return
-			}
+		} else if apiKeyBalanceBelowAuthThreshold(apiKey.User.Balance, cfg) {
+			abortWithGoogleError(c, 403, "Insufficient account balance")
+			return
 		}
 
 		c.Set(string(ContextKeyAPIKey), apiKey)

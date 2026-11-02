@@ -462,7 +462,7 @@ func TestReserveFixedCharge(t *testing.T) {
 		svc := newSvc(&fixedChargeCacheStub{sub: &SubscriptionCacheData{
 			Status: SubscriptionStatusActive, ExpiresAt: time.Now().Add(time.Hour), DailyUsage: 3,
 		}})
-		sub := &UserSubscription{ID: 1}
+		sub := &UserSubscription{ID: 1, GroupID: 2}
 		require.NoError(t, reserve(svc, nil, group, sub, 2))
 		require.ErrorIs(t, reserve(svc, nil, group, sub, 2.5), ErrDailyLimitExceeded)
 	})
@@ -491,13 +491,13 @@ func TestReserveFixedCharge(t *testing.T) {
 		group := &Group{ID: 2, SubscriptionType: SubscriptionTypeSubscription, DailyLimitUSD: &daily}
 		subRepo := &fixedChargeSubscriptionRepoStub{sub: &UserSubscription{Status: SubscriptionStatusActive, DailyUsageUSD: 4}}
 		svc = reservingSvc(&fixedChargeCacheStub{sub: &SubscriptionCacheData{Status: SubscriptionStatusActive}}, subRepo, nil)
-		require.ErrorIs(t, reserve(svc, nil, group, &UserSubscription{ID: 1}, 2), ErrDailyLimitExceeded, "订阅缓存用量可能滞后")
+		require.ErrorIs(t, reserve(svc, nil, group, &UserSubscription{ID: 1, GroupID: 2}, 2), ErrDailyLimitExceeded, "订阅缓存用量可能滞后")
 	})
 
 	t.Run("unsettled charges hold subscription and api key headroom", func(t *testing.T) {
 		daily := 110.0
 		group := &Group{ID: 2, SubscriptionType: SubscriptionTypeSubscription, DailyLimitUSD: &daily}
-		sub := &UserSubscription{ID: 1}
+		sub := &UserSubscription{ID: 1, GroupID: 2}
 		cache := &fixedChargeCacheStub{balance: 1000, sub: &SubscriptionCacheData{Status: SubscriptionStatusActive}}
 		svc := reservingSvc(cache, nil, nil)
 		first, err := svc.ReserveFixedCharge(ctx, user, nil, group, sub, 103.5)

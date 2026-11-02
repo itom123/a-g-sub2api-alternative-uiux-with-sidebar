@@ -150,6 +150,22 @@ func (s *adminServiceImpl) CreateUser(ctx context.Context, input *CreateUserInpu
 	if err := s.userRepo.Create(ctx, user); err != nil {
 		return nil, err
 	}
+	// 仓储创建时两项余额开关默认开启；管理员显式关闭的在此落库。
+	user.BalanceOverflowAdminAllowed, user.BalanceOverflowEnabled = true, true
+	var overflowFields UserUpdateFields
+	if input.BalanceOverflowAdminAllowed != nil && !*input.BalanceOverflowAdminAllowed {
+		user.BalanceOverflowAdminAllowed = false
+		overflowFields.BalanceOverflowAdminAllowed = true
+	}
+	if input.BalanceOverflowEnabled != nil && !*input.BalanceOverflowEnabled {
+		user.BalanceOverflowEnabled = false
+		overflowFields.BalanceOverflowEnabled = true
+	}
+	if overflowFields.BalanceOverflowAdminAllowed || overflowFields.BalanceOverflowEnabled {
+		if err := s.userRepo.Update(ctx, user, overflowFields); err != nil {
+			return nil, fmt.Errorf("apply balance overflow settings: %w", err)
+		}
+	}
 	// 创建管理员属权限敏感操作，落审计日志（含操作者），便于事后追溯。
 	if user.Role == RoleAdmin {
 		logger.LegacyPrintf("service.admin", "audit: admin user created actor_admin_id=%d target_user_id=%d",
@@ -287,9 +303,19 @@ func (s *adminServiceImpl) UpdateUser(ctx context.Context, id int64, input *Upda
 	}
 
 	oldRestrictPublicGroups := user.RestrictPublicGroups
+	oldBalanceOverflowAdminAllowed := user.BalanceOverflowAdminAllowed
+	oldBalanceOverflowEnabled := user.BalanceOverflowEnabled
 	if input.RestrictPublicGroups != nil {
 		user.RestrictPublicGroups = *input.RestrictPublicGroups
 		fields.RestrictPublicGroups = true
+	}
+	if input.BalanceOverflowAdminAllowed != nil {
+		user.BalanceOverflowAdminAllowed = *input.BalanceOverflowAdminAllowed
+		fields.BalanceOverflowAdminAllowed = true
+	}
+	if input.BalanceOverflowEnabled != nil {
+		user.BalanceOverflowEnabled = *input.BalanceOverflowEnabled
+		fields.BalanceOverflowEnabled = true
 	}
 
 	if err := s.userRepo.Update(ctx, user, fields); err != nil {
@@ -312,7 +338,7 @@ func (s *adminServiceImpl) UpdateUser(ctx context.Context, id int64, input *Upda
 	if s.authCacheInvalidator != nil {
 		// RPMLimit 直接参与 billing_cache_service.checkRPM 的三级级联，
 		// allowed_groups 参与 API Key 专属分组授权判断；不失效缓存会让修改在一个 L2 TTL 内失去效果。
-		if user.Concurrency != oldConcurrency || user.Status != oldStatus || user.Role != oldRole || user.RPMLimit != oldRPMLimit || user.RestrictPublicGroups != oldRestrictPublicGroups || !sameInt64Set(user.AllowedGroups, oldAllowedGroups) {
+		if user.Concurrency != oldConcurrency || user.Status != oldStatus || user.Role != oldRole || user.RPMLimit != oldRPMLimit || user.RestrictPublicGroups != oldRestrictPublicGroups || user.BalanceOverflowAdminAllowed != oldBalanceOverflowAdminAllowed || user.BalanceOverflowEnabled != oldBalanceOverflowEnabled || !sameInt64Set(user.AllowedGroups, oldAllowedGroups) {
 			s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, user.ID)
 		}
 	}

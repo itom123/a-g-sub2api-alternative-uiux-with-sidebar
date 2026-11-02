@@ -658,7 +658,9 @@ export default {
         concurrencyPlaceholder: '0 表示不限制',
         concurrencyHint: '该用户的最大并发请求数，0 = 不限制',
         rpmLimitPlaceholder: '0 表示不限制',
-        rpmLimitHint: '该用户每分钟最大请求数，0 = 不限制；仅在所用分组未设置 rpm_limit 时作为兜底生效'
+        rpmLimitHint: '该用户每分钟最大请求数，0 = 不限制；仅在所用分组未设置 rpm_limit 时作为兜底生效',
+        balanceOverflowAdminAllowed: '允许订阅额度用完后使用余额',
+        balanceOverflowAdminAllowedHint: '关闭后该用户额度用完即暂停，用户自己无法开启。开启时用户可在「我的订阅」中自行关闭或重新开启。'
       },
       adjustBalance: '调整余额',
       adjustConcurrency: '调整并发数',
@@ -1076,7 +1078,12 @@ export default {
         monthlyLimit: '每月限额（CNY）',
         defaultValidityDays: '默认有效期（天）',
         validityHint: '分配给用户时订阅的有效天数',
-        noLimit: '无限制'
+        noLimit: '无限制',
+        sourceGroups: '可使用的订阅额度',
+        sourceGroupsPlaceholder: '选择订阅分组',
+        sourceGroupsHint: '订阅了所选套餐的用户在本分组的用量，会先计入该订阅的额度；额度用完后扣余额。按列表顺序使用第一个仍有额度的订阅。',
+        sourceAny: '使用任意订阅额度',
+        sourceAnyHint: '开启后，用户在本分组的用量会先计入其任一有效订阅（不限套餐），最先到期的订阅优先；所有订阅额度用完后，按用户的「允许使用余额」设置扣余额或暂停。'
       },
       imagePricing: {
         title: '图片生成计费',

@@ -55,6 +55,10 @@ type User struct {
 	LastActiveAt *time.Time `json:"last_active_at,omitempty"`
 	// RestrictPublicGroups holds the value of the "restrict_public_groups" field.
 	RestrictPublicGroups bool `json:"restrict_public_groups,omitempty"`
+	// BalanceOverflowAdminAllowed holds the value of the "balance_overflow_admin_allowed" field.
+	BalanceOverflowAdminAllowed bool `json:"balance_overflow_admin_allowed,omitempty"`
+	// BalanceOverflowEnabled holds the value of the "balance_overflow_enabled" field.
+	BalanceOverflowEnabled bool `json:"balance_overflow_enabled,omitempty"`
 	// BalanceNotifyEnabled holds the value of the "balance_notify_enabled" field.
 	BalanceNotifyEnabled bool `json:"balance_notify_enabled,omitempty"`
 	// BalanceNotifyThresholdType holds the value of the "balance_notify_threshold_type" field.
@@ -239,7 +243,7 @@ func (*User) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case user.FieldTotpEnabled, user.FieldRestrictPublicGroups, user.FieldBalanceNotifyEnabled:
+		case user.FieldTotpEnabled, user.FieldRestrictPublicGroups, user.FieldBalanceOverflowAdminAllowed, user.FieldBalanceOverflowEnabled, user.FieldBalanceNotifyEnabled:
 			values[i] = new(sql.NullBool)
 		case user.FieldBalance, user.FieldFrozenBalance, user.FieldBalanceNotifyThreshold, user.FieldTotalRecharged:
 			values[i] = new(sql.NullFloat64)
@@ -388,6 +392,18 @@ func (_m *User) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field restrict_public_groups", values[i])
 			} else if value.Valid {
 				_m.RestrictPublicGroups = value.Bool
+			}
+		case user.FieldBalanceOverflowAdminAllowed:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field balance_overflow_admin_allowed", values[i])
+			} else if value.Valid {
+				_m.BalanceOverflowAdminAllowed = value.Bool
+			}
+		case user.FieldBalanceOverflowEnabled:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field balance_overflow_enabled", values[i])
+			} else if value.Valid {
+				_m.BalanceOverflowEnabled = value.Bool
 			}
 		case user.FieldBalanceNotifyEnabled:
 			if value, ok := values[i].(*sql.NullBool); !ok {
@@ -598,6 +614,12 @@ func (_m *User) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("restrict_public_groups=")
 	builder.WriteString(fmt.Sprintf("%v", _m.RestrictPublicGroups))
+	builder.WriteString(", ")
+	builder.WriteString("balance_overflow_admin_allowed=")
+	builder.WriteString(fmt.Sprintf("%v", _m.BalanceOverflowAdminAllowed))
+	builder.WriteString(", ")
+	builder.WriteString("balance_overflow_enabled=")
+	builder.WriteString(fmt.Sprintf("%v", _m.BalanceOverflowEnabled))
 	builder.WriteString(", ")
 	builder.WriteString("balance_notify_enabled=")
 	builder.WriteString(fmt.Sprintf("%v", _m.BalanceNotifyEnabled))

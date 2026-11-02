@@ -147,6 +147,12 @@ export default {
     description: '查看您的订阅计划和用量',
     noActiveSubscriptions: '暂无有效订阅',
     noActiveSubscriptionsDesc: '您没有任何有效订阅。请联系管理员获取订阅。',
+    balanceOverflow: {
+      title: '额度用完后使用余额继续使用',
+      description: '开启后，订阅的日/周/月额度用完时改为从余额扣费，模型可以继续使用；关闭后额度用完即暂停，直到额度重置。',
+      adminDisabled: '管理员已关闭此功能，如需开启请联系管理员。',
+      saved: '设置已保存'
+    },
     failedToLoad: '加载订阅失败',
     status: {
       active: '有效',

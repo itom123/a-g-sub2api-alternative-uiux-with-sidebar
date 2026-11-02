@@ -130,6 +130,16 @@ func SubscriptionType(v string) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldSubscriptionType, v))
 }
 
+// SubscriptionOverflowToBalance applies equality check predicate on the "subscription_overflow_to_balance" field. It's identical to SubscriptionOverflowToBalanceEQ.
+func SubscriptionOverflowToBalance(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldSubscriptionOverflowToBalance, v))
+}
+
+// SubscriptionSourceAny applies equality check predicate on the "subscription_source_any" field. It's identical to SubscriptionSourceAnyEQ.
+func SubscriptionSourceAny(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldSubscriptionSourceAny, v))
+}
+
 // DailyLimitUsd applies equality check predicate on the "daily_limit_usd" field. It's identical to DailyLimitUsdEQ.
 func DailyLimitUsd(v float64) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldDailyLimitUsd, v))
@@ -1118,6 +1128,26 @@ func SubscriptionTypeEqualFold(v string) predicate.Group {
 // SubscriptionTypeContainsFold applies the ContainsFold predicate on the "subscription_type" field.
 func SubscriptionTypeContainsFold(v string) predicate.Group {
 	return predicate.Group(sql.FieldContainsFold(FieldSubscriptionType, v))
+}
+
+// SubscriptionOverflowToBalanceEQ applies the EQ predicate on the "subscription_overflow_to_balance" field.
+func SubscriptionOverflowToBalanceEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldSubscriptionOverflowToBalance, v))
+}
+
+// SubscriptionOverflowToBalanceNEQ applies the NEQ predicate on the "subscription_overflow_to_balance" field.
+func SubscriptionOverflowToBalanceNEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldSubscriptionOverflowToBalance, v))
+}
+
+// SubscriptionSourceAnyEQ applies the EQ predicate on the "subscription_source_any" field.
+func SubscriptionSourceAnyEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldSubscriptionSourceAny, v))
+}
+
+// SubscriptionSourceAnyNEQ applies the NEQ predicate on the "subscription_source_any" field.
+func SubscriptionSourceAnyNEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldSubscriptionSourceAny, v))
 }
 
 // DailyLimitUsdEQ applies the EQ predicate on the "daily_limit_usd" field.

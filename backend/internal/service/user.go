@@ -26,8 +26,10 @@ type User struct {
 	// RestrictPublicGroups narrows the public groups this user may bind to the
 	// ones listed in AllowedGroups. False keeps the default, where every public
 	// group is bindable.
-	RestrictPublicGroups bool
-	TokenVersion         int64 // Incremented on password change to invalidate existing tokens
+	RestrictPublicGroups        bool
+	BalanceOverflowAdminAllowed bool
+	BalanceOverflowEnabled      bool
+	TokenVersion                int64 // Incremented on password change to invalidate existing tokens
 	// TokenVersionResolved indicates TokenVersion already contains the fingerprint-derived
 	// value expected in JWT claims and refresh-token state.
 	TokenVersionResolved bool
@@ -66,6 +68,10 @@ type User struct {
 
 	APIKeys       []APIKey
 	Subscriptions []UserSubscription
+}
+
+func (u *User) BalanceOverflowAllowed() bool {
+	return u != nil && u.BalanceOverflowAdminAllowed && u.BalanceOverflowEnabled
 }
 
 func (u *User) IsAdmin() bool {

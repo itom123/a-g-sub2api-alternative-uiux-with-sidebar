@@ -743,6 +743,72 @@
               />
             </div>
           </div>
+
+          <!-- 订阅额度共享：标准分组可使用任意订阅或所选订阅分组的额度（额度用完后是否扣余额由用户级开关决定） -->
+          <div
+            v-if="createForm.subscription_type === 'standard'"
+            class="mt-4 flex items-center justify-between gap-3"
+          >
+            <div>
+              <label class="text-sm font-medium text-gray-700 dark:text-gray-300">{{
+                t("admin.groups.subscription.sourceAny")
+              }}</label>
+              <p class="input-hint">
+                {{ t("admin.groups.subscription.sourceAnyHint") }}
+              </p>
+            </div>
+            <Toggle
+              v-model="createForm.subscription_source_any"
+              data-testid="group-source-any-create"
+            />
+          </div>
+          <div
+            v-if="
+              createForm.subscription_type === 'standard' &&
+              !createForm.subscription_source_any &&
+              subscriptionSourceGroupOptions.length > 0
+            "
+            class="mt-4"
+          >
+            <label class="input-label">{{
+              t("admin.groups.subscription.sourceGroups")
+            }}</label>
+            <div
+              v-if="createForm.subscription_source_group_ids.length > 0"
+              class="mb-2 flex flex-wrap gap-1.5"
+            >
+              <span
+                v-for="groupId in createForm.subscription_source_group_ids"
+                :key="groupId"
+                class="inline-flex items-center gap-1 rounded-full bg-primary-100 px-2.5 py-1 text-xs font-medium text-primary-700 dark:bg-primary-900/30 dark:text-primary-300"
+              >
+                {{ subscriptionSourceGroupLabel(groupId) }}
+                <button
+                  type="button"
+                  class="text-primary-500 hover:text-primary-700"
+                  @click="removeSubscriptionSource(createForm, groupId)"
+                >
+                  <Icon name="x" size="xs" />
+                </button>
+              </span>
+            </div>
+            <select class="input" @change="addSubscriptionSource(createForm, $event)">
+              <option value="">
+                {{ t("admin.groups.subscription.sourceGroupsPlaceholder") }}
+              </option>
+              <option
+                v-for="opt in subscriptionSourceGroupOptions"
+                :key="opt.value"
+                :value="opt.value"
+                :disabled="createForm.subscription_source_group_ids.includes(opt.value)"
+              >
+                {{ opt.label }}
+              </option>
+            </select>
+            <p class="input-hint">
+              {{ t("admin.groups.subscription.sourceGroupsHint") }}
+            </p>
+          </div>
         </div>
 
         <div class="border-t pt-4">
@@ -2401,6 +2467,72 @@
                 :placeholder="t('admin.groups.subscription.noLimit')"
               />
             </div>
+          </div>
+
+          <!-- 订阅额度共享：标准分组可使用任意订阅或所选订阅分组的额度（额度用完后是否扣余额由用户级开关决定） -->
+          <div
+            v-if="editForm.subscription_type === 'standard'"
+            class="mt-4 flex items-center justify-between gap-3"
+          >
+            <div>
+              <label class="text-sm font-medium text-gray-700 dark:text-gray-300">{{
+                t("admin.groups.subscription.sourceAny")
+              }}</label>
+              <p class="input-hint">
+                {{ t("admin.groups.subscription.sourceAnyHint") }}
+              </p>
+            </div>
+            <Toggle
+              v-model="editForm.subscription_source_any"
+              data-testid="group-source-any-edit"
+            />
+          </div>
+          <div
+            v-if="
+              editForm.subscription_type === 'standard' &&
+              !editForm.subscription_source_any &&
+              subscriptionSourceGroupOptionsForEdit.length > 0
+            "
+            class="mt-4"
+          >
+            <label class="input-label">{{
+              t("admin.groups.subscription.sourceGroups")
+            }}</label>
+            <div
+              v-if="editForm.subscription_source_group_ids.length > 0"
+              class="mb-2 flex flex-wrap gap-1.5"
+            >
+              <span
+                v-for="groupId in editForm.subscription_source_group_ids"
+                :key="groupId"
+                class="inline-flex items-center gap-1 rounded-full bg-primary-100 px-2.5 py-1 text-xs font-medium text-primary-700 dark:bg-primary-900/30 dark:text-primary-300"
+              >
+                {{ subscriptionSourceGroupLabel(groupId) }}
+                <button
+                  type="button"
+                  class="text-primary-500 hover:text-primary-700"
+                  @click="removeSubscriptionSource(editForm, groupId)"
+                >
+                  <Icon name="x" size="xs" />
+                </button>
+              </span>
+            </div>
+            <select class="input" @change="addSubscriptionSource(editForm, $event)">
+              <option value="">
+                {{ t("admin.groups.subscription.sourceGroupsPlaceholder") }}
+              </option>
+              <option
+                v-for="opt in subscriptionSourceGroupOptionsForEdit"
+                :key="opt.value"
+                :value="opt.value"
+                :disabled="editForm.subscription_source_group_ids.includes(opt.value)"
+              >
+                {{ opt.label }}
+              </option>
+            </select>
+            <p class="input-hint">
+              {{ t("admin.groups.subscription.sourceGroupsHint") }}
+            </p>
           </div>
         </div>
 
@@ -4798,6 +4930,50 @@ const copyAccountsGroupOptionsForEdit = computed(() => {
 });
 
 const groups = ref<AdminGroup[]>([]);
+
+// 订阅额度来源必须来自全部分组，而不是当前页/筛选后的列表
+const allSubscriptionGroups = ref<AdminGroup[]>([]);
+const loadAllSubscriptionGroups = async () => {
+  try {
+    const all = await adminAPI.groups.getAll();
+    allSubscriptionGroups.value = all.filter(
+      (g) => g.subscription_type === "subscription",
+    );
+  } catch (error) {
+    console.error("Error loading subscription groups:", error);
+  }
+};
+const subscriptionSourceGroupOptions = computed(() =>
+  allSubscriptionGroups.value.map((g) => ({ value: g.id, label: g.name })),
+);
+const subscriptionSourceGroupOptionsForEdit = computed(() => {
+  const currentId = editingGroup.value?.id;
+  return subscriptionSourceGroupOptions.value.filter(
+    (option) => option.value !== currentId,
+  );
+});
+const subscriptionSourceGroupLabel = (groupId: number) =>
+  subscriptionSourceGroupOptions.value.find((o) => o.value === groupId)
+    ?.label || `#${groupId}`;
+const addSubscriptionSource = (
+  form: { subscription_source_group_ids: number[] },
+  event: Event,
+) => {
+  const target = event.target as HTMLSelectElement;
+  const value = Number(target.value);
+  if (value && !form.subscription_source_group_ids.includes(value)) {
+    form.subscription_source_group_ids.push(value);
+  }
+  target.value = "";
+};
+const removeSubscriptionSource = (
+  form: { subscription_source_group_ids: number[] },
+  groupId: number,
+) => {
+  form.subscription_source_group_ids = form.subscription_source_group_ids.filter(
+    (id) => id !== groupId,
+  );
+};
 const loading = ref(false);
 type GroupUsageSummary = {
   today_cost: number;
@@ -4964,6 +5140,8 @@ const createForm = reactive({
   rate_multiplier: 1.0,
   is_exclusive: false,
   subscription_type: "standard" as SubscriptionType,
+  subscription_source_group_ids: [] as number[],
+  subscription_source_any: false,
   daily_limit_usd: null as number | null,
   weekly_limit_usd: null as number | null,
   monthly_limit_usd: null as number | null,
@@ -5331,6 +5509,8 @@ const editForm = reactive({
   is_exclusive: false,
   status: "active" as "active" | "inactive",
   subscription_type: "standard" as SubscriptionType,
+  subscription_source_group_ids: [] as number[],
+  subscription_source_any: false,
   daily_limit_usd: null as number | null,
   weekly_limit_usd: null as number | null,
   monthly_limit_usd: null as number | null,
@@ -5790,6 +5970,7 @@ const handleSort = (key: string, order: 'asc' | 'desc') => {
 };
 
 const openCreateModal = () => {
+  void loadAllSubscriptionGroups();
   showCreateModal.value = true;
   loadModelAllowlistCandidates("create", 0, createForm.platform);
 };
@@ -5807,6 +5988,8 @@ const closeCreateModal = () => {
   createForm.rate_multiplier = 1.0;
   createForm.is_exclusive = false;
   createForm.subscription_type = "standard";
+  createForm.subscription_source_group_ids = [];
+  createForm.subscription_source_any = false;
   createForm.daily_limit_usd = null;
   createForm.weekly_limit_usd = null;
   createForm.monthly_limit_usd = null;
@@ -5962,6 +6145,12 @@ const handleCreateGroup = async () => {
         createForm.model_pricing,
         createForm.platform,
       ),
+      subscription_source_any:
+        createForm.subscription_type === "standard" && createForm.subscription_source_any,
+      subscription_source_group_ids:
+        createForm.subscription_type === "standard" && !createForm.subscription_source_any
+          ? [...createForm.subscription_source_group_ids]
+          : [],
       daily_limit_usd: normalizeOptionalLimit(
         createForm.daily_limit_usd as number | string | null,
       ),
@@ -6097,6 +6286,10 @@ const handleEdit = async (group: AdminGroup) => {
   editForm.is_exclusive = group.is_exclusive;
   editForm.status = group.status;
   editForm.subscription_type = group.subscription_type || "standard";
+  editForm.subscription_source_group_ids = [
+    ...(group.subscription_source_group_ids ?? []),
+  ];
+  editForm.subscription_source_any = group.subscription_source_any ?? false;
   editForm.daily_limit_usd = group.daily_limit_usd || null;
   editForm.weekly_limit_usd = group.weekly_limit_usd || null;
   editForm.monthly_limit_usd = group.monthly_limit_usd || null;
@@ -6207,6 +6400,7 @@ const handleEdit = async (group: AdminGroup) => {
     group.model_routing,
   );
   loadModelAllowlistCandidates("edit", group.id, group.platform);
+  void loadAllSubscriptionGroups();
   showEditModal.value = true;
 };
 
@@ -6306,6 +6500,12 @@ const handleUpdateGroup = async () => {
         editForm.model_pricing,
         editForm.platform,
       ),
+      subscription_source_any:
+        editForm.subscription_type === "standard" && editForm.subscription_source_any,
+      subscription_source_group_ids:
+        editForm.subscription_type === "standard" && !editForm.subscription_source_any
+          ? [...editForm.subscription_source_group_ids]
+          : [],
       daily_limit_usd: normalizeOptionalLimit(
         editForm.daily_limit_usd as number | string | null,
       ),
