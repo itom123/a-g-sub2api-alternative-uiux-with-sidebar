@@ -334,7 +334,7 @@ const flagBatchImageAccess = () => canUseBatchImage.value
 const flagTelegram = () => telegramAvailable.value
 
 // buildSelfNavItems 构造用户自己的导航项（用户端主菜单和管理员的"我的账户"子菜单共享这组声明）。
-// withDashboard=true 时包含仪表盘（用户端），false 时不含（管理员的个人区已经有独立仪表盘入口）。
+// withDashboard=true 时包含「用量与余额」(/dashboard)；用户端主菜单与管理员的"我的账户"都包含它。
 //
 // 条目顺序：密钥 → 用量 → 可用渠道 → 渠道状态 → 订阅/支付 → 兑换/资料。
 // 可用渠道紧挨渠道状态之上，让用户"先看自己能用什么、再看对应状态"。
@@ -378,10 +378,12 @@ function finalizeNav(items: NavItem[]): NavItem[] {
 // User navigation items (for regular users)
 const userNavItems = computed((): NavItem[] => finalizeNav(buildSelfNavItems(true)))
 
-// Personal navigation items (for admin's "My Account" section, without Dashboard).
+// Personal navigation items (for admin's "My Account" section). It includes the
+// 用量与余额 page (/dashboard), which shows the admin's own account usage; the
+// global admin dashboard stays under the admin section.
 // Admins access 可用渠道 from this section just like regular users — there is no
 // separate admin entry, since the page is purely a user-facing view.
-const personalNavItems = computed((): NavItem[] => finalizeNav(buildSelfNavItems(false)))
+const personalNavItems = computed((): NavItem[] => finalizeNav(buildSelfNavItems(true)))
 
 // Custom menu items filtered by visibility
 const customMenuItemsForUser = computed(() => {

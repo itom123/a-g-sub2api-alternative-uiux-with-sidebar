@@ -67,6 +67,14 @@ describe('AppSidebar header styles', () => {
   })
 })
 
+describe('AppSidebar account usage entry', () => {
+  it('shows 用量与余额 (/dashboard) to regular users and in the admin My Account section', () => {
+    expect(componentSource).toContain("items.push({ path: '/dashboard', label: t('dashboard.title'), icon: DashboardIcon })")
+    expect(componentSource).toContain('const userNavItems = computed((): NavItem[] => finalizeNav(buildSelfNavItems(true)))')
+    expect(componentSource).toContain('const personalNavItems = computed((): NavItem[] => finalizeNav(buildSelfNavItems(true)))')
+  })
+})
+
 describe('AppSidebar Telegram entry', () => {
   it('shows the user Telegram page only while the site bot is on', () => {
     expect(componentSource).toContain('const flagTelegram = () => telegramAvailable.value')

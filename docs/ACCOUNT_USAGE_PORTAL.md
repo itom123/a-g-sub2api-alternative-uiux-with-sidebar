@@ -4,6 +4,10 @@
 
 The overview shows current available balance, a separate frozen amount when applicable, today's actual charges, request and token totals, platform allowances, spending and token trends, model distribution and the ten newest calls in the selected date range. The default range is the last seven local calendar days and follows the current day until the user chooses a range.
 
+## Customer dashboard v2
+
+The v2 dashboard adds an admin-grade, self-scoped insight layer: range presets and refresh controls; health, rolling 30-day, low-balance, quota, and consistency widgets; spend/token/model/group charts; key ranking with drill-down; Active now windows; recent errors; CSV export; and responsive light/dark presentation. It keeps the existing data boundary unchanged: every value comes from authenticated current-user `/user/*`, `/usage/*`, `/keys`, or currency reads, with no user selector, `user_id` parameter, admin aggregate, provider balance, account-cost field, or other customer data.
+
 ## Account and money boundaries
 
 All six reads use existing authenticated user endpoints: `/user/profile`, `/user/platform-quotas`, `/usage/dashboard/stats`, `/usage/dashboard/trend`, `/usage/dashboard/models` and `/usage`. There is no user ID input and no admin aggregation call. Existing backend subject/ownership checks apply. Provider credentials, company upstream balances and other members' consumption are outside this page's scope.

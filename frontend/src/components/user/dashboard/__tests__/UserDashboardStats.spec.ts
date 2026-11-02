@@ -1,162 +1,36 @@
-import { describe, it, expect, vi } from 'vitest'
-import { mount, type VueWrapper } from '@vue/test-utils'
-
-// t() 回显 key；带参数时附上 JSON，便于断言计数
-vi.mock('vue-i18n', async () => {
-  const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
-  return {
-    ...actual,
-    useI18n: () => ({
-      t: (key: string, params?: Record<string, unknown>) =>
-        params ? `${key}:${JSON.stringify(params)}` : key,
-    }),
-  }
-})
-
+import { mount } from '@vue/test-utils'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { currencyRate } from '@/utils/currency'
 import UserDashboardStats from '../UserDashboardStats.vue'
-import type { UserDashboardStats as UserStatsType, PlatformDashboardStats } from '@/api/usage'
-import type { PlatformQuotaItem } from '@/types'
+import type { UserDashboardStats } from '@/api/usage'
+import type { PlatformQuotaItem, User, UsageStatsResponse } from '@/types'
 
-function makeStats(over: Partial<UserStatsType> = {}): UserStatsType {
-  return {
-    total_api_keys: 1,
-    active_api_keys: 1,
-    total_requests: 0,
-    total_input_tokens: 0,
-    total_output_tokens: 0,
-    total_cache_creation_tokens: 0,
-    total_cache_read_tokens: 0,
-    total_tokens: 0,
-    total_cost: 0,
-    total_actual_cost: 0,
-    today_requests: 0,
-    today_input_tokens: 0,
-    today_output_tokens: 0,
-    today_cache_creation_tokens: 0,
-    today_cache_read_tokens: 0,
-    today_tokens: 0,
-    today_cost: 0,
-    today_actual_cost: 0,
-    average_duration_ms: 0,
-    rpm: 0,
-    tpm: 0,
-    by_platform: [],
-    ...over,
-  }
-}
+vi.mock('vue-i18n', async (importOriginal) => ({ ...await importOriginal<typeof import('vue-i18n')>(), useI18n: () => ({ t: (key: string, params?: Record<string, unknown>) => params ? `${key}:${JSON.stringify(params)}` : key }) }))
 
-function usage(platform: string, cost: number): PlatformDashboardStats {
-  return {
-    platform,
-    total_requests: 1,
-    total_tokens: 10,
-    total_actual_cost: cost,
-    today_requests: 1,
-    today_tokens: 10,
-    today_actual_cost: cost,
-  }
-}
+const profile = (over: Partial<User> = {}): User => ({ id: 42, username: 'Account', email: 'account@example.invalid', role: 'user', balance: 20, frozen_balance: 2, concurrency: 2, status: 'active', allowed_groups: [], balance_notify_enabled: true, balance_notify_threshold: null, balance_notify_extra_emails: [], created_at: '', updated_at: '', ...over })
+const stats = (over: Partial<UserDashboardStats> = {}): UserDashboardStats => ({ total_api_keys: 2, active_api_keys: 1, total_requests: 120, total_input_tokens: 20, total_output_tokens: 40, total_cache_creation_tokens: 5, total_cache_read_tokens: 10, total_tokens: 75, total_cost: 9, total_actual_cost: 10, today_requests: 8, today_input_tokens: 2, today_output_tokens: 3, today_cache_creation_tokens: 1, today_cache_read_tokens: 4, today_tokens: 10, today_cost: 1, today_actual_cost: 1.5, average_duration_ms: 123, rpm: 4, tpm: 90, by_platform: [], ...over })
+const range = (over: Partial<UsageStatsResponse> = {}): UsageStatsResponse => ({ total_requests: 12, total_input_tokens: 20, total_output_tokens: 40, total_cache_tokens: 15, total_cache_read_tokens: 10, total_cache_creation_tokens: 5, total_tokens: 75, total_cost: 8, total_actual_cost: 9, average_duration_ms: 100, ...over })
+const quota = (platform: string, over: Partial<PlatformQuotaItem> = {}): PlatformQuotaItem => ({ platform: platform as PlatformQuotaItem['platform'], daily_limit_usd: null, weekly_limit_usd: null, monthly_limit_usd: null, daily_usage_usd: 0, weekly_usage_usd: 0, monthly_usage_usd: 0, ...over })
+function render(over: Record<string, unknown> = {}) { return mount(UserDashboardStats, { props: { profile: profile(), dashboardStats: stats(), rangeStats: range(), rolling30: null, quotas: [], health: 'all_good', lowBalance: { visible: false, thresholdCny: 210, dismissed: false }, ...over }, global: { stubs: { Icon: true, UserDashboardBalanceWarning: true, UserDashboardRolling30d: true }, mocks: { $router: { push: vi.fn() } } } }) }
 
-function quota(over: Partial<PlatformQuotaItem> & { platform: string }): PlatformQuotaItem {
-  return {
-    daily_limit_usd: null,
-    weekly_limit_usd: null,
-    monthly_limit_usd: null,
-    daily_usage_usd: 0,
-    weekly_usage_usd: 0,
-    monthly_usage_usd: 0,
-    ...over,
-  } as PlatformQuotaItem
-}
+afterEach(() => { currencyRate.value = null })
+beforeEach(() => { currencyRate.value = { cnyPerUsd: 7, source: 'test', rateDate: '', updatedAt: '', nextRefreshAt: '' } })
 
-function mountStats(stats: UserStatsType, platformQuotas: PlatformQuotaItem[] | null = null, isSimple = false) {
-  return mount(UserDashboardStats, {
-    props: { stats, balance: 0, isSimple, platformQuotas },
-    global: { stubs: { Icon: true } },
+describe('UserDashboardStats', () => {
+  it('renders an awaiting state instead of crashing without profile', () => { const w = mount(UserDashboardStats, { props: {}, global: { stubs: { UserDashboardHealthChip: true, UserDashboardBalanceWarning: true, UserDashboardRolling30d: true } } }); expect(w.get('[role=status]').text()).toContain('accountInsights.awaitingData') })
+  it('renders balance, frozen balance, selected-range spend, and today spend', () => { const w = render(); expect(w.get('[data-testid="account-balance"]').text()).toContain('¥140.00'); expect(w.text()).toContain('¥63.00'); expect(w.text()).toContain('¥10.50') })
+  it('renders an em dash for missing spend values', () => { const w = render({ rangeStats: range({ total_actual_cost: null }), dashboardStats: stats({ today_actual_cost: null }) }); expect(w.get('[data-testid="account-stat-grid"]').text()).toContain('—'); expect(w.get('[data-testid="account-stat-grid"]').text()).not.toContain('¥0.0000') })
+  it('renders four token buckets and response metrics', () => { const w = render(); expect(w.get('[data-testid="token-composition"]').text()).toContain('20'); expect(w.get('[data-testid="token-composition"]').text()).toContain('5'); expect(w.get('[data-testid="token-composition"]').text()).toContain('10'); expect(w.get('[data-testid="token-composition"]').text()).toContain('40'); expect(w.get('[data-testid="account-stat-grid"]').text()).toContain('100'); expect(w.get('[data-testid="account-stat-grid"]').text()).toContain('4'); expect(w.get('[data-testid="account-stat-grid"]').text()).toContain('90') })
+  it.each(['awaiting_data', 'all_good', 'attention'] as const)('renders health state %s with text and icon', (health) => { const w = render({ health }); expect(w.get('[data-testid="health-chip"]').text()).toContain(`accountInsights.health.${health === 'awaiting_data' ? 'awaitingData' : health === 'all_good' ? 'allGood' : 'attention'}`); expect(w.get('[data-testid="health-chip"] span').text()).toBeTruthy() })
+  it('renders quota at 80%, 100%, disabled and unlimited with reset time', () => { const w = render({ quotas: [quota('openai', { daily_limit_usd: 10, daily_usage_usd: 8, daily_window_resets_at: '2026-11-02T00:00:00Z', weekly_limit_usd: 10, weekly_usage_usd: 10, monthly_limit_usd: 0 }), quota('anthropic', { weekly_limit_usd: 5 })] }); expect(w.get('[data-testid="quota-bars"]').text()).toContain('80%'); expect(w.get('[data-testid="quota-bars"]').text()).toContain('100%'); expect(w.get('[data-testid="quota-bars"]').text()).toContain('accountInsights.quota.disabled'); expect(w.get('[data-testid="quota-bars"]').text()).toContain('accountInsights.quota.unlimited'); expect(w.get('[data-testid="quota-bars"]').text()).toContain('dashboard.platformQuota.resetsAt') })
+  it('keeps platform cards ordered and supports other card/simple mode', () => { const dashboard = stats({ total_actual_cost: 1, by_platform: [{ platform: 'kimi', total_requests: 1, total_tokens: 10, total_actual_cost: .2, today_requests: 1, today_tokens: 10, today_actual_cost: .2 }, { platform: 'openai', total_requests: 1, total_tokens: 10, total_actual_cost: .2, today_requests: 1, today_tokens: 10, today_actual_cost: .2 }] }); const w = render({ dashboardStats: dashboard }); expect(w.findAll('[data-testid="platform-card"]').map(x => x.attributes('data-platform'))).toEqual(['openai', 'kimi', '__other__']); const simple = render({ dashboardStats: dashboard, isSimple: true }); expect(simple.find('[data-testid="platform-card"]').exists()).toBe(false) })
+  it('pluralizes the platform count for singular and plural values', () => {
+    const one = render({ dashboardStats: stats({ by_platform: [{ platform: 'openai', total_requests: 1, total_tokens: 10, total_actual_cost: 1, today_requests: 1, today_tokens: 10, today_actual_cost: 1 }] }) })
+    expect(one.text()).toContain('dashboard.platformCount:1')
+    const two = render({ dashboardStats: stats({ by_platform: [{ platform: 'openai', total_requests: 1, total_tokens: 10, total_actual_cost: 1, today_requests: 1, today_tokens: 10, today_actual_cost: 1 }, { platform: 'anthropic', total_requests: 1, total_tokens: 10, total_actual_cost: 1, today_requests: 1, today_tokens: 10, today_actual_cost: 1 }] }) })
+    expect(two.text()).toContain('dashboard.platformCount:2')
   })
-}
-
-/** 渲染出的平台卡片，按 DOM 顺序返回 data-platform */
-function cardPlatforms(w: VueWrapper): string[] {
-  return w.findAll('[data-testid="platform-card"]').map((c) => c.attributes('data-platform') ?? '')
-}
-
-describe('UserDashboardStats 按平台拆分', () => {
-  it('只有用量的平台才产生卡片；三档全空的限额记录不产生卡片', () => {
-    const w = mountStats(
-      makeStats({ total_actual_cost: 0.03, today_actual_cost: 0.03, by_platform: [usage('grok', 0.03)] }),
-      [
-        quota({ platform: 'anthropic' }),
-        quota({ platform: 'openai' }),
-        quota({ platform: 'gemini' }),
-        quota({ platform: 'grok' }),
-      ]
-    )
-    expect(cardPlatforms(w)).toEqual(['grok'])
-    expect(w.text()).toContain('dashboard.platformCount:{"count":1}')
-    expect(w.html()).not.toContain('dashboard.platformQuota.title')
-  })
-
-  it('配置了限额但没有用量的平台也产生卡片，并渲染配额区', () => {
-    const w = mountStats(
-      makeStats({ total_actual_cost: 0.03, today_actual_cost: 0.03, by_platform: [usage('grok', 0.03)] }),
-      [quota({ platform: 'openai', daily_limit_usd: 10, daily_usage_usd: 2.5 }), quota({ platform: 'anthropic' })]
-    )
-    // 固定顺序：openai 排在 grok 前
-    expect(cardPlatforms(w)).toEqual(['openai', 'grok'])
-    expect(w.text()).toContain('dashboard.platformQuota.title')
-    expect(w.text()).toContain('dashboard.platformCount:{"count":2}')
-  })
-
-  it('同一平台既有用量又有限额只产生一张卡片', () => {
-    const w = mountStats(
-      makeStats({ total_actual_cost: 1, today_actual_cost: 1, by_platform: [usage('openai', 1)] }),
-      [quota({ platform: 'openai', daily_limit_usd: 10, daily_usage_usd: 1 })]
-    )
-    expect(cardPlatforms(w)).toEqual(['openai'])
-    expect(w.text()).toContain('dashboard.platformQuota.title')
-  })
-
-  it('限额为 0 的平台视为已配置，渲染禁用态', () => {
-    const w = mountStats(makeStats(), [quota({ platform: 'gemini', weekly_limit_usd: 0 })])
-    expect(cardPlatforms(w)).toEqual(['gemini'])
-    expect(w.text()).toContain('dashboard.platformQuota.disabled')
-    expect(w.text()).toContain('dashboard.platformCount:{"count":1}')
-  })
-
-  it('固定顺序之外的平台也产生卡片，并排在固定顺序之后', () => {
-    const w = mountStats(
-      makeStats({ total_actual_cost: 0.5, today_actual_cost: 0, by_platform: [usage('kimi', 0.3), usage('anthropic', 0.2)] })
-    )
-    expect(cardPlatforms(w)).toEqual(['anthropic', 'kimi'])
-    expect(w.text()).toContain('Kimi')
-  })
-
-  it('TypeSafe 使用 Jev 标签并位于未知平台之前', () => {
-    const w = mountStats(
-      makeStats({ total_actual_cost: 0.5, today_actual_cost: 0, by_platform: [usage('kimi', 0.3), usage('typesafe', 0.2)] })
-    )
-    expect(cardPlatforms(w)).toEqual(['typesafe', 'kimi'])
-    expect(w.text()).toContain('TypeSafe / Jev')
-  })
-
-  it('总值大于各平台之和时追加"其他"卡片，且不计入平台计数', () => {
-    const w = mountStats(
-      makeStats({ total_actual_cost: 1.0, today_actual_cost: 0, by_platform: [usage('anthropic', 0.4)] })
-    )
-    expect(cardPlatforms(w)).toEqual(['anthropic', '__other__'])
-    expect(w.text()).toContain('dashboard.platformOther')
-    expect(w.text()).toContain('dashboard.platformCount:{"count":1}')
-  })
-
-  it('没有任何用量也没有配置限额时不渲染整块', () => {
-    const w = mountStats(makeStats(), [quota({ platform: 'anthropic' }), quota({ platform: 'openai' })])
-    expect(w.html()).not.toContain('dashboard.platformBreakdown')
-    expect(cardPlatforms(w)).toEqual([])
-  })
-
-  it('简易模式不渲染整块', () => {
-    const w = mountStats(makeStats({ by_platform: [usage('openai', 1)] }), null, true)
-    expect(w.html()).not.toContain('dashboard.platformBreakdown')
-  })
+  it('does not render an Other card when the platform response is empty', () => { const w = render({ dashboardStats: stats({ total_actual_cost: 10, by_platform: [] }) }); expect(w.text()).toContain('dashboard.platformCount'); expect(w.findAll('[data-testid="platform-card"]')).toHaveLength(0) })
+  it('renders USD ledger and does not compare threshold when rate is unavailable', () => { currencyRate.value = null; const w = render({ lowBalance: { visible: false, thresholdCny: 210, dismissed: false } }); expect(w.get('[data-testid="account-balance"]').text()).toContain('$20.0000'); expect(w.text()).toContain('accountInsights.warning.currencyHint'); expect(w.text()).not.toContain('accountInsights.warning.title') })
+  it('never renders account cost fields', () => { expect(render().text().toLowerCase()).not.toContain('account_cost'); expect(render().text().toLowerCase()).not.toContain('账号成本') })
 })
