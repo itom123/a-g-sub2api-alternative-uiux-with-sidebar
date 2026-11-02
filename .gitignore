@@ -145,6 +145,8 @@ docs/*
 !docs/codex-credits.md
 !docs/legal/
 !docs/legal/*.md
+!docs/fork/
+!docs/fork/*.md
 !docs/screenshots/
 docs/screenshots/*
 !docs/screenshots/mobile-account-actions-menu.png
