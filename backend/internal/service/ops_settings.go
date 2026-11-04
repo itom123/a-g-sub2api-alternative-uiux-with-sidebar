@@ -525,7 +525,11 @@ const SettingKeyOpsMetricThresholds = "ops_metric_thresholds"
 
 func defaultOpsMetricThresholds() *OpsMetricThresholds {
 	slaMin := 99.5
-	ttftMax := 500.0
+	// Matches the health score's TTFT band (zero at 20s). LLM first-token time
+	// is mostly upstream prefill; the old 500ms default kept the card red.
+	// GetMetricThresholds stores the default on first read, so existing
+	// installs keep their saved value until an admin changes it.
+	ttftMax := float64(opsHealthTTFTBadMs)
 	reqErrMax := 5.0
 	upstreamErrMax := 5.0
 	return &OpsMetricThresholds{

@@ -5,7 +5,7 @@ import type { ActiveNowWindow } from '../types'
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 
-const windows: ActiveNowWindow[] = (['60m', '12h', '24h'] as const).map((id) => ({ id, requests: 4, tokens: 400, rpm: 2, tpm: 200, modelShares: [{ model: 'model-a', requests: 4, share: 1 }], lastCallAt: '2026-10-31T12:59:00Z', complete: true, cappedPages: null }))
+const windows: ActiveNowWindow[] = (['60m', '12h', '24h'] as const).map((id) => ({ id, requests: 4, tokens: 400, rpm: 2, tpm: 200, modelShares: [{ model: 'model-a', requests: 4, share: 1 }], lastCallAt: '2026-10-31T12:59:00Z' }))
 
 describe('UserDashboardActiveNow', () => {
   it('shows all windows, RPM/TPM, model share, and last-call age', () => {
@@ -26,12 +26,11 @@ describe('UserDashboardActiveNow', () => {
     expect(wrapper.text()).toContain('0.07')
   })
 
-  it('emits window changes and shows an exact cap notice without claiming completeness', async () => {
-    const capped = windows.map((window) => ({ ...window, complete: false, cappedPages: 5 }))
-    const wrapper = mount(UserDashboardActiveNow, { props: { windows: capped, selectedWindow: '12h', loading: false }, global: { stubs: { LoadingSpinner: true } } })
+  it('emits window changes and reports real unavailable data without a scan ceiling notice', async () => {
+    const wrapper = mount(UserDashboardActiveNow, { props: { windows, selectedWindow: '12h', loading: false, unavailable: true }, global: { stubs: { LoadingSpinner: true } } })
     await wrapper.findAll('[role="tab"]')[2].trigger('click')
     expect(wrapper.emitted('update:selectedWindow')).toEqual([[ '24h' ]])
-    expect(wrapper.text()).toContain('accountInsights.active.cappedDescription')
-    expect(wrapper.text()).not.toContain('complete')
+    expect(wrapper.text()).toContain('accountInsights.common.dataUnavailable')
+    expect(wrapper.text()).not.toContain('capped')
   })
 })

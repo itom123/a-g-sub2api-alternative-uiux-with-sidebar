@@ -1,5 +1,6 @@
 import { test, expect, type Page, type Request } from '@playwright/test'
-import { prepare, settings, user } from './fixtures'
+import { prepare, settings, user, subscriptionFixtures, keyActivityFixture } from './fixtures'
+import { assertPairedGeometry } from './paired-trend-geometry'
 
 const ARTIFACT_ROOT = process.env.ART || 'test-results/dashboard-v2'
 const SHOTS = `${ARTIFACT_ROOT}/shots`
@@ -11,13 +12,13 @@ type Harness = {
   usePaymentFallback: () => void
 }
 
-async function harness(page: Page, theme: 'light' | 'dark'): Promise<Harness> {
+async function harness(page: Page, theme: 'light' | 'dark', locale: 'en' | 'zh' = 'en', withSubscriptions = false): Promise<Harness> {
   const requests: Request[] = []
   let fail = false
   let lowBalance = false
   let paymentFallback = false
   page.on('request', request => requests.push(request))
-  await prepare(page, theme)
+  await prepare(page, theme, true, 'user', locale, withSubscriptions ? subscriptionFixtures : [])
 
   // These handlers intentionally only alter the shared fixture's state. All
   // normal dashboard payloads continue through prepare()'s populated fixture.
@@ -102,7 +103,7 @@ async function waitForChartsSettled(page: Page) {
 async function captureFullPage(page: Page, path: string) {
   await page.evaluate(() => window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior }))
   await waitForChartsSettled(page)
-  await page.screenshot({ path, fullPage: true })
+  await page.screenshot({ path, fullPage: true, scale: 'css' })
 }
 
 async function assertActualCostVisible(page: Page, projectName: string) {
@@ -204,12 +205,53 @@ async function openDashboard(page: Page, theme: 'light' | 'dark') {
   return fixture
 }
 
+async function assertPrecisionLayout(page: Page, desktop: boolean) {
+  const overview = page.getByTestId('account-overview')
+  await expect(overview.locator(':scope > .card')).toHaveCount(5)
+  await expect(page.getByTestId('account-usage-page').locator('h1')).toHaveCount(0)
+  await expect(page.getByTestId('balance-card').locator('meter')).toHaveCount(0)
+  await expect(page.getByTestId('balance-card')).not.toContainText('Frozen')
+  await expect(page.getByTestId('health-card')).toHaveCount(0)
+  await expect(page.getByTestId('health-chip')).toHaveCount(0)
+  await expect(page.getByTestId('account-consistency').locator('.account-consistency-metrics > div')).toHaveCount(8)
+  const trends = page.getByTestId('account-trends')
+  await expect(trends.getByTestId('account-spending-trend')).toBeVisible()
+  await expect(trends.getByTestId('account-token-trend')).toBeVisible()
+  await expect(trends.locator('.card')).toHaveCount(0)
+  await assertPairedGeometry(page)
+  if (desktop) {
+    const positions = await overview.locator(':scope > .card').filter({ has: page.locator('.account-overview-value') }).evaluateAll(cards => cards.map(card => ({ label: card.querySelector('p')!.getBoundingClientRect().top, value: card.querySelectorAll('p')[1].getBoundingClientRect().top })))
+    for (const position of positions) {
+      expect(Math.abs(position.label - positions[0].label)).toBeLessThanOrEqual(1)
+      expect(Math.abs(position.value - positions[0].value)).toBeLessThanOrEqual(1)
+    }
+    const left = (await trends.boundingBox())!
+    const right = (await page.locator('.account-models').boundingBox())!
+    expect(right.x).toBeGreaterThan(left.x + left.width)
+    expect(Math.abs(left.y - right.y)).toBeLessThanOrEqual(1)
+    expect(Math.abs(left.y + left.height - right.y - right.height)).toBeLessThanOrEqual(1)
+    const alignment = await page.getByTestId('account-key-ranking').locator('table').evaluate(table => [2, 3, 4, 5].map(index => ({ header: getComputedStyle(table.querySelectorAll('thead th')[index]).textAlign, cell: getComputedStyle(table.querySelectorAll('tbody tr')[0].children[index]).textAlign })))
+    for (const column of alignment) expect(column).toEqual({ header: 'right', cell: 'right' })
+    const a = (await page.getByTestId('active-keys-card').boundingBox())!
+    const b = (await page.getByTestId('total-keys-card').boundingBox())!
+    const c = (await page.getByTestId('date-range-card').boundingBox())!
+    const d = (await page.getByTestId('refresh-settings-card').boundingBox())!
+    expect(Math.abs(a.x - c.x)).toBeLessThanOrEqual(1)
+    expect(Math.abs(b.x - d.x)).toBeLessThanOrEqual(1)
+    expect(Math.abs(a.y - b.y)).toBeLessThanOrEqual(1)
+    expect(Math.abs(c.y - d.y)).toBeLessThanOrEqual(1)
+    const controls = await page.locator('#account-range-preset, #account-refresh-interval').evaluateAll(elements => elements.map(element => element.getBoundingClientRect().top))
+    expect(Math.abs(controls[0] - controls[1])).toBeLessThanOrEqual(1)
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true)
+}
+
 for (const theme of ['light', 'dark'] as const) {
   test(`${theme} populated dashboard matrix and boundary`, async ({ page }, info) => {
     const fixture = await openDashboard(page, theme)
     await expect(page.getByTestId('account-balance')).toHaveText('¥700.00')
-    await expect(page.getByTestId('account-stat-grid').getByText('10,500')).toBeVisible()
-    await expect(page.getByTestId('account-stat-grid')).toContainText('380 ms')
+    await expect(page.getByTestId('account-stat-grid').getByText('10.50K')).toBeVisible()
+    await expect(page.getByTestId('account-stat-grid')).toContainText('380ms')
     await expect(page.getByTestId('account-spending-trend').locator('canvas')).toBeVisible()
     await expect(page.getByTestId('account-insights-charts')).toContainText('Model Distribution')
     await expect(page.getByTestId('account-insights-charts')).toContainText('Group Usage Distribution')
@@ -217,6 +259,7 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(page.getByTestId('account-key-ranking')).toContainText('Example key')
     await expect(page.getByTestId('account-errors')).toContainText('Rate limit example')
     if (info.project.name === 'desktop') await assertRecentErrorsLayout(page)
+    await assertPrecisionLayout(page, info.project.name === 'desktop')
     await expect(page.locator('#account-range-preset')).toHaveValue('7d')
     const presetValues = ['today', '7d', 'thisWeek', 'lastWeek', 'thisMonth', '30d']
     for (const value of presetValues) {
@@ -228,11 +271,64 @@ for (const theme of ['light', 'dark'] as const) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true)
     await assertRenderedBoundary(page)
     assertBoundary(page, fixture.requests)
-    const shotName = info.project.name === 'desktop' ? `r9-desktop-${theme}.png` : `r9-phone-${theme}.png`
+    const shotName = `polish-${info.project.name}-${theme}.png`
     await captureFullPage(page, `${SHOTS}/${shotName}`)
     if (theme === 'dark') await assertGroupDonutPainted(page)
   })
 }
+
+test('subscription allowances share header and dashboard values without adding quota counters to expenses', async ({ page }, info) => {
+  const fixture = await harness(page, 'light', 'en', true)
+  await page.goto('/dashboard', { waitUntil: 'networkidle' })
+  const panel = page.getByTestId('dashboard-subscriptions')
+  const mini = page.getByTestId('subscription-mini')
+  await expect(panel).toBeVisible()
+  await expect(mini).toBeVisible()
+  await expect(mini).toContainText('Studio subscription')
+  await expect(mini).toContainText('¥10.50')
+  await expect(panel.locator('[data-plan-id="101"] [data-period="daily"]')).toContainText('¥10.50')
+  await expect(panel.locator('[data-plan-id="102"]')).toContainText('Unlimited')
+  await expect(page.getByTestId('account-stat-grid')).toContainText('¥21.00')
+  await expect(page.getByTestId('account-spending-trend')).toContainText('¥21.00')
+  for (const request of fixture.requests.filter(request => new URL(request.url()).pathname.includes('/usage'))) {
+    expect(new URL(request.url()).searchParams.has('billing_type')).toBe(false)
+  }
+  await mini.getByRole('button').first().click()
+  const details = page.locator('#header-subscription-details[role="dialog"]')
+  await expect(details).toBeVisible()
+  await expect(details).toContainText('Research subscription')
+  await page.keyboard.press('Escape')
+  await expect(details).not.toBeVisible()
+  await captureFullPage(page, `${SHOTS}/polish-${info.project.name}-subscriptions.png`)
+  await page.getByTestId('account-key-ranking').getByRole('button', { name: 'Open details' }).first().click()
+  await expect(page.getByTestId('account-key-drilldown')).toBeVisible()
+  await assertPrecisionLayout(page, info.project.name === 'desktop')
+  assertBoundary(page, fixture.requests)
+})
+
+test('Chinese dashboard removes redundant copy and fits intermediate widths', async ({ page }, info) => {
+  const fixture = await harness(page, 'dark', 'zh', true)
+  await page.goto('/dashboard', { waitUntil: 'networkidle' })
+  await expect(page.getByTestId('active-keys-card')).toContainText('活跃密钥')
+  await expect(page.getByTestId('total-keys-card')).toContainText('密钥总数')
+  await expect(page.getByTestId('account-usage-page')).not.toContainText('仅显示你的账户')
+  await expect(page.getByTestId('account-usage-page')).not.toContainText('需要关注')
+  await expect(page.getByTestId('account-consistency')).toContainText('近7天调用')
+  await expect(page.getByTestId('subscription-mini')).toContainText('¥10.50')
+  await assertPrecisionLayout(page, info.project.name === 'desktop')
+  await captureFullPage(page, `${SHOTS}/polish-${info.project.name}-zh.png`)
+  await page.screenshot({ path: `${SHOTS}/polish-${info.project.name}-zh-overview.png`, scale: 'css' })
+  await page.getByTestId('account-chart-columns').screenshot({ path: `${SHOTS}/polish-${info.project.name}-zh-charts.png`, scale: 'css' })
+  await page.getByTestId('account-consistency').screenshot({ path: `${SHOTS}/polish-${info.project.name}-zh-consistency.png`, scale: 'css' })
+  if (info.project.name === 'desktop') {
+    for (const width of [1024, 768, 720]) {
+      // 720 CSS px also covers the reflow width of a 1440px viewport at 200% zoom.
+      await page.setViewportSize({ width, height: 1000 })
+      await assertPrecisionLayout(page, false)
+    }
+  }
+  assertBoundary(page, fixture.requests)
+})
 
 test('refresh selector persists all five values and pauses while hidden', async ({ page }) => {
   const fixture = await openDashboard(page, 'light')
@@ -279,7 +375,7 @@ test('key ranking sort and drill-down expose daily and model data', async ({ pag
   await captureFullPage(page, `${SHOTS}/${info.project.name === 'desktop' ? 'r9-key-drilldown.png' : 'r9-phone-key-drilldown.png'}`)
 })
 
-test('active windows switch, consistency is populated, and capped scans are announced', async ({ page }) => {
+test('active windows use complete server aggregates without raw log scans', async ({ page }) => {
   const fixture = await openDashboard(page, 'light')
   const active = page.getByTestId('account-active-now')
   for (const label of ['60 minutes', '12 hours', '24 hours']) {
@@ -288,12 +384,16 @@ test('active windows switch, consistency is populated, and capped scans are anno
   }
   await expect(page.getByTestId('account-consistency')).toContainText('Active days')
   await expect(page.getByTestId('account-consistency')).not.toContainText('No data')
-  await page.route('**/api/v1/usage**', async route => {
-    await route.fulfill({ json: { code: 0, data: { items: [], total: 6000, page: 1, page_size: 1000, pages: 6, total_pages: 6 } } })
-  })
+  const complete = keyActivityFixture()
+  complete.keys[0].requests = 6001
+  complete.active_windows.forEach(window => { window.requests = 6001; window.rpm = 6001 / (window.id === '60m' ? 60 : window.id === '12h' ? 720 : 1440) })
+  await page.route('**/api/v1/usage/dashboard/snapshot-v2**', route => route.fulfill({ json: { code: 0, data: { trend: [], models: [], groups: [], key_activity_status: 'available', key_activity: complete } } }))
   await page.getByRole('button', { name: 'Refresh', exact: true }).click()
-  await expect(page.getByTestId('account-key-ranking')).toContainText('Range scan capped')
-  await expect(active).toContainText('5,000-row scan cap')
+  await expect(page.getByTestId('account-key-ranking')).toContainText('6001')
+  await expect(active).toContainText('6,001')
+  await expect(page.getByTestId('account-usage-page')).not.toContainText('5,000')
+  expect(fixture.requests.filter(request => new URL(request.url()).pathname === '/api/v1/usage')).toHaveLength(0)
+  expect(fixture.requests.filter(request => new URL(request.url()).pathname.endsWith('/api-keys-usage'))).toHaveLength(0)
   await assertRenderedBoundary(page)
   assertBoundary(page, fixture.requests)
 })

@@ -89,23 +89,74 @@ require_text frontend/src/views/admin/GroupsView.vue "subscription_source_any" "
 require_text frontend/src/views/admin/GroupsView.vue "subscription_source_group_ids" "admin group form has the subscription source picker"
 require_text frontend/src/components/admin/user/UserEditModal.vue "balance_overflow_admin_allowed" "admin user form has the overflow permission"
 
+# Fork-owned source files of the features restored on 2026-11-04 (docs/fork/CUSTOMIZATIONS.md, sections 2-6).
+for f in 	backend/internal/service/payment_session_cancel.go 	backend/internal/service/payment_subscription_policy.go 	backend/internal/service/ops_job_health.go 	backend/internal/service/ops_gateway_overhead.go 	backend/internal/service/ops_request_timing.go 	backend/internal/service/ops_context_limit_error.go 	backend/internal/pkg/usagestats/user_insights.go 	backend/internal/repository/usage_log_repo_user_insights.go 	frontend/src/views/user/subscriptionCheckout.ts 	frontend/src/utils/usageDisplay.ts 	frontend/src/components/charts/trendComparison.ts 	frontend/src/components/user/dashboard/UserDashboardSubscriptions.vue 	frontend/src/components/admin/subscription/SubscriptionUsageCell.vue; do
+	if [[ -f "$f" ]]; then ok "present: $f"; else fail "fork-owned file present: $f"; fi
+done
+
 if [[ "${1:-}" == "--static-only" ]]; then
 	echo
 else
 	echo
 	echo "== Go guard tests"
-	GO_TESTS='^Test(ResolveBillingSubscription|SubscriptionBillingGroup|AdminService_CreateUser_BalanceOverflow|APIKeyAuthSnapshotBalanceOverflow|UpdateGroup_SubscriptionSourceAny|ValidateSubscriptionSharing|UpdateGroupNormalizesSubscriptionSharing|CheckBillingEligibilityShared|BuildUsageBillingCommandSharing|FinalizePostUsageBillingUsesSubscriptionGroupID|APIKeyAuth(Shared|Overflow|UsageEndpoint|AdminDisallow|SourceAny))'
-	# Deleting guard tests must fail the guard too, not just pass with fewer tests.
-	MIN_GO_TESTS=24
+	# Every Test function in these files must exist and pass. Deleting a file or a test fails the guard.
+	GO_GUARD_FILES=(
+		# 1. Subscription billing
+		backend/internal/service/balance_overflow_test.go
+		backend/internal/service/balance_overflow_plumbing_test.go
+		backend/internal/service/subscription_sharing_test.go
+		backend/internal/service/admin_group_sharing_test.go
+		backend/internal/service/billing_cache_service_sharing_test.go
+		backend/internal/service/gateway_usage_billing_sharing_test.go
+		backend/internal/server/middleware/api_key_auth_sharing_test.go
+		# 2. Payments
+		backend/internal/service/payment_session_cancel_test.go
+		backend/internal/service/payment_one_time_policy_test.go
+		# 3. Ops monitor and gateway overhead
+		backend/internal/service/ops_health_score_test.go
+		backend/internal/service/ops_job_health_test.go
+		backend/internal/service/ops_gateway_overhead_test.go
+		backend/internal/service/ops_request_timing_test.go
+		backend/internal/handler/ops_error_logger_context_limit_test.go
+		backend/internal/handler/ops_gateway_overhead_middleware_test.go
+		# 4. Claude bridge failover
+		backend/internal/service/openai_gateway_messages_failover_test.go
+		# 5. Customer dashboard insights
+		backend/internal/service/usage_service_user_insights_test.go
+		backend/internal/pkg/usagestats/user_insights_test.go
+		backend/internal/handler/usage_handler_user_insights_test.go
+		# 6. OpenClaw pricing
+		backend/internal/service/openclaw_billing_lock_test.go
+	)
+	declare -A pkg_tests=()
+	expected=0
+	for f in "${GO_GUARD_FILES[@]}"; do
+		if [[ ! -f "$f" ]]; then
+			fail "guard test file present: $f"
+			continue
+		fi
+		names="$(grep -oE '^func (Test[A-Za-z0-9_]+)' "$f" | sed 's/^func //')"
+		if [[ -z "$names" ]]; then
+			fail "guard test file has tests: $f"
+			continue
+		fi
+		pkg="./$(dirname "${f#backend/}")/"
+		for n in $names; do
+			pkg_tests[$pkg]+="${pkg_tests[$pkg]:+|}$n"
+			expected=$((expected + 1))
+		done
+	done
 	go_log="$(mktemp)"
-	(cd backend && go test -tags=unit -count=1 -v -run "$GO_TESTS" ./internal/service/ ./internal/server/middleware/) >"$go_log" 2>&1
-	go_status=$?
+	go_status=0
+	for pkg in "${!pkg_tests[@]}"; do
+		(cd backend && go test -tags=unit -count=1 -v -run "^(${pkg_tests[$pkg]})\$" "$pkg") >>"$go_log" 2>&1 || go_status=1
+	done
 	passed="$(grep -cE '^--- PASS: Test' "$go_log" || true)"
 	if [[ $go_status -ne 0 ]]; then
 		grep -E '^(--- FAIL|FAIL|panic:)|_test\.go:[0-9]+:' "$go_log" | head -40
 		fail "Go guard tests pass"
-	elif [[ "${passed:-0}" -lt $MIN_GO_TESTS ]]; then
-		fail "Go guard tests: $passed passed, expected at least $MIN_GO_TESTS (tests removed or renamed?)"
+	elif [[ "${passed:-0}" -lt $expected ]]; then
+		fail "Go guard tests: $passed passed, expected $expected (a guard test was skipped or renamed?)"
 	else
 		ok "Go guard tests ($passed passed)"
 	fi
@@ -116,7 +167,14 @@ else
 	if (cd frontend && pnpm exec vitest run \
 		src/views/admin/__tests__/GroupsView.subscriptionSharing.spec.ts \
 		src/components/admin/user/__tests__/UserEditModal.spec.ts \
-		src/components/user/__tests__/SubscriptionBalanceOverflowCard.spec.ts); then
+		src/components/user/__tests__/SubscriptionBalanceOverflowCard.spec.ts \
+		src/views/user/__tests__/subscriptionCheckout.spec.ts \
+		src/views/user/__tests__/PaymentView.spec.ts \
+		src/components/payment/__tests__/PaymentStatusPanel.spec.ts \
+		src/views/admin/ops/components/__tests__/OpsDashboardHeader.spec.ts \
+		src/components/user/dashboard/insights/__tests__/aggregate.spec.ts \
+		src/components/user/dashboard/__tests__/UserDashboardSubscriptions.spec.ts \
+		src/views/admin/__tests__/SubscriptionsView.usageColumns.spec.ts); then
 		ok "frontend guard specs"
 	else
 		fail "frontend guard specs pass"

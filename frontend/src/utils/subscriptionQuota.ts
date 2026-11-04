@@ -1,4 +1,76 @@
 import type { UserSubscription } from '@/types'
+import { formatCny } from '@/utils/currency'
+
+export type SubscriptionQuotaPeriod = 'daily' | 'weekly' | 'monthly'
+export type SubscriptionQuotaState = 'finite' | 'unlimited' | 'unknown'
+
+export interface SubscriptionQuotaWindow {
+  period: SubscriptionQuotaPeriod
+  oneTime: boolean
+  state: SubscriptionQuotaState
+  used: number | null
+  limit: number | null
+  remaining: number | null
+  usagePercentage: number | null
+}
+
+export interface SubscriptionAllowance {
+  id: number
+  name: string | null
+  groupId: number
+  expiresAt: string | null
+  state: SubscriptionQuotaState
+  windows: SubscriptionQuotaWindow[]
+  limitingWindow: SubscriptionQuotaWindow | null
+  urgency: number
+}
+
+/** Values come from /subscriptions/active; never reconstruct or pool its windows. */
+export function getSubscriptionAllowance(subscription: UserSubscription): SubscriptionAllowance {
+  const windows = (['daily', 'weekly', 'monthly'] as const).map((period): SubscriptionQuotaWindow => {
+    const rawLimit = subscription.group?.[`${period}_limit_usd`]
+    const rawUsed = subscription[`${period}_usage_usd`]
+    const used = typeof rawUsed === 'number' && Number.isFinite(rawUsed) && rawUsed >= 0 ? rawUsed : null
+    const validLimit = rawLimit === null || (typeof rawLimit === 'number' && Number.isFinite(rawLimit))
+    const state: SubscriptionQuotaState = !subscription.group || !validLimit || used === null
+      ? 'unknown'
+      : rawLimit === null || (typeof rawLimit === 'number' && rawLimit <= 0) ? 'unlimited' : 'finite'
+    const limit = state === 'finite' ? rawLimit as number : null
+    return {
+      period,
+      oneTime: period === 'daily' && isOneTimeDailyQuota(subscription),
+      state,
+      used,
+      limit,
+      remaining: limit !== null && used !== null ? Math.max(0, limit - used) : null,
+      usagePercentage: limit !== null && used !== null ? used / limit * 100 : null
+    }
+  })
+  const finiteWindows = windows.filter((window) => window.state === 'finite')
+  const limitingWindow = finiteWindows.reduce<SubscriptionQuotaWindow | null>((smallest, window) => {
+    return !smallest || window.remaining! < smallest.remaining! ? window : smallest
+  }, null)
+  return {
+    id: subscription.id,
+    name: subscription.group?.name?.trim() || null,
+    groupId: subscription.group_id,
+    expiresAt: subscription.expires_at,
+    state: windows.some((window) => window.state === 'unknown') ? 'unknown' : limitingWindow ? 'finite' : 'unlimited',
+    windows,
+    limitingWindow,
+    urgency: Math.max(0, ...finiteWindows.map((window) => window.usagePercentage!))
+  }
+}
+
+/** Preserve the existing highest-usage urgency order, with deterministic identity ties. */
+export function getSubscriptionAllowances(subscriptions: UserSubscription[]): SubscriptionAllowance[] {
+  return subscriptions.map(getSubscriptionAllowance).sort((a, b) => b.urgency - a.urgency || a.id - b.id)
+}
+
+export function formatSubscriptionMoney(value: number): string {
+  const converted = formatCny(value, 2)
+  return converted === '-' ? `$${value.toFixed(2)}` : converted
+}
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000
 

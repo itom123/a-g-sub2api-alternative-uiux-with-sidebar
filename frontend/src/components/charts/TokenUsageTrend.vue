@@ -1,6 +1,6 @@
 <template>
-  <div class="card p-4">
-    <h3 class="mb-4 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm font-semibold text-gray-900 dark:text-white">
+  <div :class="embedded ? 'account-token-embedded min-w-0' : 'card p-4'">
+    <h3 v-if="!comparison" class="mb-4 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm font-semibold text-gray-900 dark:text-white">
       {{ t('admin.dashboard.tokenUsageTrend') }}
       <span class="text-xs font-normal text-gray-500 dark:text-gray-400">
         {{ t('admin.dashboard.tokenUsageTrendHint') }}
@@ -10,7 +10,7 @@
       <LoadingSpinner />
     </div>
     <div v-else-if="trendData.length > 0 && chartData" class="ag-token-canvas">
-      <Line :data="chartData" :options="lineOptions" />
+      <Line :data="chartData" :options="lineOptions" :plugins="comparison?.plugins || []" />
     </div>
     <div
       v-else
@@ -36,11 +36,13 @@ import {
   Tooltip,
   Legend,
   Filler,
-  type Scale
+  type Scale,
+  type Plugin
 } from 'chart.js'
 import { Line } from 'vue-chartjs'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import type { TrendDataPoint } from '@/types'
+import { comparisonScales, type TrendComparisonLayout } from './trendComparison'
 
 ChartJS.register(
   CategoryScale,
@@ -59,6 +61,8 @@ const props = defineProps<{
   trendData: TrendDataPoint[]
   labels?: string[]
   loading?: boolean
+  embedded?: boolean
+  comparison?: { layout: TrendComparisonLayout; plugins: Plugin<'line'>[] }
 }>()
 
 const chartColors = computed(() => ({
@@ -70,6 +74,10 @@ const chartColors = computed(() => ({
   cacheRead: '#000000'
 }))
 
+function tokenValue(value: number): number | null {
+  return props.comparison && (value == null || !Number.isFinite(value)) ? null : value
+}
+
 const chartData = computed(() => {
   if (!props.trendData?.length) return null
 
@@ -80,7 +88,7 @@ const chartData = computed(() => {
     datasets: [
       {
         label: 'Input',
-        data: props.trendData.map((d) => d.input_tokens),
+        data: props.trendData.map((d) => tokenValue(d.input_tokens)),
         yAxisID: 'y',
         borderColor: chartColors.value.input,
         backgroundColor: '#ffffff',
@@ -88,12 +96,12 @@ const chartData = computed(() => {
         tension: 0.3,
         pointRadius: 0,
         pointHoverRadius: 3,
-        spanGaps: true
+        spanGaps: !props.comparison
       },
       {
         label: 'Output',
         borderDash: [8, 4],
-        data: props.trendData.map((d) => d.output_tokens),
+        data: props.trendData.map((d) => tokenValue(d.output_tokens)),
         yAxisID: 'y',
         borderColor: chartColors.value.output,
         backgroundColor: '#ffffff',
@@ -101,12 +109,12 @@ const chartData = computed(() => {
         tension: 0.3,
         pointRadius: 0,
         pointHoverRadius: 3,
-        spanGaps: true
+        spanGaps: !props.comparison
       },
       {
         label: 'Cache Creation',
         borderDash: [2, 4],
-        data: props.trendData.map((d) => d.cache_creation_tokens),
+        data: props.trendData.map((d) => tokenValue(d.cache_creation_tokens)),
         yAxisID: 'y',
         borderColor: chartColors.value.cacheCreation,
         backgroundColor: '#ffffff',
@@ -114,12 +122,12 @@ const chartData = computed(() => {
         tension: 0.3,
         pointRadius: 0,
         pointHoverRadius: 3,
-        spanGaps: true
+        spanGaps: !props.comparison
       },
       {
         label: 'Cache Read',
         borderDash: [12, 4, 2, 4],
-        data: props.trendData.map((d) => d.cache_read_tokens),
+        data: props.trendData.map((d) => tokenValue(d.cache_read_tokens)),
         yAxisID: 'y',
         borderColor: chartColors.value.cacheRead,
         backgroundColor: '#ffffff',
@@ -127,7 +135,7 @@ const chartData = computed(() => {
         tension: 0.3,
         pointRadius: 0,
         pointHoverRadius: 3,
-        spanGaps: true
+        spanGaps: !props.comparison
       }
     ]
   }
@@ -137,12 +145,14 @@ const lineOptions = computed(() => ({
   responsive: true,
   maintainAspectRatio: false,
   animation: false as const,
+  ...(props.comparison ? { layout: { padding: { top: 8, right: 18, bottom: 0, left: 0 } } } : {}),
   interaction: {
     intersect: false,
     mode: 'index' as const
   },
   plugins: {
     legend: {
+      display: !props.comparison,
       position: 'top' as const,
       labels: {
         color: chartColors.value.text,
@@ -173,7 +183,7 @@ const lineOptions = computed(() => ({
       }
     }
   },
-  scales: {
+  scales: props.comparison ? comparisonScales(props.comparison.layout, t('admin.dashboard.tokens'), formatTokens) : {
     x: {
       grid: {
         color: chartColors.value.grid

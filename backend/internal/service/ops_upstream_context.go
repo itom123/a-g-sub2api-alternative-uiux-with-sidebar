@@ -86,6 +86,12 @@ func SetOpsLatencyMs(c *gin.Context, key string, value int64) {
 		return
 	}
 	c.Set(key, value)
+	if key == OpsAuthLatencyMsKey {
+		// Every gateway entry point sets the auth mark where pre-processing ends.
+		if t := opsRequestTimingFrom(c); t != nil {
+			t.markPreprocessingDone(time.Now())
+		}
+	}
 }
 
 // SetOpsUpstreamModel stores only the effective model slug for final Ops

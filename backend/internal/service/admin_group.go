@@ -824,7 +824,6 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	}
 	if group.IsManagedOpenClaw() {
 		if (input.Name != "" && input.Name != OpenClawBillingGroupName) ||
-			(input.RateMultiplier != nil && *input.RateMultiplier != OpenClawBillingRateMultiplier) ||
 			(input.Status != "" && input.Status != StatusActive) ||
 			(input.Platform != "" && input.Platform != PlatformOpenAI) ||
 			(input.SubscriptionType != "" && input.SubscriptionType != SubscriptionTypeStandard) ||

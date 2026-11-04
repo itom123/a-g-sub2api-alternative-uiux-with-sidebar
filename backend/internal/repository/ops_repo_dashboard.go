@@ -285,7 +285,8 @@ func (r *opsRepository) getDashboardOverviewPreaggregated(ctx context.Context, f
 
 	tokenConsumed := preagg.tokenConsumed + head.tokenConsumed + tail.tokenConsumed
 
-	// Approximate percentiles across segments:
+	// Approximate percentiles across segments, used only if the exact window
+	// query below times out:
 	// - p50/p90/avg: weighted average by success_count
 	// - p95/p99/max: max (conservative tail)
 	duration := combineApproxPercentiles([]opsPercentileSegment{
@@ -300,6 +301,10 @@ func (r *opsRepository) getDashboardOverviewPreaggregated(ctx context.Context, f
 		{weight: head.ttftSampleCount, p: head.ttft},
 		{weight: tail.ttftSampleCount, p: tail.ttft},
 	})
+	duration, ttft, err = r.exactWindowLatency(ctx, filter, start, end, duration, ttft)
+	if err != nil {
+		return nil, err
+	}
 
 	windowSeconds := end.Sub(start).Seconds()
 	if windowSeconds <= 0 {
@@ -748,6 +753,28 @@ func (r *opsRepository) rawOpsDataExists(ctx context.Context, filter *service.Op
 type opsPercentileSegment struct {
 	weight int64
 	p      service.OpsPercentiles
+}
+
+// exactWindowLatency replaces percentiles merged from hourly buckets with one
+// raw query over the whole window. Hourly percentiles cannot be merged: taking
+// the max of hourly P99s reported a 24h TTFT P99 of 24.6s when the true value
+// was 9.6s. The approximation is kept only when the raw query times out.
+func (r *opsRepository) exactWindowLatency(
+	ctx context.Context,
+	filter *service.OpsDashboardFilter,
+	start, end time.Time,
+	approxDuration, approxTTFT service.OpsPercentiles,
+) (service.OpsPercentiles, service.OpsPercentiles, error) {
+	latencyCtx, cancelLatency := context.WithTimeout(ctx, opsRawLatencyQueryTimeout)
+	duration, ttft, _, err := r.queryUsageLatency(latencyCtx, filter, start, end)
+	cancelLatency()
+	if err != nil {
+		if isQueryTimeoutErr(err) {
+			return approxDuration, approxTTFT, nil
+		}
+		return service.OpsPercentiles{}, service.OpsPercentiles{}, err
+	}
+	return duration, ttft, nil
 }
 
 func combineApproxPercentiles(segments []opsPercentileSegment) service.OpsPercentiles {

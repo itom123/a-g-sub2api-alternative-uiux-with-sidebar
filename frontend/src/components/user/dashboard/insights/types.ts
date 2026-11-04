@@ -23,8 +23,10 @@ export interface DashboardKeyUsageRow {
   totalTokens: number | null
   favouriteModel: string | null
   lastUsedAt: string | null
-  truncated: boolean
+  deleted?: boolean
 }
+
+export type DashboardKeyInfo = Pick<ApiKey, 'id' | 'name'> & { deleted?: boolean }
 
 export interface ActiveNowWindow {
   id: '60m' | '12h' | '24h'
@@ -34,8 +36,6 @@ export interface ActiveNowWindow {
   tpm: number | null
   modelShares: Array<{ model: string; requests: number; share: number }>
   lastCallAt: string | null
-  complete: boolean
-  cappedPages: number | null
 }
 
 export interface DashboardConsistency {
@@ -73,21 +73,8 @@ export interface DashboardErrorRow {
   key_name: string
 }
 
-export interface DashboardKeyBatchStats {
-  api_key_id: number
-  today_actual_cost: number
-  total_actual_cost: number
-}
-
-export interface DashboardAggregationOptions {
-  maxPages?: number
-  pagesFetched?: number
-  hasMore?: boolean
-  now?: number
-}
-
 export interface DashboardKeyDrilldownState {
-  keyInfo: ApiKey | null
+  keyInfo: DashboardKeyInfo | null
   daily: ApiKeyDailyUsageResponse | null
   models: ModelStat[]
   loading: boolean

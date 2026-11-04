@@ -278,15 +278,18 @@ const googleCode = ref('')
 const setupPrepared = ref(false)
 const workspaceId = computed(() => instance.value?.id || 0)
 const fleetState = computed(() => dashboard.value?.fleet_state || instance.value?.status || 'unknown')
-const needsProvision = computed(() => ['planned', 'missing', 'error', 'unavailable'].includes(fleetState.value))
 const deletionQueued = computed(() => Boolean(instance.value?.deletion_scheduled_at) || instance.value?.status === 'deletion_scheduled')
+const needsProvision = computed(() => !deletionQueued.value && ['planned', 'missing', 'error'].includes(fleetState.value))
 const activeConnection = computed(() => activeKind.value ? connectionFor(activeKind.value.kind) : undefined)
 
+let loadRevision = 0
 async function load() {
+  const revision = ++loadRevision
   loading.value = true
   error.value = ''
   try {
     const [nextLifecycle, kinds] = await Promise.all([getOpenClawLifecycle(), listOpenClawConnectionKinds()])
+    if (revision !== loadRevision) return
     lifecycle.value = nextLifecycle
     instance.value = nextLifecycle.instance || null
     connectionKinds.value = kinds
@@ -297,13 +300,15 @@ async function load() {
         listOpenClawConnections(instance.value.id),
         getOpenClawDashboard(),
       ])
+      if (revision !== loadRevision) return
       connections.value = nextConnections
       dashboard.value = nextDashboard
+      instance.value = nextDashboard.instance
     }
   } catch (err: any) {
-    error.value = err?.message || t('connections.loadFailed')
+    if (revision === loadRevision) error.value = err?.message || t('connections.loadFailed')
   } finally {
-    loading.value = false
+    if (revision === loadRevision) loading.value = false
   }
 }
 

@@ -751,6 +751,23 @@ func isWeChatBrowser(c *gin.Context) bool {
 	return strings.Contains(strings.ToLower(c.GetHeader("User-Agent")), "micromessenger")
 }
 
+func (h *PaymentHandler) CancelSubscriptionSession(c *gin.Context) {
+	subject, ok := requireAuth(c)
+	if !ok {
+		return
+	}
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		response.BadRequest(c, "Invalid bill ID")
+		return
+	}
+	if err := h.paymentService.CancelSubscriptionSession(c.Request.Context(), subject.UserID, id); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"cancelled": true})
+}
+
 func (h *PaymentHandler) GetPaymentSessions(c *gin.Context) {
 	subject, ok := requireAuth(c)
 	if !ok {

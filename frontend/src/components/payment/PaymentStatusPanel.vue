@@ -102,6 +102,9 @@
               <Icon name="externalLink" size="sm" />
               {{ t('payment.qr.reopenAlipay') }}
             </button>
+            <button class="btn btn-secondary w-full" :disabled="cancelling" @click="handleCancel">
+              {{ cancelling ? t('common.processing') : t('payment.qr.cancelOrder') }}
+            </button>
           </div>
         </div>
         <div class="card p-4 text-center">
@@ -162,8 +165,8 @@
                 {{ t('payment.qr.saveQRCode') }}
               </button>
             </div>
-            <button class="btn btn-secondary w-full" @click="handleDone">
-              {{ t('payment.result.backToRecharge') }}
+            <button class="btn btn-secondary w-full" :disabled="cancelling" @click="handleCancel">
+              {{ cancelling ? t('common.processing') : t('payment.qr.cancelOrder') }}
             </button>
           </div>
         </div>
@@ -219,6 +222,10 @@
         {{ cancelling ? t('common.processing') : t('payment.qr.cancelOrder') }}
       </button>
     </template>
+    <div v-if="!outcome" class="space-y-2">
+      <button type="button" data-test="leave-payment" class="btn btn-secondary w-full" @click="handleExit">{{ t('payment.dismissWaiting') }}</button>
+      <p class="text-center text-xs text-gray-500">{{ t('payment.leavePaymentHint') }}</p>
+    </div>
   </div>
 </template>
 
@@ -255,12 +262,13 @@ const props = defineProps<{
   orderType?: string
   currency?: string
   outTradeNo?: string
+  paymentSessionId?: number
   mobileAlipayDeepLink?: boolean
 }>()
 
 type PaymentOutcome = 'success' | 'cancelled' | 'expired'
 
-const emit = defineEmits<{ done: []; success: []; settled: [outcome: PaymentOutcome] }>()
+const emit = defineEmits<{ done: []; exit: []; success: []; settled: [outcome: PaymentOutcome] }>()
 
 const i18n = useI18n()
 const { t } = i18n
@@ -292,6 +300,8 @@ let countdownTimer: ReturnType<typeof setInterval> | null = null
 let verifyAttempts = 0
 let lastVerifyAt = 0
 let alipayLauncher: AlipayDeepLinkLauncher | null = null
+let disposed = false
+let exited = false
 
 const VERIFY_RETRY_INTERVAL_MS = 15000
 const VERIFY_RETRY_MAX_ATTEMPTS = 6
@@ -420,7 +430,7 @@ async function tryRecoverPendingOrder(order: PaymentOrder): Promise<PaymentOrder
 
 let pollInFlight = false
 async function pollStatus() {
-  if (!props.orderId || outcome.value) return
+  if (!props.orderId || outcome.value || disposed || exited) return
   // 防重入：接口（含 verifyOrder 二次确认）响应慢于 3 秒轮询间隔时避免并发重叠请求。
   if (pollInFlight) return
   pollInFlight = true
@@ -428,9 +438,9 @@ async function pollStatus() {
     let order = await paymentStore.pollOrderStatus(props.orderId)
     if (!order) return
     // 已进入终态则不再处理迟到的响应。
-    if (outcome.value) return
+    if (disposed || exited || outcome.value) return
     order = await tryRecoverPendingOrder(order)
-    if (outcome.value) return
+    if (disposed || exited || outcome.value) return
     if (isSuccessStatus(order.status)) {
       cleanup()
       paidOrder.value = order
@@ -459,20 +469,40 @@ function startCountdown(seconds: number) {
 }
 
 async function handleCancel() {
-  if (!props.orderId || cancelling.value) return
+  if (!props.orderId || cancelling.value || exited || disposed) return
   cancelling.value = true
   try {
-    await paymentAPI.cancelOrder(props.orderId)
+    if (props.paymentSessionId) {
+      await paymentAPI.cancelSubscriptionSession(props.paymentSessionId)
+    } else {
+      const response = await paymentAPI.cancelOrder(props.orderId)
+      if (response?.data?.message === 'already_paid') {
+        if (!exited && !disposed) await pollStatus()
+        return
+      }
+    }
+    if (exited || disposed) return
     cleanup()
     setOutcome('cancelled')
+    handleDone()
   } catch (err: unknown) {
-    appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error')))
-  } finally {
-    cancelling.value = false
-  }
+    if (!exited && !disposed) appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error')))
+  } finally { cancelling.value = false }
 }
 
-function handleDone() { cleanup(); emit('done') }
+function handleDone() {
+  if (exited || disposed) return
+  exited = true
+  cleanup()
+  emit('done')
+}
+
+function handleExit() {
+  if (exited || disposed) return
+  exited = true
+  cleanup()
+  emit('exit')
+}
 
 function cleanup() {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
@@ -506,5 +536,5 @@ onMounted(() => {
   })
   alipayLauncher.launch()
 })
-onUnmounted(() => cleanup())
+onUnmounted(() => { disposed = true; cleanup() })
 </script>

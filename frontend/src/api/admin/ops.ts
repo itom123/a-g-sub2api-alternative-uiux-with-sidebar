@@ -73,6 +73,25 @@ export interface OpsDashboardOverview {
 
   duration: OpsPercentiles
   ttft: OpsPercentiles
+
+  /** Gateway's own pre-upstream time; only in the unfiltered view, from this instance's last hour. */
+  gateway_overhead?: OpsGatewayOverhead | null
+}
+
+export interface OpsGatewayOverhead {
+  window_minutes: number
+  sample_count: number
+  p50_ms?: number | null
+  p90_ms?: number | null
+  p99_ms?: number | null
+  max_ms?: number | null
+  /** Pre-processing without the body upload. */
+  processing_p90_ms?: number | null
+  routing_p90_ms?: number | null
+  /** Waiting for the client to upload the request body; not part of the percentiles above. */
+  upload_p50_ms?: number | null
+  upload_p90_ms?: number | null
+  upload_max_ms?: number | null
 }
 
 export interface OpsPercentiles {

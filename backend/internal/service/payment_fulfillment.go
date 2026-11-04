@@ -140,6 +140,11 @@ func (s *PaymentService) confirmPayment(ctx context.Context, oid int64, tradeNo 
 	}
 	if math.Abs(paid-o.PayAmount) > paymentAmountToleranceForCurrency(PaymentOrderCurrency(o)) {
 		s.writeAuditLog(ctx, o.ID, "PAYMENT_AMOUNT_MISMATCH", pk, map[string]any{"expected": o.PayAmount, "paid": paid, "tradeNo": tradeNo})
+		if o.PaymentSessionID != nil {
+			// The locked confirmation path decides whether this belongs to a
+			// cancelled bill, including cancellation racing this callback.
+			return s.toPaid(ctx, o, tradeNo, paid, pk)
+		}
 		return fmt.Errorf("amount mismatch: expected %s, got %s", strconv.FormatFloat(o.PayAmount, 'f', -1, 64), strconv.FormatFloat(paid, 'f', -1, 64))
 	}
 	return s.toPaid(ctx, o, tradeNo, paid, pk)
@@ -177,10 +182,48 @@ func expectedNotificationProviderKey(registry *payment.Registry, orderPaymentTyp
 }
 
 func (s *PaymentService) toPaid(ctx context.Context, o *dbent.PaymentOrder, tradeNo string, paid float64, pk string) error {
+	client := s.entClient
+	var tx *dbent.Tx
+	if o.OrderType == payment.OrderTypeSubscription {
+		var err error
+		tx, err = s.entClient.Tx(ctx)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = tx.Rollback() }()
+		client = tx.Client()
+		if err := lockPaymentUser(ctx, client, o.UserID); err != nil {
+			return err
+		}
+		o, err = client.PaymentOrder.Get(ctx, o.ID)
+		if err != nil {
+			return err
+		}
+		if o.PaymentSessionID != nil {
+			session, err := client.PaymentSession.Get(ctx, *o.PaymentSessionID)
+			if err != nil {
+				return err
+			}
+			if session.Status == paymentSessionCancelled {
+				if err := recordCancelledSessionPayment(ctx, client, session, o, tradeNo, paid, pk); err != nil {
+					return err
+				}
+				return tx.Commit()
+			}
+			if math.Abs(paid-o.PayAmount) > paymentAmountToleranceForCurrency(PaymentOrderCurrency(o)) {
+				return fmt.Errorf("amount mismatch: expected %v, got %v", o.PayAmount, paid)
+			}
+			if session.Status == paymentSessionCancelling {
+				if _, err := client.PaymentSession.UpdateOneID(session.ID).SetStatus("PENDING").Save(ctx); err != nil {
+					return err
+				}
+			}
+		}
+	}
 	previousStatus := o.Status
 	now := time.Now()
 	grace := now.Add(-paymentGraceMinutes * time.Minute)
-	c, err := s.entClient.PaymentOrder.Update().Where(
+	c, err := client.PaymentOrder.Update().Where(
 		paymentorder.IDEQ(o.ID),
 		paymentorder.Or(
 			paymentorder.StatusEQ(OrderStatusPending),
@@ -194,6 +237,11 @@ func (s *PaymentService) toPaid(ctx context.Context, o *dbent.PaymentOrder, trad
 	).SetStatus(OrderStatusPaid).SetPayAmount(paid).SetPaymentTradeNo(tradeNo).SetPaidAt(now).ClearFailedAt().ClearFailedReason().Save(ctx)
 	if err != nil {
 		return fmt.Errorf("update to PAID: %w", err)
+	}
+	if tx != nil {
+		if err := tx.Commit(); err != nil {
+			return err
+		}
 	}
 	if c == 0 {
 		return s.alreadyProcessed(ctx, o)
@@ -224,6 +272,9 @@ func (s *PaymentService) recordInstallmentPayment(ctx context.Context, o *dbent.
 		return false, err
 	}
 	defer func() { _ = tx.Rollback() }()
+	if err := lockPaymentUser(ctx, tx.Client(), o.UserID); err != nil {
+		return false, err
+	}
 	q := tx.PaymentSession.Query().Where(paymentsession.IDEQ(*o.PaymentSessionID))
 	if paymentAuditDialect(s.entClient) == dialect.Postgres {
 		q.ForUpdate()
@@ -232,8 +283,8 @@ func (s *PaymentService) recordInstallmentPayment(ctx context.Context, o *dbent.
 	if err != nil {
 		return false, err
 	}
-	if session.Status == "REFUNDED" {
-		return false, infraerrors.Conflict("PAYMENT_SESSION_CLOSED", "payment was refunded")
+	if session.Status == "REFUNDED" || session.Status == paymentSessionCancelled {
+		return false, infraerrors.Conflict("PAYMENT_SESSION_CLOSED", "payment session is closed; manual review required")
 	}
 	orders, err := tx.PaymentOrder.Query().Where(paymentorder.PaymentSessionIDEQ(session.ID), paymentorder.PaidAtNotNil()).All(ctx)
 	if err != nil {
@@ -702,6 +753,9 @@ func (s *PaymentService) ensurePaymentSubscriptionAssigned(ctx context.Context, 
 
 	txCtx := dbent.NewTxContext(ctx, tx)
 	txClient := tx.Client()
+	if err := lockPaymentUser(txCtx, txClient, o.UserID); err != nil {
+		return err
+	}
 	alreadyAssigned, err := hasPaymentSubscriptionAssignmentAudit(txCtx, txClient, o.ID)
 	if err != nil {
 		return fmt.Errorf("check subscription assignment audit: %w", err)
@@ -717,6 +771,17 @@ func (s *PaymentService) ensurePaymentSubscriptionAssigned(ctx context.Context, 
 		case lookupErr != nil && !errors.Is(lookupErr, ErrSubscriptionNotFound):
 			return fmt.Errorf("check existing subscription assignment: %w", lookupErr)
 		default:
+			// Own-order retries above must succeed even after their assignment
+			// made this platform active. Only a new payment allocation is blocked.
+			if o.PaymentSessionID == nil {
+				group, err := s.groupRepo.GetByID(txCtx, groupID)
+				if err != nil {
+					return err
+				}
+				if err := s.checkActiveSubscriptionPlatform(txCtx, o.UserID, group.Platform); err != nil {
+					return err
+				}
+			}
 			if _, _, err := s.subscriptionSvc.assignOrExtendSubscription(txCtx, &AssignSubscriptionInput{
 				UserID:       o.UserID,
 				GroupID:      groupID,

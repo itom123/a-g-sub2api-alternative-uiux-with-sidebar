@@ -22,6 +22,13 @@ describe('payment api', () => {
     post.mockResolvedValue({ data: {} })
   })
 
+  it('cancels normal orders and legacy sessions using their respective endpoints', async () => {
+    await paymentAPI.cancelOrder(42)
+    await paymentAPI.cancelSubscriptionSession(9)
+    expect(post).toHaveBeenCalledWith('/payment/orders/42/cancel')
+    expect(post).toHaveBeenCalledWith('/payment/sessions/9/cancel')
+  })
+
   it('keeps legacy public out_trade_no verification for upgrade compatibility', async () => {
     await paymentAPI.verifyOrderPublic('legacy-order-no')
 

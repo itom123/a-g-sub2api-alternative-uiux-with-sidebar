@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test'
+import type { UserSubscription } from '../src/types'
 
 export const user = {
   id: 42, username: 'Account fixture', email: 'account@example.invalid', role: 'user',
@@ -40,6 +41,8 @@ type FixtureUsageRow = {
   total_cost: number
   created_at: string
   duration_ms: number
+  billing_type: 0 | 1
+  subscription_id: number | null
 }
 
 type FixtureDay = {
@@ -109,6 +112,8 @@ for (const [dayIndex, day] of daySpecs.entries()) {
       total_cost: splitMoney(day.total_cost, day.requests, requestIndex),
       created_at: new Date(fixtureNow - offsetMinutes * 60_000).toISOString(),
       duration_ms: 380,
+      billing_type: apiKeyId === 1 ? 1 : 0,
+      subscription_id: apiKeyId === 1 ? 101 : null,
     })
   }
 }
@@ -188,6 +193,24 @@ const coverage = { requested_start: '2026-01-01T00:00:00Z', coverage_start: '202
 const monitorConfig = { version: 1, enabled: true, refresh_interval_seconds: 60, platforms: [], group_ids: [], ignored_error_categories: [], health_thresholds: { minimum_sample: 10, warning_error_rate: 0.05, critical_error_rate: 0.1, target_ttft_ms: 1000, warning_ttft_ms: 3000, critical_ttft_ms: 10000, warning_cache_rate: 0.5, critical_cache_rate: 0.1, error_weight: 1, ttft_weight: 1, cache_weight: 1 } }
 const group = { id: 1, name: 'Standard API group', platform: 'openai', status: 'active', rate_multiplier: 1, is_exclusive: false, description: 'Shared API usage', created_at: user.created_at, updated_at: user.updated_at }
 const secondGroup = { id: 2, name: 'Research API group', platform: 'openai', status: 'active', rate_multiplier: 1, is_exclusive: false, description: 'Research usage', created_at: user.created_at, updated_at: user.updated_at }
+export const subscriptionFixtures: UserSubscription[] = [
+  {
+    id: 101, user_id: user.id, group_id: 1, status: 'active',
+    starts_at: new Date(fixtureNow - 15 * 86400000).toISOString(), expires_at: new Date(fixtureNow + 15 * 86400000).toISOString(),
+    daily_usage_usd: 8.5, weekly_usage_usd: 20, monthly_usage_usd: 45,
+    daily_window_start: new Date(fixtureNow - 3600000).toISOString(), weekly_window_start: new Date(fixtureNow - 86400000).toISOString(), monthly_window_start: new Date(fixtureNow - 10 * 86400000).toISOString(),
+    created_at: user.created_at, updated_at: user.updated_at,
+    group: { ...group, name: 'Studio subscription', subscription_type: 'subscription', daily_limit_usd: 10, weekly_limit_usd: 50, monthly_limit_usd: 200 } as UserSubscription['group'],
+  },
+  {
+    id: 102, user_id: user.id, group_id: 2, status: 'active',
+    starts_at: new Date(fixtureNow - 15 * 86400000).toISOString(), expires_at: new Date(fixtureNow + 15 * 86400000).toISOString(),
+    daily_usage_usd: 2, weekly_usage_usd: 5, monthly_usage_usd: 10,
+    daily_window_start: null, weekly_window_start: null, monthly_window_start: null,
+    created_at: user.created_at, updated_at: user.updated_at,
+    group: { ...secondGroup, name: 'Research subscription', subscription_type: 'subscription', daily_limit_usd: null, weekly_limit_usd: 0, monthly_limit_usd: null } as UserSubscription['group'],
+  },
+]
 const keys = [
   { id: 1, user_id: user.id, name: 'Example key', key: 'secret-must-not-render', status: 'active', quota: 100, quota_used: 20, group_id: 1, group, last_used_at: '2026-11-01T11:30:00Z', created_at: user.created_at, updated_at: user.updated_at },
   { id: 2, user_id: user.id, name: 'Second key', key: 'secret-two', status: 'active', quota: 100, quota_used: 10, group_id: 2, group: secondGroup, last_used_at: '2026-11-01T12:00:00Z', created_at: user.created_at, updated_at: user.updated_at },
@@ -195,7 +218,28 @@ const keys = [
 const errors = [{ id: 10, created_at: '2026-11-01T10:00:00Z', model: 'fixture-model,with-comma', inbound_endpoint: '/v1/chat/completions', status_code: 429, category: 'rate_limit', platform: 'openai', message: 'Rate limit example', key_name: 'Example key', error_body: 'upstream body', upstream_status: 429 }]
 const quota = { platform_quotas: [{ platform: 'openai', daily_limit_usd: 10, daily_usage_usd: 8.5, weekly_limit_usd: 50, weekly_usage_usd: 20, monthly_limit_usd: null, monthly_usage_usd: 0, daily_window_resets_at: '2026-11-02T00:00:00Z' }] }
 
-function response(path: string): unknown {
+export function keyActivityFixture() {
+  const keyRows = keys.map(key => {
+    const rows = usageRows.filter(row => row.api_key_id === key.id)
+    const summary = summarizeRows(rows)
+    const favourite = modelStatsFor(rows).sort((a, b) => b.requests - a.requests || b.total_tokens - a.total_tokens || a.model.localeCompare(b.model))[0]
+    return { api_key_id: key.id, key_name: key.name, status: key.status, deleted: false,
+      range_actual_cost: summary.actual_cost, lifetime_actual_cost: Math.max(summary.actual_cost, key.id === 1 ? 1.8 : 1.2), today_actual_cost: key.id === 1 ? .18 : .27,
+      requests: summary.requests, input_tokens: summary.input_tokens, cache_creation_tokens: summary.cache_creation_tokens,
+      cache_read_tokens: summary.cache_read_tokens, output_tokens: summary.output_tokens, total_tokens: summary.total_tokens,
+      favourite_model: favourite?.model || null, last_used_at: rows.map(row => row.created_at).sort().at(-1) || null }
+  })
+  const active = ([['60m', 60], ['12h', 720], ['24h', 1440]] as const).map(([id, minutes]) => {
+    const rows = usageRows.filter(row => Date.parse(row.created_at) >= fixtureNow - minutes * 60000 && Date.parse(row.created_at) < fixtureNow)
+    const summary = summarizeRows(rows)
+    return { id, requests: summary.requests, tokens: summary.total_tokens, rpm: summary.requests / minutes, tpm: summary.total_tokens / minutes,
+      last_call_at: rows.map(row => row.created_at).sort().at(-1) || null,
+      model_shares: modelStatsFor(rows).map(model => ({ model: model.model, requests: model.requests, tokens: model.total_tokens, share: model.requests / (summary.requests || 1) })) }
+  })
+  return { as_of: new Date(fixtureNow).toISOString(), range_start: '2026-10-26T00:00:00Z', range_end_exclusive: new Date(fixtureNow).toISOString(), coverage: 'retained_logs', keys: keyRows, active_windows: active }
+}
+
+export function response(path: string): unknown {
   if (path === '/currency') return { cnyPerUsd: 7, source: 'fixture', rateDate: '2026-10-31', updatedAt: '2026-10-31T00:00:00Z', nextRefreshAt: '2026-12-31T00:00:00Z' }
   if (path === '/settings/public' || path === '/admin/settings') return settings
   if (path === '/auth/me' || path === '/user/profile') return user
@@ -204,7 +248,7 @@ function response(path: string): unknown {
   if (path === '/usage/stats') return rangeStats
   if (path === '/usage/dashboard/stats') return stats
   if (path === '/usage/dashboard/trend') return { trend }
-  if (path === '/usage/dashboard/snapshot-v2') return { generated_at: '2026-11-01T12:00:00Z', start_date: '2026-10-26', end_date: '2026-11-01', granularity: 'day', trend, models, groups }
+  if (path === '/usage/dashboard/snapshot-v2') return { generated_at: '2026-11-01T12:00:00Z', start_date: '2026-10-26', end_date: '2026-11-01', granularity: 'day', trend, models, groups, key_activity_status: 'available', key_activity: keyActivityFixture() }
   if (path === '/usage/dashboard/models') return { models }
   if (path === '/usage/dashboard/api-keys-usage') return { stats: { '1': { api_key_id: 1, today_actual_cost: 0.18, total_actual_cost: 1.8 }, '2': { api_key_id: 2, today_actual_cost: 0.27, total_actual_cost: 1.2 } } }
   if (path === '/user/api-keys/1/usage/daily') return dailyForKey(1)
@@ -226,6 +270,7 @@ function response(path: string): unknown {
   if (path === '/payment/access') return { allowed: true }
   if (path === '/payment/sessions/my') return []
   if (path === '/payment/config') return { enabled: true, payment_methods: [], payment_types: [] }
+  if (path === '/subscriptions/active') return []
   if (path === '/subscriptions/summary') return { active_count: 0, subscriptions: [] }
   if (path === '/admin/plugins') return []
   if (path === '/admin/payment/dashboard') return { today_amount: {}, total_amount: {}, avg_amount: {}, today_count: 0, total_count: 0, daily_series: [], payment_methods: [], top_users: {} }
@@ -240,9 +285,9 @@ function response(path: string): unknown {
   return empty
 }
 
-export async function prepare(page: Page, theme: 'light' | 'dark', authenticated = true, role: 'user' | 'admin' = 'user') {
+export async function prepare(page: Page, theme: 'light' | 'dark', authenticated = true, role: 'user' | 'admin' = 'user', locale: 'en' | 'zh' = 'en', subscriptions: UserSubscription[] = []) {
   const currentUser = { ...user, role }
-  await page.addInitScript(({ theme, authenticated, user, settings }) => {
+  await page.addInitScript(({ theme, authenticated, user, settings, locale }) => {
     // Init scripts can run while the document is still an about:blank-like shell.
     // Never dereference the DOM or storage until the relevant host is available.
     const applyTheme = () => {
@@ -257,7 +302,7 @@ export async function prepare(page: Page, theme: 'light' | 'dark', authenticated
         const storage = window.localStorage
         if (!storage) return
         storage.setItem('theme', theme)
-        storage.setItem('locale', 'en')
+        storage.setItem('sub2api_locale', locale)
         storage.setItem(`admin_guide_${user.id}_admin_v4_interactive`, 'true')
         storage.setItem(`user_guide_${user.id}_user_v4_interactive`, 'true')
         if (authenticated) {
@@ -296,7 +341,7 @@ export async function prepare(page: Page, theme: 'light' | 'dark', authenticated
         })
       }
     }
-  }, { theme, authenticated, user: currentUser, settings })
+  }, { theme, authenticated, user: currentUser, settings, locale })
   await page.route('**/api/v1/**', async route => {
     const path = new URL(route.request().url()).pathname.replace(/^\/api\/v1/, '')
     if (path === '/pages/theme-example') {
@@ -304,6 +349,7 @@ export async function prepare(page: Page, theme: 'light' | 'dark', authenticated
       return
     }
     if (path === '/currency') return route.fulfill({ json: response(path) as object })
+    if (path === '/subscriptions/active') return route.fulfill({ json: { code: 0, data: subscriptions } })
     await route.fulfill({ json: { code: 0, data: path === '/auth/me' || path === '/user/profile' ? currentUser : response(path) } })
   })
   await page.route('**/setup', async route => { const document = await route.fetch({ url: new URL('/index.html', route.request().url()).href }); await route.fulfill({ response: document }) })

@@ -104,6 +104,12 @@ func (s *PaymentService) CancelOrder(ctx context.Context, orderID, userID int64)
 	if o.UserID != userID {
 		return "", infraerrors.Forbidden("FORBIDDEN", "no permission for this order")
 	}
+	if o.PaymentSessionID != nil {
+		if err := s.CancelSubscriptionSession(ctx, userID, *o.PaymentSessionID); err != nil {
+			return "", err
+		}
+		return checkPaidResultCancelled, nil
+	}
 	if o.Status != OrderStatusPending {
 		return "", infraerrors.BadRequest("INVALID_STATUS", "order cannot be cancelled in current status")
 	}
@@ -122,19 +128,15 @@ func (s *PaymentService) AdminCancelOrder(ctx context.Context, orderID int64) (s
 }
 
 func (s *PaymentService) cancelCore(ctx context.Context, o *dbent.PaymentOrder, fs, op, ad string) (string, error) {
+	if o.PaymentSessionID != nil {
+		if err := s.CancelSubscriptionSession(ctx, o.UserID, *o.PaymentSessionID); err != nil {
+			return "", err
+		}
+		return checkPaidResultCancelled, nil
+	}
 	if o.PaymentTradeNo != "" || o.PaymentType != "" {
 		if s.checkPaid(ctx, o) == checkPaidResultAlreadyPaid {
 			return checkPaidResultAlreadyPaid, nil
-		}
-	}
-	// A local timeout is not proof that a payable gateway order was closed.
-	if o.PaymentSessionID != nil {
-		fresh, err := s.entClient.PaymentOrder.Get(ctx, o.ID)
-		if err != nil {
-			return "", err
-		}
-		if !fresh.ProviderClosed {
-			return "", infraerrors.Conflict("PAYMENT_CHECKING", "the gateway has not confirmed closure; check the existing payment before trying again")
 		}
 	}
 	c, err := s.entClient.PaymentOrder.Update().Where(paymentorder.IDEQ(o.ID), paymentorder.StatusEQ(OrderStatusPending)).SetStatus(fs).Save(ctx)
@@ -160,6 +162,8 @@ func (s *PaymentService) reconcilePaid(ctx context.Context, o *dbent.PaymentOrde
 }
 
 func (s *PaymentService) checkPaidWithOptions(ctx context.Context, o *dbent.PaymentOrder, opts checkPaidOptions) string {
+	ctx, stop := context.WithTimeout(ctx, 15*time.Second)
+	defer stop()
 	prov, err := s.getOrderProvider(ctx, o)
 	if err != nil {
 		return ""
@@ -171,7 +175,7 @@ func (s *PaymentService) checkPaidWithOptions(ctx context.Context, o *dbent.Paym
 	finishProviderCall := servertiming.ObserveDependency(ctx, "payment")
 	resp, err := prov.QueryOrder(ctx, queryRef)
 	finishProviderCall()
-	if err != nil {
+	if err != nil || resp == nil {
 		slog.Warn("query upstream failed", "orderID", o.ID, "error", err)
 		return ""
 	}

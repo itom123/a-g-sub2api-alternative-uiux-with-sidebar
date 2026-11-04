@@ -1,6 +1,7 @@
 <template>
   <AppLayout>
     <div class="mx-auto max-w-lg space-y-6 py-8">
+      <button type="button" data-testid="exit-airwallex-payment" class="btn btn-secondary w-full" @click="leavePayment">{{ t('payment.dismissWaiting') }}</button>
       <PageLoading v-if="loading" />
 
       <div v-else-if="errorMessage" class="card p-8 text-center">
@@ -44,6 +45,12 @@ const errorMessage = ref('')
 let disposed = false
 
 onUnmounted(() => { disposed = true })
+
+function leavePayment() {
+  disposed = true
+  window.localStorage.removeItem(PAYMENT_RECOVERY_STORAGE_KEY)
+  void router.push('/dashboard')
+}
 
 function queryString(key: string): string {
   const value = route.query[key]

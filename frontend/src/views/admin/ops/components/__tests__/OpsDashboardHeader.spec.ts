@@ -49,3 +49,59 @@ describe('OpsDashboardHeader output TPS', () => {
   })
 
 })
+
+describe('OpsDashboardHeader latency diagnosis', () => {
+  // Not idle: diagnosis only lists metric findings when there is traffic.
+  const busy = { ...overview, qps: { current: 0.2, peak: 0.3, avg: 0.1 }, error_rate: 0, upstream_error_rate: 0, sla: 1 } as OpsDashboardOverview
+
+  it('flags TTFT on P90 above 5s, not on a long-prompt P99 tail', async () => {
+    const calm = mountHeader({ ...busy, ttft: { p50_ms: 1815, p90_ms: 4169, p99_ms: 11977 } })
+    await flushPromises()
+    expect(calm.text()).not.toContain('admin.ops.diagnosis.ttftHigh')
+    calm.unmount()
+
+    const slow = mountHeader({ ...busy, ttft: { p50_ms: 3088, p90_ms: 6678, p99_ms: 11977 } })
+    await flushPromises()
+    expect(slow.text()).toContain('admin.ops.diagnosis.ttftHigh:{"ttft":"6678"}')
+    slow.unmount()
+  })
+
+  it('shows gateway overhead on the TTFT card and warns only above 300ms', async () => {
+    const fast = mountHeader({
+      ...busy,
+      ttft: { p90_ms: 4000 },
+      gateway_overhead: {
+        window_minutes: 60, sample_count: 353, p50_ms: 55, p90_ms: 68, p99_ms: 120, max_ms: 410,
+        processing_p90_ms: 41, routing_p90_ms: 33, upload_p50_ms: 120, upload_p90_ms: 640, upload_max_ms: 2900
+      }
+    })
+    await flushPromises()
+    expect(fast.get('[data-testid="gateway-overhead-p90"]').text()).toBe('68')
+    expect(fast.get('[data-testid="gateway-overhead-scope"]').text()).toContain('{"minutes":60}')
+    // A slow client upload is shown on its own line and does not raise the gateway warning.
+    expect(fast.get('[data-testid="gateway-upload-p90"]').text()).toBe('640')
+    expect(fast.get('[data-testid="gateway-upload-p90"]').classes()).not.toContain('text-yellow-600')
+    expect(fast.get('[data-testid="gateway-overhead-p90"]').classes()).not.toContain('text-yellow-600')
+    expect(fast.text()).not.toContain('admin.ops.diagnosis.gatewayOverheadHigh')
+    fast.unmount()
+
+    const slow = mountHeader({
+      ...busy,
+      ttft: { p90_ms: 4000 },
+      gateway_overhead: { window_minutes: 15, sample_count: 40, p90_ms: 420, processing_p90_ms: 380, routing_p90_ms: 40 }
+    })
+    await flushPromises()
+    expect(slow.get('[data-testid="gateway-overhead-p90"]').classes()).toContain('text-yellow-600')
+    expect(slow.text()).toContain('admin.ops.diagnosis.gatewayOverheadHigh:{"ms":"420"}')
+    expect(slow.text()).toContain('admin.ops.diagnosis.gatewayOverheadHighAction:{"processing":"380","routing":"40"}')
+    expect(slow.find('[data-testid="gateway-upload"]').exists()).toBe(false)
+    slow.unmount()
+  })
+
+  it('hides gateway overhead when the overview has none (filtered view)', async () => {
+    const wrapper = mountHeader({ ...busy, ttft: { p90_ms: 4000 } })
+    await flushPromises()
+    expect(wrapper.find('[data-testid="gateway-overhead"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+})

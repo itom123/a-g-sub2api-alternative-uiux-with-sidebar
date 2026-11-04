@@ -1381,7 +1381,9 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 		defaultMappedModel := strings.TrimSpace(effectiveMappedModel)
 		// 应用渠道模型映射到请求体
 		forwardBody := mappedBodyForMessages(channelMappingMsg.Mapped, channelMappingMsg.MappedModel)
-		writerSizeBeforeForward := c.Writer.Size()
+		// Keepalive pings sent while the bridge holds message_start are not
+		// semantic output; they must not block failover (same rule as /v1/responses).
+		writerSizeBeforeForward := service.OpenAICompactKeepaliveAdjustedWrittenSize(c)
 		result, err := func() (*service.OpenAIForwardResult, error) {
 			defer func() {
 				if accountReleaseFunc != nil {
@@ -1390,6 +1392,11 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 			}()
 			return h.gatewayService.ForwardAsAnthropic(c.Request.Context(), c, account, forwardBody, promptCacheKey, defaultMappedModel)
 		}()
+		if reqStream && c.Writer.Written() {
+			// The 200 SSE status is committed (pings at least): later errors
+			// must be SSE error events, not a JSON body.
+			streamStarted = true
+		}
 		var cyberBlockBodyMsg []byte
 		if service.GetOpsCyberPolicy(c) != nil {
 			cyberBlockBodyMsg = body
@@ -1468,7 +1475,7 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 						)
 						return
 					}
-					if c.Writer.Size() != writerSizeBeforeForward {
+					if service.OpenAICompactKeepaliveAdjustedWrittenSize(c) != writerSizeBeforeForward {
 						h.gatewayService.ObserveOpenAIAccountHealthFailure(c.Request.Context(), account, err)
 						h.handleAnthropicFailoverExhausted(c, failoverErr, true)
 						return
@@ -1622,12 +1629,14 @@ func (h *OpenAIGatewayHandler) handleAnthropicFailoverExhausted(c *gin.Context, 
 		h.anthropicStreamingAwareError(c, status, "api_error", message, streamStarted)
 		return
 	}
-	if failoverErr != nil && failoverErr.IsOpenAICapacityShed() && strings.TrimSpace(failoverErr.ClientMessage) != "" {
-		status := failoverErr.ClientStatusCode
-		if status <= 0 {
-			status = http.StatusServiceUnavailable
+	// Anthropic clients retry overloaded_error (HTTP 529) with backoff; a 503
+	// api_error reads as a generic server failure.
+	if failoverErr != nil && (failoverErr.IsOpenAICapacityShed() || failoverErr.StatusCode == 529) {
+		message := strings.TrimSpace(failoverErr.ClientMessage)
+		if message == "" {
+			message = "Upstream service overloaded, please retry later"
 		}
-		h.anthropicStreamingAwareError(c, status, "api_error", failoverErr.ClientMessage, streamStarted)
+		h.anthropicStreamingAwareError(c, 529, "overloaded_error", message, streamStarted)
 		return
 	}
 	status, errType, errMsg := h.mapUpstreamError(failoverErr.StatusCode)

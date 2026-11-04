@@ -62,9 +62,32 @@ frontend wiring is present. The behaviour itself is proven by the guard tests li
 
 ---
 
+## 2–6. Features restored on 2026-11-04
+
+These had been in production since 2026-11-01 to 2026-11-03, but were built from local trees and never committed
+here. A deploy from `main` on 2026-11-04 removed them; they were restored by merging the recorded production tree.
+None of them adds a migration. Guard: the files named below must exist, and every test in each guard test file must
+pass (`GO_GUARD_FILES` and the frontend spec list in `tools/fork-guard.sh`).
+
+| # | Feature | Fork-owned files (examples) | Main hook points in upstream files |
+| --- | --- | --- | --- |
+| 2 | Payments: cancel/exit an open checkout, one-time and subscription purchase policy | `payment_session_cancel.go`, `payment_subscription_policy.go`, `frontend/src/views/user/subscriptionCheckout.ts` | `payment_handler.go`, `routes/payment.go`, `payment_order*.go`, `PaymentView.vue`, `PaymentStatusPanel.vue`, Stripe/Airwallex views |
+| 3 | Ops monitor: per-job health, TTFT/SLA scoring, exact window percentiles, gateway overhead with upload/processing split, context-window errors attributed to the client | `ops_job_health.go`, `ops_gateway_overhead.go`, `ops_request_timing.go`, `ops_context_limit_error.go` | `ops_health_score.go`, `ops_dashboard*.go`, `ops_service.go`, `ops_repo_dashboard.go`, `ops_error_logger.go`, `gateway_handler.go`, ops admin views |
+| 4 | Claude bridge failover: hold `message_start`, 400 for context window, `overloaded_error` | (tests) `openai_gateway_messages_failover_test.go` | `openai_gateway_messages.go`, `openai_gateway_handler.go` |
+| 5 | Customer dashboard (full): insights, exact aggregates, comparison trends, subscription widgets, admin subscription usage columns | `usagestats/user_insights.go`, `usage_log_repo_user_insights.go`, `frontend/src/components/user/dashboard/insights/*`, `trendComparison.ts`, `usageDisplay.ts`, `SubscriptionUsageCell.vue` | `usage_handler.go`, `usage_service.go`, `DashboardView.vue`, `AppHeader.vue`, `stores/subscriptions.ts` |
+| 6 | OpenClaw pricing and billing lock; official pricing | (tests) `openclaw_billing_lock_test.go` | `openclaw.go`, `api_key_service.go`, `pricing_official.go`, `OpenClawFleetView.vue` |
+
+---
+
+## Production is built from `main` only
+
+Every production deploy must be built from a commit on `main`, with this guard green. Never deploy a locally built
+tree: anything that exists only outside `main` is lost the next time someone deploys from `main`. If an urgent fix
+must ship from a local tree, open the PR for it before (or right after) the deploy.
+
 ## Adding a new fork customization
 
 1. Put the logic in fork-owned files and keep hooks in upstream files as small as possible.
 2. Name new migrations `9NN_fork_<name>.sql` (see UPSTREAM_SYNC.md); never renumber a migration already applied in
    production.
-3. Add an entry here, add its invariants and test names to `tools/fork-guard.sh`, and make sure CI is green.
+3. Add an entry here, add its invariants and guard test files to `tools/fork-guard.sh`, and make sure CI is green.

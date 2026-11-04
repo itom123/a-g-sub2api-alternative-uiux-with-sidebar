@@ -26,9 +26,9 @@
       </div>
 
       <!-- Right: Announcements + Docs + Language + Subscriptions + Balance + User Dropdown -->
-      <div class="flex shrink-0 items-center gap-1 sm:gap-3">
+      <div class="ag-header-actions flex min-w-0 items-center justify-end gap-1 sm:gap-3">
         <!-- Announcement Bell -->
-        <AnnouncementBell v-if="user" />
+        <div v-if="user" class="hidden xl:block"><AnnouncementBell /></div>
 
         <!-- Docs Link -->
         <a
@@ -36,10 +36,10 @@
           :href="docUrl"
           target="_blank"
           rel="noopener noreferrer"
-          class="hidden items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-dark-400 dark:hover:bg-dark-800 dark:hover:text-white sm:flex"
+          class="hidden items-center gap-1.5 px-2 py-1.5 text-sm font-medium xl:flex"
         >
           <Icon name="book" size="sm" />
-          <span class="hidden sm:inline">{{ t('nav.docs') }}</span>
+          <span class="hidden 2xl:inline">{{ t('nav.docs') }}</span>
         </a>
 
         <!-- Model Plaza Entry (icon only below sm) -->
@@ -48,15 +48,15 @@
           :to="{ path: '/model-plaza', query: { embedded: '1' } }"
           :title="t('nav.modelPlaza')"
           :aria-label="t('nav.modelPlaza')"
-          class="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-dark-400 dark:hover:bg-dark-800 dark:hover:text-white"
+          class="hidden items-center gap-1.5 px-2 py-1.5 text-sm font-medium xl:flex"
         >
           <Icon name="grid" size="sm" />
-          <span class="hidden sm:inline">{{ t('nav.modelPlaza') }}</span>
+          <span class="hidden 2xl:inline">{{ t('nav.modelPlaza') }}</span>
         </router-link>
 
         <!-- Language Switcher -->
-        <CurrencyMenu />
-        <LocaleSwitcher />
+        <div class="hidden xl:block"><CurrencyMenu /></div>
+        <div class="hidden xl:block"><LocaleSwitcher /></div>
 
         <!-- Subscription Progress (for users with active subscriptions; not mounted at all when the feature is off) -->
         <SubscriptionProgressMini v-if="user && subscriptionFeatureEnabled" />
@@ -64,10 +64,11 @@
         <!-- Balance Display -->
         <div
           v-if="user"
-          class="group relative hidden items-center gap-2 rounded-xl bg-primary-50 px-3 py-1.5 dark:bg-primary-900/20 sm:flex"
+          class="ag-header-cash group relative flex min-w-0 flex-col items-start px-1.5 py-1 sm:flex-row sm:items-center sm:gap-2 sm:px-3 sm:py-1.5"
+          data-testid="header-cash-balance"
         >
           <svg
-            class="h-4 w-4 text-primary-600 dark:text-primary-400"
+            class="hidden h-4 w-4 shrink-0 sm:block"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -79,12 +80,13 @@
               fill="none" stroke="currentColor" stroke-width="1.5" d="M2 4H22V20H2ZM2 9H22M6 15H12"
             />
           </svg>
-          <span class="text-sm font-semibold text-primary-700 dark:text-primary-300">
+          <span class="text-[10px] sm:text-xs">{{ t('subscriptionProgress.cashBalance') }}</span>
+          <span class="ag-header-cash-value text-xs font-semibold tabular-nums sm:text-sm">
             {{ formatHeaderMoney(availableBalance) }}
           </span>
           <span
             v-if="frozenBalance > 0"
-            class="rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-200"
+            class="hidden px-1.5 py-0.5 text-xs font-medium sm:inline"
           >
             {{ balanceFrozenLabel }}
           </span>
@@ -109,7 +111,7 @@
         </div>
 
         <!-- User Dropdown -->
-        <div v-if="user" class="relative" ref="dropdownRef">
+        <div v-if="user" class="relative shrink-0" ref="dropdownRef">
           <button
             @click="toggleDropdown"
             class="flex items-center gap-2 rounded-xl p-1.5 transition-colors hover:bg-gray-100 dark:hover:bg-dark-800"
@@ -124,15 +126,15 @@
               >
               <span v-else>{{ userInitials }}</span>
             </div>
-            <div class="hidden text-left md:block">
-              <div class="text-sm font-medium text-gray-900 dark:text-white">
+            <div class="hidden max-w-28 text-left 2xl:block">
+              <div class="truncate text-sm font-medium text-gray-900 dark:text-white" :title="displayName">
                 {{ displayName }}
               </div>
               <div class="text-xs text-gray-500 dark:text-dark-400">
                 {{ t('admin.users.roles.' + user.role) }}
               </div>
             </div>
-            <Icon name="chevronDown" size="sm" class="hidden text-gray-400 md:block" />
+            <Icon name="chevronDown" size="sm" class="hidden text-gray-400 2xl:block" />
           </button>
 
           <!-- Dropdown Menu -->
@@ -149,7 +151,7 @@
               <!-- Balance (mobile only) -->
               <div class="border-b border-gray-100 px-4 py-2 dark:border-dark-700 sm:hidden">
                 <div class="text-xs text-gray-500 dark:text-dark-400">
-                  {{ t('common.balance') }}
+                  {{ t('subscriptionProgress.cashBalance') }}
                 </div>
                 <div class="text-sm font-semibold text-primary-600 dark:text-primary-400">
                   {{ formatHeaderMoney(availableBalance) }}
@@ -159,7 +161,18 @@
                 </div>
               </div>
 
+              <div class="flex items-center justify-between gap-2 border-b border-gray-100 px-4 py-2 xl:hidden dark:border-dark-700">
+                <CurrencyMenu />
+                <LocaleSwitcher />
+                <AnnouncementBell />
+              </div>
               <div class="py-1">
+                <a v-if="docUrl" :href="docUrl" target="_blank" rel="noopener noreferrer" class="dropdown-item xl:hidden" @click="closeDropdown">
+                  <Icon name="book" size="sm" />{{ t('nav.docs') }}
+                </a>
+                <router-link v-if="modelPlazaEnabled" :to="{ path: '/model-plaza', query: { embedded: '1' } }" class="dropdown-item xl:hidden" @click="closeDropdown">
+                  <Icon name="grid" size="sm" />{{ t('nav.modelPlaza') }}
+                </router-link>
                 <router-link to="/profile" @click="closeDropdown" class="dropdown-item">
                   <Icon name="user" size="sm" />
                   {{ t('nav.profile') }}
@@ -385,7 +398,8 @@ function handleReplayGuide() {
 }
 
 function formatHeaderMoney(value: number) {
-  return formatCny(value, 2)
+  const converted = formatCny(value, 2)
+  return converted === '-' ? `$${value.toFixed(2)}` : converted
 }
 
 function handleClickOutside(event: MouseEvent) {
@@ -404,6 +418,13 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.ag-header-actions { max-width: calc(100% - 3rem); }
+.ag-header-cash { border-inline-start: 1px solid var(--ag-rule, currentColor); }
+.ag-header-cash-value { overflow-wrap: anywhere; }
+@media (max-width: 639px) {
+  .ag-header-actions { gap: 0.25rem; }
+  .ag-header-cash { max-width: 7rem; line-height: 1.3; }
+}
 .dropdown-enter-active,
 .dropdown-leave-active {
   transition: all 0.2s ease;
