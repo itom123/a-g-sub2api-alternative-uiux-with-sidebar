@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS openclaw_instances (
     tenant_slug VARCHAR(64) NOT NULL UNIQUE,
     name VARCHAR(100) NOT NULL,
     status VARCHAR(32) NOT NULL DEFAULT 'planned',
-    worker_host VARCHAR(100) NOT NULL DEFAULT 'default',
+    worker_host VARCHAR(100) NOT NULL DEFAULT 'uk-02',
     port INTEGER NULL,
     last_error TEXT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

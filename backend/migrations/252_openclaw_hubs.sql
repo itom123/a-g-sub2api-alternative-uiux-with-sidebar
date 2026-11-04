@@ -31,7 +31,7 @@ WHERE hub_id IS NULL;
 
 UPDATE openclaw_instances
 SET worker_host = 'claw-hub-i'
-WHERE worker_host = 'default';
+WHERE worker_host = 'uk-02';
 
 CREATE INDEX IF NOT EXISTS idx_openclaw_instances_hub_id
     ON openclaw_instances (hub_id, status);
