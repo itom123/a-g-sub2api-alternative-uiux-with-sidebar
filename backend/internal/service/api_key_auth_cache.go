@@ -38,14 +38,16 @@ type APIKeyAuthUserSnapshot struct {
 	AllowedGroups []int64 `json:"allowed_groups,omitempty"`
 
 	// Balance notification fields (required for CheckBalanceAfterDeduction)
-	Email                      string             `json:"email"`
-	Username                   string             `json:"username"`
-	BalanceNotifyEnabled       bool               `json:"balance_notify_enabled"`
-	RestrictPublicGroups       bool               `json:"restrict_public_groups"`
-	BalanceNotifyThresholdType string             `json:"balance_notify_threshold_type"`
-	BalanceNotifyThreshold     *float64           `json:"balance_notify_threshold,omitempty"`
-	BalanceNotifyExtraEmails   []NotifyEmailEntry `json:"balance_notify_extra_emails,omitempty"`
-	TotalRecharged             float64            `json:"total_recharged"`
+	Email                       string             `json:"email"`
+	Username                    string             `json:"username"`
+	BalanceNotifyEnabled        bool               `json:"balance_notify_enabled"`
+	RestrictPublicGroups        bool               `json:"restrict_public_groups"`
+	BalanceOverflowAdminAllowed bool               `json:"balance_overflow_admin_allowed"`
+	BalanceOverflowEnabled      bool               `json:"balance_overflow_enabled"`
+	BalanceNotifyThresholdType  string             `json:"balance_notify_threshold_type"`
+	BalanceNotifyThreshold      *float64           `json:"balance_notify_threshold,omitempty"`
+	BalanceNotifyExtraEmails    []NotifyEmailEntry `json:"balance_notify_extra_emails,omitempty"`
+	TotalRecharged              float64            `json:"total_recharged"`
 
 	// RPMLimit 用户级每分钟请求数上限（0 = 不限制）；用于 billing_cache_service.checkRPM 兜底判断。
 	RPMLimit int `json:"rpm_limit"`
@@ -63,6 +65,9 @@ type APIKeyAuthGroupSnapshot struct {
 	IsExclusive                     bool                          `json:"is_exclusive"`
 	Status                          string                        `json:"status"`
 	SubscriptionType                string                        `json:"subscription_type"`
+	SubscriptionSourceGroupIDs      []int64                       `json:"subscription_source_group_ids"`
+	SubscriptionOverflowToBalance   bool                          `json:"subscription_overflow_to_balance"`
+	SubscriptionSourceAny           bool                          `json:"subscription_source_any"`
 	RateMultiplier                  float64                       `json:"rate_multiplier"`
 	DailyLimitUSD                   *float64                      `json:"daily_limit_usd,omitempty"`
 	WeeklyLimitUSD                  *float64                      `json:"weekly_limit_usd,omitempty"`

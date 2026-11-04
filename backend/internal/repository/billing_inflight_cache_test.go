@@ -142,7 +142,7 @@ func TestInflightReservation_SubscriptionUnaffected(t *testing.T) {
 	user := &service.User{ID: 12}
 	require.NoError(t, cache.SetUserBalance(ctx, user.ID, 0))
 	group := &service.Group{ID: 1, SubscriptionType: service.SubscriptionTypeSubscription}
-	sub := &service.UserSubscription{ID: 1}
+	sub := &service.UserSubscription{ID: 1, GroupID: 1}
 	for i := 0; i < 5; i++ {
 		_, err := svc.ReserveInflightBalance(ctx, user, group, sub, 10)
 		require.NoError(t, err)

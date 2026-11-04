@@ -12,7 +12,7 @@ import (
 func TestComputeDashboardHealthScore_IdleReturns100(t *testing.T) {
 	t.Parallel()
 
-	score := computeDashboardHealthScore(time.Now().UTC(), &OpsDashboardOverview{})
+	score := computeDashboardHealthScore(time.Now().UTC(), &OpsDashboardOverview{}, nil)
 	require.Equal(t, 100, score)
 }
 
@@ -50,7 +50,7 @@ func TestComputeDashboardHealthScore_DegradesOnBadSignals(t *testing.T) {
 		},
 	}
 
-	score := computeDashboardHealthScore(time.Now().UTC(), ov)
+	score := computeDashboardHealthScore(time.Now().UTC(), ov, nil)
 	require.Less(t, score, 80)
 	require.GreaterOrEqual(t, score, 0)
 }
@@ -229,7 +229,7 @@ func TestComputeDashboardHealthScore_Comprehensive(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			score := computeDashboardHealthScore(time.Now().UTC(), tt.overview)
+			score := computeDashboardHealthScore(time.Now().UTC(), tt.overview, nil)
 			require.GreaterOrEqual(t, score, tt.wantMin, "score should be >= %d", tt.wantMin)
 			require.LessOrEqual(t, score, tt.wantMax, "score should be <= %d", tt.wantMax)
 			require.GreaterOrEqual(t, score, 0, "score must be >= 0")
@@ -303,26 +303,42 @@ func TestComputeBusinessHealth(t *testing.T) {
 			wantMax: 78,
 		},
 		{
-			name: "TTFT boundary 2s",
+			name: "TTFT P90 midpoint 12.5s",
 			overview: &OpsDashboardOverview{
 				SLA:               0.99,
 				ErrorRate:         0,
 				UpstreamErrorRate: 0,
-				TTFT:              OpsPercentiles{P99: intPtr(2000)},
+				TTFT:              OpsPercentiles{P90: intPtr(12_500), P99: intPtr(30_000)},
 			},
 			wantMin: 75,
 			wantMax: 75,
 		},
 		{
-			name: "upstream error dominates",
+			name: "TTFT P90 at the 5s good edge scores full",
+			overview: &OpsDashboardOverview{
+				TTFT: OpsPercentiles{P90: intPtr(5_000), P99: intPtr(25_000)},
+			},
+			wantMin: 100,
+			wantMax: 100,
+		},
+		{
+			name: "TTFT P90 beyond 20s zeroes the TTFT half",
+			overview: &OpsDashboardOverview{
+				TTFT: OpsPercentiles{P90: intPtr(21_000)},
+			},
+			wantMin: 50,
+			wantMax: 50,
+		},
+		{
+			name: "recovered upstream errors do not reduce the score",
 			overview: &OpsDashboardOverview{
 				SLA:               0.995,
 				ErrorRate:         0.001,
 				UpstreamErrorRate: 0.03,
 				Duration:          OpsPercentiles{P99: intPtr(500)},
 			},
-			wantMin: 88,
-			wantMax: 90,
+			wantMin: 100,
+			wantMax: 100,
 		},
 	}
 
@@ -428,7 +444,7 @@ func TestComputeInfraHealth(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			score := computeInfraHealth(now, tt.overview)
+			score := computeInfraHealth(now, tt.overview, nil)
 			require.GreaterOrEqual(t, score, tt.wantMin, "score should be >= %.1f", tt.wantMin)
 			require.LessOrEqual(t, score, tt.wantMax, "score should be <= %.1f", tt.wantMax)
 			require.GreaterOrEqual(t, score, 0.0, "score must be >= 0")

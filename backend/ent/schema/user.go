@@ -100,6 +100,10 @@ func (User) Fields() []ent.Field {
 		// 为 true 时仅可绑定 user_allowed_groups 中列出的公开分组。
 		field.Bool("restrict_public_groups").
 			Default(false),
+		field.Bool("balance_overflow_admin_allowed").
+			Default(true),
+		field.Bool("balance_overflow_enabled").
+			Default(true),
 
 		// 余额不足通知
 		field.Bool("balance_notify_enabled").

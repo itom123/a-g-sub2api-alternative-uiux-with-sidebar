@@ -1,6 +1,9 @@
 <template>
   <AppLayout>
     <div class="space-y-6">
+      <!-- 额度用完后是否使用余额（用户开关，受管理员许可约束） -->
+      <SubscriptionBalanceOverflowCard v-if="!loading && subscriptions.length > 0" />
+
       <!-- Loading State -->
       <PageLoading v-if="loading" />
 
@@ -245,6 +248,7 @@
 
 <script setup lang="ts">
 import PageLoading from '@/components/common/PageLoading.vue'
+import SubscriptionBalanceOverflowCard from '@/components/user/SubscriptionBalanceOverflowCard.vue'
 import { cnyNumber } from '@/utils/currency'
 
 import { ref, onMounted } from 'vue'

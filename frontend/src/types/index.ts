@@ -92,6 +92,9 @@ export interface User {
   status: 'active' | 'disabled' // Account status
   allowed_groups: number[] | null // Allowed group IDs (null = all non-exclusive groups)
   balance_notify_enabled: boolean
+  // 订阅额度用完后是否允许使用余额：管理员许可 + 用户自己的开关，两者都开才生效
+  balance_overflow_enabled?: boolean
+  balance_overflow_admin_allowed?: boolean
   balance_notify_threshold: number | null
   balance_notify_extra_emails: NotifyEmailEntry[]
   subscriptions?: UserSubscription[] // User's active subscriptions
@@ -587,6 +590,10 @@ export interface Group {
   is_exclusive: boolean
   status: 'active' | 'inactive'
   subscription_type: SubscriptionType
+  // 订阅额度共享（仅管理端返回）：标准分组可使用的订阅分组；订阅分组额度用完后是否转扣余额
+  subscription_source_group_ids?: number[]
+  subscription_source_any?: boolean
+  subscription_overflow_to_balance?: boolean
   daily_limit_usd: number | null
   weekly_limit_usd: number | null
   monthly_limit_usd: number | null
@@ -811,6 +818,9 @@ export interface CreateGroupRequest {
   rate_multiplier?: number
   is_exclusive?: boolean
   subscription_type?: SubscriptionType
+  subscription_source_group_ids?: number[]
+  subscription_source_any?: boolean
+  subscription_overflow_to_balance?: boolean
   daily_limit_usd?: number | null
   weekly_limit_usd?: number | null
   monthly_limit_usd?: number | null
@@ -879,6 +889,9 @@ export interface UpdateGroupRequest {
   is_exclusive?: boolean
   status?: 'active' | 'inactive'
   subscription_type?: SubscriptionType
+  subscription_source_group_ids?: number[]
+  subscription_source_any?: boolean
+  subscription_overflow_to_balance?: boolean
   daily_limit_usd?: number | null
   weekly_limit_usd?: number | null
   monthly_limit_usd?: number | null
@@ -2148,6 +2161,8 @@ export interface UpdateUserRequest {
   status?: 'active' | 'disabled'
   allowed_groups?: number[] | null
   restrict_public_groups?: boolean
+  balance_overflow_admin_allowed?: boolean
+  balance_overflow_enabled?: boolean
   // 用户专属分组倍率配置 (group_id -> rate_multiplier | null)
   // null 表示删除该分组的专属倍率
   group_rates?: Record<number, number | null>

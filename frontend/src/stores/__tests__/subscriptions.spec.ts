@@ -25,7 +25,7 @@ const fakeSubscriptions = [
     monthly_window_start: null,
     created_at: '2024-01-01',
     updated_at: '2024-01-01',
-    expires_at: '2025-01-01',
+    expires_at: '2099-01-01',
   },
   {
     id: 2,
@@ -40,7 +40,7 @@ const fakeSubscriptions = [
     monthly_window_start: null,
     created_at: '2024-02-01',
     updated_at: '2024-02-01',
-    expires_at: '2025-02-01',
+    expires_at: '2099-02-01',
   },
 ]
 
@@ -52,6 +52,7 @@ describe('useSubscriptionStore', () => {
   })
 
   afterEach(() => {
+    useSubscriptionStore().clear()
     vi.useRealTimers()
   })
 
@@ -137,6 +138,36 @@ describe('useSubscriptionStore', () => {
       expect(r2).toEqual(fakeSubscriptions)
     })
 
+    it('exposes freshness and retains the last good snapshot on refresh failure', async () => {
+      mockGetActiveSubscriptions.mockResolvedValueOnce(fakeSubscriptions)
+      const store = useSubscriptionStore()
+      expect(store.loaded).toBe(false)
+      expect(store.lastFetchedAt).toBeNull()
+      await store.fetchActiveSubscriptions()
+      const fetchedAt = store.lastFetchedAt
+      expect(store.loaded).toBe(true)
+      mockGetActiveSubscriptions.mockRejectedValueOnce(new Error('offline'))
+      await expect(store.fetchActiveSubscriptions(true)).rejects.toThrow('offline')
+      expect(store.error).not.toBeNull()
+      expect(store.loaded).toBe(true)
+      expect(store.lastFetchedAt).toBe(fetchedAt)
+      expect(store.activeSubscriptions).toEqual(fakeSubscriptions)
+      mockGetActiveSubscriptions.mockResolvedValueOnce([])
+      await store.fetchActiveSubscriptions(true)
+      expect(store.error).toBeNull()
+      expect(store.activeSubscriptions).toEqual([])
+    })
+
+    it('deduplicates forced refreshes from multiple surfaces', async () => {
+      let resolve!: (value: typeof fakeSubscriptions) => void
+      mockGetActiveSubscriptions.mockReturnValueOnce(new Promise((yes) => { resolve = yes }))
+      const store = useSubscriptionStore()
+      const requests = [store.fetchActiveSubscriptions(), store.fetchActiveSubscriptions(true), store.fetchActiveSubscriptions(true)]
+      expect(mockGetActiveSubscriptions).toHaveBeenCalledTimes(1)
+      resolve(fakeSubscriptions)
+      await Promise.all(requests)
+    })
+
     it('API 错误时抛出异常', async () => {
       mockGetActiveSubscriptions.mockRejectedValue(new Error('Network error'))
       const store = useSubscriptionStore()
@@ -211,6 +242,39 @@ describe('useSubscriptionStore', () => {
   // --- polling ---
 
   describe('startPolling / stopPolling', () => {
+    it('removes an expired plan reactively and refreshes exactly once at expiry', async () => {
+      const now = Date.now()
+      const expiring = { ...fakeSubscriptions[0], expires_at: new Date(now + 1000).toISOString() }
+      mockGetActiveSubscriptions.mockResolvedValueOnce([expiring]).mockResolvedValueOnce([])
+      const store = useSubscriptionStore()
+      await store.fetchActiveSubscriptions()
+      store.startPolling()
+      expect(store.hasActiveSubscriptions).toBe(true)
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(store.hasActiveSubscriptions).toBe(false)
+      expect(store.allowances).toEqual([])
+      expect(mockGetActiveSubscriptions).toHaveBeenCalledTimes(2)
+    })
+
+    it('bounds visibility refresh attempts and removes listeners on clear', async () => {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+      mockGetActiveSubscriptions.mockResolvedValue([])
+      const store = useSubscriptionStore()
+      await store.fetchActiveSubscriptions()
+      store.startPolling()
+      document.dispatchEvent(new Event('visibilitychange'))
+      expect(mockGetActiveSubscriptions).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(61_000)
+      document.dispatchEvent(new Event('visibilitychange'))
+      document.dispatchEvent(new Event('visibilitychange'))
+      await Promise.resolve()
+      expect(mockGetActiveSubscriptions).toHaveBeenCalledTimes(2)
+      store.clear()
+      await vi.advanceTimersByTimeAsync(61_000)
+      document.dispatchEvent(new Event('visibilitychange'))
+      expect(mockGetActiveSubscriptions).toHaveBeenCalledTimes(2)
+    })
+
     it('startPolling 不会创建重复 interval', () => {
       const store = useSubscriptionStore()
       mockGetActiveSubscriptions.mockResolvedValue([])

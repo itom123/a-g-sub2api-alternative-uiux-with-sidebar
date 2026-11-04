@@ -245,134 +245,25 @@
             <span v-else class="text-sm text-gray-400 dark:text-dark-500">-</span>
           </template>
 
-          <template #cell-usage="{ row }">
-            <div class="min-w-[280px] space-y-2">
-              <!-- Daily Usage -->
-              <div v-if="row.group?.daily_limit_usd" class="usage-row">
-                <div class="flex items-center gap-2">
-                  <span class="usage-label">{{ t('admin.subscriptions.daily') }}</span>
-                  <div class="h-1.5 flex-1 rounded-full bg-gray-200 dark:bg-dark-600">
-                    <div
-                      class="h-1.5 rounded-full transition-all"
-                      :class="getProgressClass(row.daily_usage_usd, row.group?.daily_limit_usd)"
-                      :style="{
-                        width: getProgressWidth(row.daily_usage_usd, row.group?.daily_limit_usd)
-                      }"
-                    ></div>
-                  </div>
-                  <span class="usage-amount">
-                    ¥{{ cnyNumber(row.daily_usage_usd ?? 0, 0) }}
-                    <span class="text-gray-400">/</span>
-                    ¥{{ cnyNumber(row.group?.daily_limit_usd, 0) }}
-                  </span>
-                </div>
-                <div class="reset-info" v-if="row.daily_window_start">
-                  <svg
-                    class="h-3 w-3"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    stroke-width="2"
-                  >
-                    <path
-                      stroke-linecap="square"
-                      stroke-linejoin="miter"
-                      fill="none" stroke="currentColor" stroke-width="1.5" d="M3 3H21V21H3ZM12 6V12H17"
-                    />
-                  </svg>
-                  <span>{{ formatDailyUsageWindow(row) }}</span>
-                </div>
-              </div>
+          <template #cell-daily_usage="{ row }">
+            <SubscriptionUsageCell
+              :window="getUsageWindow(row, 'daily')"
+              :reset-text="row.daily_window_start ? formatDailyUsageWindow(row) : undefined"
+            />
+          </template>
 
-              <!-- Weekly Usage -->
-              <div v-if="row.group?.weekly_limit_usd" class="usage-row">
-                <div class="flex items-center gap-2">
-                  <span class="usage-label">{{ t('admin.subscriptions.weekly') }}</span>
-                  <div class="h-1.5 flex-1 rounded-full bg-gray-200 dark:bg-dark-600">
-                    <div
-                      class="h-1.5 rounded-full transition-all"
-                      :class="getProgressClass(row.weekly_usage_usd, row.group?.weekly_limit_usd)"
-                      :style="{
-                        width: getProgressWidth(row.weekly_usage_usd, row.group?.weekly_limit_usd)
-                      }"
-                    ></div>
-                  </div>
-                  <span class="usage-amount">
-                    ¥{{ cnyNumber(row.weekly_usage_usd ?? 0, 0) }}
-                    <span class="text-gray-400">/</span>
-                    ¥{{ cnyNumber(row.group?.weekly_limit_usd, 0) }}
-                  </span>
-                </div>
-                <div class="reset-info" v-if="row.weekly_window_start">
-                  <svg
-                    class="h-3 w-3"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    stroke-width="2"
-                  >
-                    <path
-                      stroke-linecap="square"
-                      stroke-linejoin="miter"
-                      fill="none" stroke="currentColor" stroke-width="1.5" d="M3 3H21V21H3ZM12 6V12H17"
-                    />
-                  </svg>
-                  <span>{{ formatResetTime(row.weekly_window_start, 'weekly') }}</span>
-                </div>
-              </div>
+          <template #cell-weekly_usage="{ row }">
+            <SubscriptionUsageCell
+              :window="getUsageWindow(row, 'weekly')"
+              :reset-text="row.weekly_window_start ? formatResetTime(row.weekly_window_start, 'weekly') : undefined"
+            />
+          </template>
 
-              <!-- Monthly Usage -->
-              <div v-if="row.group?.monthly_limit_usd" class="usage-row">
-                <div class="flex items-center gap-2">
-                  <span class="usage-label">{{ t('admin.subscriptions.monthly') }}</span>
-                  <div class="h-1.5 flex-1 rounded-full bg-gray-200 dark:bg-dark-600">
-                    <div
-                      class="h-1.5 rounded-full transition-all"
-                      :class="getProgressClass(row.monthly_usage_usd, row.group?.monthly_limit_usd)"
-                      :style="{
-                        width: getProgressWidth(row.monthly_usage_usd, row.group?.monthly_limit_usd)
-                      }"
-                    ></div>
-                  </div>
-                  <span class="usage-amount">
-                    ¥{{ cnyNumber(row.monthly_usage_usd ?? 0, 0) }}
-                    <span class="text-gray-400">/</span>
-                    ¥{{ cnyNumber(row.group?.monthly_limit_usd, 0) }}
-                  </span>
-                </div>
-                <div class="reset-info" v-if="row.monthly_window_start">
-                  <svg
-                    class="h-3 w-3"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    stroke-width="2"
-                  >
-                    <path
-                      stroke-linecap="square"
-                      stroke-linejoin="miter"
-                      fill="none" stroke="currentColor" stroke-width="1.5" d="M3 3H21V21H3ZM12 6V12H17"
-                    />
-                  </svg>
-                  <span>{{ formatResetTime(row.monthly_window_start, 'monthly') }}</span>
-                </div>
-              </div>
-
-              <!-- No Limits - Unlimited badge -->
-              <div
-                v-if="
-                  !row.group?.daily_limit_usd &&
-                  !row.group?.weekly_limit_usd &&
-                  !row.group?.monthly_limit_usd
-                "
-                class="flex items-center gap-2 rounded-lg bg-gradient-to-r from-emerald-50 to-teal-50 px-3 py-2 dark:from-emerald-900/20 dark:to-teal-900/20"
-              >
-                <span class="text-lg text-emerald-600 dark:text-emerald-400">∞</span>
-                <span class="text-xs font-medium text-emerald-700 dark:text-emerald-300">
-                  {{ t('admin.subscriptions.unlimited') }}
-                </span>
-              </div>
-            </div>
+          <template #cell-monthly_usage="{ row }">
+            <SubscriptionUsageCell
+              :window="getUsageWindow(row, 'monthly')"
+              :reset-text="row.monthly_window_start ? formatResetTime(row.monthly_window_start, 'monthly') : undefined"
+            />
           </template>
 
           <template #cell-expires_at="{ value }">
@@ -840,8 +731,6 @@
 </template>
 
 <script setup lang="ts">
-import { cnyNumber } from '@/utils/currency'
-
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
@@ -851,6 +740,7 @@ import type { SimpleUser } from '@/api/admin/usage'
 import type { SubscriptionBulkAction, SubscriptionBulkActionResult, BulkAssignSubscriptionResult } from '@/api/admin/subscriptions'
 import { useTableSelection } from '@/composables/useTableSelection'
 import BulkSubscriptionActionDialog from '@/components/admin/subscription/BulkSubscriptionActionDialog.vue'
+import SubscriptionUsageCell from '@/components/admin/subscription/SubscriptionUsageCell.vue'
 import type { Column } from '@/components/common/types'
 import { formatDateTimeToMinute } from '@/utils/format'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
@@ -868,8 +758,11 @@ import Icon from '@/components/icons/Icon.vue'
 import {
   getRemainingDurationParts,
   getRemainingExpiryDuration,
+  getSubscriptionAllowance,
   isOneTimeDailyQuota,
-  type RemainingDurationParts
+  type RemainingDurationParts,
+  type SubscriptionQuotaPeriod,
+  type SubscriptionQuotaWindow
 } from '@/utils/subscriptionQuota'
 import { GROUP_PLATFORM_OPTIONS } from '@/constants/platforms'
 
@@ -922,6 +815,9 @@ const setUserColumnMode = (mode: 'email' | 'username') => {
   saveUserColumnMode()
 }
 
+const USAGE_PERIODS = ['daily', 'weekly', 'monthly'] as const
+const USAGE_COLUMN_KEYS = ['daily_usage', 'weekly_usage', 'monthly_usage'] as const
+
 // All available columns
 const allColumns = computed<Column[]>(() => [
   {
@@ -929,13 +825,22 @@ const allColumns = computed<Column[]>(() => [
     label: userColumnMode.value === 'email'
       ? t('admin.subscriptions.columns.user')
       : t('admin.users.columns.username'),
-    sortable: false
+    sortable: false,
+    minWidth: 240
   },
-  { key: 'group', label: t('admin.subscriptions.columns.group'), sortable: false },
-  { key: 'usage', label: t('admin.subscriptions.columns.usage'), sortable: false },
-  { key: 'expires_at', label: t('admin.subscriptions.columns.expires'), sortable: true },
-  { key: 'status', label: t('admin.subscriptions.columns.status'), sortable: true },
-  { key: 'actions', label: t('admin.subscriptions.columns.actions'), sortable: false }
+  { key: 'group', label: t('admin.subscriptions.columns.group'), sortable: false, width: 160 },
+  ...USAGE_COLUMN_KEYS.map((key, index): Column => ({
+    key,
+    label: t(`admin.subscriptions.${USAGE_PERIODS[index]}`),
+    sortable: false,
+    width: 190,
+    minWidth: 190,
+    class: 'text-right',
+    mobileLayout: 'stacked'
+  })),
+  { key: 'expires_at', label: t('admin.subscriptions.columns.expires'), sortable: true, width: 180 },
+  { key: 'status', label: t('admin.subscriptions.columns.status'), sortable: true, width: 100 },
+  { key: 'actions', label: t('admin.subscriptions.columns.actions'), sortable: false, width: 220 }
 ])
 
 // Columns that can be toggled (exclude user and actions which are always visible)
@@ -958,7 +863,14 @@ const loadSavedColumns = () => {
     const saved = localStorage.getItem(HIDDEN_COLUMNS_KEY)
     if (saved) {
       const parsed = JSON.parse(saved) as string[]
-      parsed.forEach(key => hiddenColumns.add(key))
+      parsed.forEach(key => {
+        if (key === 'usage') {
+          USAGE_COLUMN_KEYS.forEach(usageKey => hiddenColumns.add(usageKey))
+        } else {
+          hiddenColumns.add(key)
+        }
+      })
+      if (parsed.includes('usage')) saveColumnsToStorage()
     } else {
       DEFAULT_HIDDEN_COLUMNS.forEach(key => hiddenColumns.add(key))
     }
@@ -1523,21 +1435,10 @@ const isExpiringSoon = (expiresAt: string): boolean => {
   return days !== null && days <= 7
 }
 
-const getProgressWidth = (used: number | null | undefined, limit: number | null): string => {
-  if (!limit || limit === 0) return '0%'
-  const usedValue = used ?? 0
-  const percentage = Math.min((usedValue / limit) * 100, 100)
-  return `${percentage}%`
-}
-
-const getProgressClass = (used: number | null | undefined, limit: number | null): string => {
-  if (!limit || limit === 0) return 'bg-gray-400'
-  const usedValue = used ?? 0
-  const percentage = (usedValue / limit) * 100
-  if (percentage >= 90) return 'bg-red-500'
-  if (percentage >= 70) return 'bg-orange-500'
-  return 'bg-green-500'
-}
+const getUsageWindow = (
+  subscription: UserSubscription,
+  period: SubscriptionQuotaPeriod
+): SubscriptionQuotaWindow => getSubscriptionAllowance(subscription).windows.find(window => window.period === period)!
 
 const formatResetDuration = (parts: RemainingDurationParts): string => {
   if (parts.days > 0) {
@@ -1626,21 +1527,3 @@ onUnmounted(() => {
   }
 })
 </script>
-
-<style scoped>
-.usage-row {
-  @apply space-y-1;
-}
-
-.usage-label {
-  @apply w-10 flex-shrink-0 text-xs font-medium text-gray-500 dark:text-gray-400;
-}
-
-.usage-amount {
-  @apply whitespace-nowrap text-xs tabular-nums text-gray-600 dark:text-gray-300;
-}
-
-.reset-info {
-  @apply flex items-center gap-1 pl-12 text-[10px] text-blue-600 dark:text-blue-400;
-}
-</style>

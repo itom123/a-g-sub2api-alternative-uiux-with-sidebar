@@ -240,7 +240,7 @@ func validateHostedEmailGatewayEndpoint(raw string) (*url.URL, error) {
 	}
 	host := strings.TrimSuffix(strings.ToLower(endpoint.Hostname()), ".")
 	if host != "example.com" && !strings.HasSuffix(host, ".example.com") {
-		return nil, fmt.Errorf("%s host must be example.com or an example.com subdomain", hostedEmailGatewayURLEnv)
+		return nil, fmt.Errorf("%s host must be example.com or a example.com subdomain", hostedEmailGatewayURLEnv)
 	}
 	return endpoint, nil
 }

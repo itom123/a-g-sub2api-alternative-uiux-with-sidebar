@@ -13,7 +13,6 @@ func TestOpenClawBillingAdminChangesLocked(t *testing.T) {
 	exclusive := true
 	for name, input := range map[string]*UpdateGroupInput{
 		"rename":       {Name: "Another group"},
-		"rate":         {RateMultiplier: ptrFloat(0.4)},
 		"deactivate":   {Status: "inactive"},
 		"platform":     {Platform: PlatformAnthropic},
 		"subscription": {SubscriptionType: SubscriptionTypeSubscription},
@@ -26,6 +25,31 @@ func TestOpenClawBillingAdminChangesLocked(t *testing.T) {
 			require.ErrorIs(t, err, ErrOpenClawBillingLocked)
 			require.Nil(t, repo.updated)
 		})
+	}
+}
+
+func TestOpenClawBillingAdminCanChangeGroupRate(t *testing.T) {
+	for _, rate := range []float64{0.1, 0.4, 1.25} {
+		repo := &groupRepoStubForAdmin{getByID: &Group{
+			ID: 12, Name: OpenClawBillingGroupName, Platform: PlatformOpenAI,
+			RateMultiplier: 0.3, Status: StatusActive, SubscriptionType: SubscriptionTypeStandard,
+		}}
+		svc := &adminServiceImpl{groupRepo: repo}
+		group, err := svc.UpdateGroup(context.Background(), 12, &UpdateGroupInput{RateMultiplier: &rate})
+		require.NoError(t, err)
+		require.NotNil(t, repo.updated)
+		require.Equal(t, rate, group.RateMultiplier)
+		require.Equal(t, OpenClawBillingGroupName, group.Name)
+	}
+}
+
+func TestOpenClawBillingAdminStillRejectsNonpositiveGroupRates(t *testing.T) {
+	for _, rate := range []float64{0, -0.1} {
+		repo := &groupRepoStubForAdmin{getByID: &Group{ID: 12, Name: OpenClawBillingGroupName, RateMultiplier: 0.3}}
+		svc := &adminServiceImpl{groupRepo: repo}
+		_, err := svc.UpdateGroup(context.Background(), 12, &UpdateGroupInput{RateMultiplier: &rate})
+		require.EqualError(t, err, "rate_multiplier must be > 0")
+		require.Nil(t, repo.updated)
 	}
 }
 

@@ -391,6 +391,39 @@ func normalizeUpdateGroupInputForSimpleMode(input *UpdateGroupInput) {
 	*input = UpdateGroupInput{Name: input.Name, Description: input.Description, I18n: input.I18n}
 }
 
+func (s *adminServiceImpl) validateSubscriptionSharing(ctx context.Context, groupID int64, subscriptionType string, sourceIDs []int64) error {
+	if len(sourceIDs) == 0 {
+		return nil
+	}
+	if subscriptionType == SubscriptionTypeSubscription {
+		return infraerrors.BadRequest("INVALID_SUBSCRIPTION_SOURCE_GROUPS", "subscription_source_group_ids only allowed for standard groups")
+	}
+	if len(sourceIDs) > 20 {
+		return infraerrors.BadRequest("INVALID_SUBSCRIPTION_SOURCE_GROUPS", "subscription_source_group_ids must contain at most 20 groups")
+	}
+	seen := make(map[int64]struct{}, len(sourceIDs))
+	for _, sourceID := range sourceIDs {
+		if sourceID == groupID {
+			return infraerrors.BadRequest("INVALID_SUBSCRIPTION_SOURCE_GROUPS", "subscription source group cannot be the current group")
+		}
+		if _, ok := seen[sourceID]; ok {
+			return infraerrors.BadRequest("INVALID_SUBSCRIPTION_SOURCE_GROUPS", "subscription_source_group_ids must not contain duplicates")
+		}
+		seen[sourceID] = struct{}{}
+		source, err := s.groupRepo.GetByIDLite(ctx, sourceID)
+		if errors.Is(err, ErrGroupNotFound) {
+			return infraerrors.BadRequest("INVALID_SUBSCRIPTION_SOURCE_GROUPS", fmt.Sprintf("subscription source group %d not found", sourceID))
+		}
+		if err != nil {
+			return fmt.Errorf("load subscription source group %d: %w", sourceID, err)
+		}
+		if source.SubscriptionType != SubscriptionTypeSubscription {
+			return infraerrors.BadRequest("INVALID_SUBSCRIPTION_SOURCE_GROUPS", fmt.Sprintf("subscription source group %d must be a subscription group", sourceID))
+		}
+	}
+	return nil
+}
+
 func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupInput) (*Group, error) {
 	if (&Group{Name: input.Name}).IsManagedOpenClaw() {
 		return nil, ErrOpenClawBillingLocked
@@ -435,6 +468,18 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 	subscriptionType := input.SubscriptionType
 	if subscriptionType == "" {
 		subscriptionType = SubscriptionTypeStandard
+	}
+	if input.SubscriptionSourceAny {
+		input.SubscriptionSourceGroupIDs = nil
+	} else if err := s.validateSubscriptionSharing(ctx, 0, subscriptionType, input.SubscriptionSourceGroupIDs); err != nil {
+		return nil, err
+	}
+	if subscriptionType == SubscriptionTypeSubscription {
+		input.SubscriptionSourceAny = false
+		input.SubscriptionSourceGroupIDs = nil
+	}
+	if subscriptionType != SubscriptionTypeSubscription {
+		input.SubscriptionOverflowToBalance = false
 	}
 
 	// 限额字段：nil/负数 表示"无限制"，0 表示"不允许用量"，正数表示具体限额
@@ -587,6 +632,8 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		IsExclusive:                     input.IsExclusive,
 		Status:                          StatusActive,
 		SubscriptionType:                subscriptionType,
+		SubscriptionSourceGroupIDs:      append([]int64(nil), input.SubscriptionSourceGroupIDs...),
+		SubscriptionOverflowToBalance:   input.SubscriptionOverflowToBalance,
 		DailyLimitUSD:                   dailyLimit,
 		WeeklyLimitUSD:                  weeklyLimit,
 		MonthlyLimitUSD:                 monthlyLimit,
@@ -777,7 +824,6 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	}
 	if group.IsManagedOpenClaw() {
 		if (input.Name != "" && input.Name != OpenClawBillingGroupName) ||
-			(input.RateMultiplier != nil && *input.RateMultiplier != OpenClawBillingRateMultiplier) ||
 			(input.Status != "" && input.Status != StatusActive) ||
 			(input.Platform != "" && input.Platform != PlatformOpenAI) ||
 			(input.SubscriptionType != "" && input.SubscriptionType != SubscriptionTypeStandard) ||
@@ -842,6 +888,28 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	// 订阅相关字段
 	if input.SubscriptionType != "" {
 		group.SubscriptionType = input.SubscriptionType
+	}
+	if input.SubscriptionSourceAny != nil {
+		group.SubscriptionSourceAny = *input.SubscriptionSourceAny
+	}
+	if input.SubscriptionSourceGroupIDs != nil {
+		group.SubscriptionSourceGroupIDs = append([]int64(nil), (*input.SubscriptionSourceGroupIDs)...)
+	}
+	if input.SubscriptionOverflowToBalance != nil {
+		group.SubscriptionOverflowToBalance = *input.SubscriptionOverflowToBalance
+	}
+	// 订阅分组只能设置「额度用完转扣余额」，标准分组只能设置「可使用的订阅额度」；
+	// 分组类型切换时清掉另一种配置，而不是让旧配置阻止切换。
+	if group.SubscriptionType == SubscriptionTypeSubscription {
+		group.SubscriptionSourceAny = false
+		group.SubscriptionSourceGroupIDs = nil
+	} else {
+		group.SubscriptionOverflowToBalance = false
+	}
+	if group.SubscriptionSourceAny {
+		group.SubscriptionSourceGroupIDs = nil
+	} else if err := s.validateSubscriptionSharing(ctx, id, group.SubscriptionType, group.SubscriptionSourceGroupIDs); err != nil {
+		return nil, err
 	}
 	// 限额字段：nil 表示不修改，负数表示"无限制"，0 表示"不允许用量"，正数表示具体限额。
 	if input.DailyLimitUSD != nil {

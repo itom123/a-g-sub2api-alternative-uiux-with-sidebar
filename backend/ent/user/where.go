@@ -150,6 +150,16 @@ func RestrictPublicGroups(v bool) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldRestrictPublicGroups, v))
 }
 
+// BalanceOverflowAdminAllowed applies equality check predicate on the "balance_overflow_admin_allowed" field. It's identical to BalanceOverflowAdminAllowedEQ.
+func BalanceOverflowAdminAllowed(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldBalanceOverflowAdminAllowed, v))
+}
+
+// BalanceOverflowEnabled applies equality check predicate on the "balance_overflow_enabled" field. It's identical to BalanceOverflowEnabledEQ.
+func BalanceOverflowEnabled(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldBalanceOverflowEnabled, v))
+}
+
 // BalanceNotifyEnabled applies equality check predicate on the "balance_notify_enabled" field. It's identical to BalanceNotifyEnabledEQ.
 func BalanceNotifyEnabled(v bool) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldBalanceNotifyEnabled, v))
@@ -1128,6 +1138,26 @@ func RestrictPublicGroupsEQ(v bool) predicate.User {
 // RestrictPublicGroupsNEQ applies the NEQ predicate on the "restrict_public_groups" field.
 func RestrictPublicGroupsNEQ(v bool) predicate.User {
 	return predicate.User(sql.FieldNEQ(FieldRestrictPublicGroups, v))
+}
+
+// BalanceOverflowAdminAllowedEQ applies the EQ predicate on the "balance_overflow_admin_allowed" field.
+func BalanceOverflowAdminAllowedEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldBalanceOverflowAdminAllowed, v))
+}
+
+// BalanceOverflowAdminAllowedNEQ applies the NEQ predicate on the "balance_overflow_admin_allowed" field.
+func BalanceOverflowAdminAllowedNEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldBalanceOverflowAdminAllowed, v))
+}
+
+// BalanceOverflowEnabledEQ applies the EQ predicate on the "balance_overflow_enabled" field.
+func BalanceOverflowEnabledEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldBalanceOverflowEnabled, v))
+}
+
+// BalanceOverflowEnabledNEQ applies the NEQ predicate on the "balance_overflow_enabled" field.
+func BalanceOverflowEnabledNEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldBalanceOverflowEnabled, v))
 }
 
 // BalanceNotifyEnabledEQ applies the EQ predicate on the "balance_notify_enabled" field.

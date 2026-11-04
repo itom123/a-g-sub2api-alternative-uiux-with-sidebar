@@ -160,16 +160,18 @@ func ValidateSimpleModeGroupOperation(cfg *config.Config, operation AdminGroupOp
 
 // CreateUserInput represents input for creating a new user via admin operations.
 type CreateUserInput struct {
-	Email                string
-	Password             string
-	Username             string
-	Notes                string
-	Role                 string // 空字符串表示使用默认角色(user);合法值 admin/user
-	Balance              *float64
-	Concurrency          int
-	RPMLimit             int
-	AllowedGroups        []int64
-	RestrictPublicGroups bool
+	Email                       string
+	Password                    string
+	Username                    string
+	Notes                       string
+	Role                        string // 空字符串表示使用默认角色(user);合法值 admin/user
+	Balance                     *float64
+	Concurrency                 int
+	RPMLimit                    int
+	AllowedGroups               []int64
+	RestrictPublicGroups        bool
+	BalanceOverflowAdminAllowed *bool // nil = default (true)
+	BalanceOverflowEnabled      *bool // nil = default (true)
 	// ActorAdminID 执行本次操作的管理员ID(来自JWT)，仅用于权限敏感操作的审计日志。
 	ActorAdminID int64
 }
@@ -186,7 +188,9 @@ type UpdateUserInput struct {
 	Status        string
 	AllowedGroups *[]int64 // 使用指针区分"未提供"和"设置为空数组"
 	// RestrictPublicGroups 指针区分"未提供"和"显式开关"。
-	RestrictPublicGroups *bool
+	RestrictPublicGroups        *bool
+	BalanceOverflowAdminAllowed *bool
+	BalanceOverflowEnabled      *bool
 	// GroupRates 用户专属分组倍率配置
 	// map[groupID]*rate，nil 表示删除该分组的专属倍率
 	GroupRates map[int64]*float64
@@ -233,18 +237,21 @@ type AdminBoundAuthIdentityChannel struct {
 }
 
 type CreateGroupInput struct {
-	Name                      string
-	Description               string
-	I18n                      GroupI18n // 名称与描述的界面语言译文
-	Platform                  string
-	RateMultiplier            float64
-	IsExclusive               bool
-	SubscriptionType          string   // standard/subscription
-	DailyLimitUSD             *float64 // 日限额 (USD)
-	WeeklyLimitUSD            *float64 // 周限额 (USD)
-	MonthlyLimitUSD           *float64 // 月限额 (USD)
-	LongContextPricingEnabled bool
-	ModelPricing              []ChannelModelPricing
+	Name                          string
+	Description                   string
+	I18n                          GroupI18n // 名称与描述的界面语言译文
+	Platform                      string
+	RateMultiplier                float64
+	IsExclusive                   bool
+	SubscriptionType              string // standard/subscription
+	SubscriptionSourceGroupIDs    []int64
+	SubscriptionSourceAny         bool
+	SubscriptionOverflowToBalance bool
+	DailyLimitUSD                 *float64 // 日限额 (USD)
+	WeeklyLimitUSD                *float64 // 周限额 (USD)
+	MonthlyLimitUSD               *float64 // 月限额 (USD)
+	LongContextPricingEnabled     bool
+	ModelPricing                  []ChannelModelPricing
 	// 图片生成计费配置（仅 antigravity 平台使用）
 	AllowImageGeneration         bool
 	AllowBatchImageGeneration    bool
@@ -315,19 +322,22 @@ type CreateGroupInput struct {
 }
 
 type UpdateGroupInput struct {
-	Name                      string
-	Description               *string
-	I18n                      *GroupI18n // nil 表示不修改；非 nil 整体替换
-	Platform                  string
-	RateMultiplier            *float64 // 使用指针以支持设置为0
-	IsExclusive               *bool
-	Status                    string
-	SubscriptionType          string   // standard/subscription
-	DailyLimitUSD             *float64 // 日限额 (USD)
-	WeeklyLimitUSD            *float64 // 周限额 (USD)
-	MonthlyLimitUSD           *float64 // 月限额 (USD)
-	LongContextPricingEnabled *bool
-	ModelPricing              *[]ChannelModelPricing
+	Name                          string
+	Description                   *string
+	I18n                          *GroupI18n // nil 表示不修改；非 nil 整体替换
+	Platform                      string
+	RateMultiplier                *float64 // 使用指针以支持设置为0
+	IsExclusive                   *bool
+	Status                        string
+	SubscriptionType              string // standard/subscription
+	SubscriptionSourceGroupIDs    *[]int64
+	SubscriptionSourceAny         *bool
+	SubscriptionOverflowToBalance *bool
+	DailyLimitUSD                 *float64 // 日限额 (USD)
+	WeeklyLimitUSD                *float64 // 周限额 (USD)
+	MonthlyLimitUSD               *float64 // 月限额 (USD)
+	LongContextPricingEnabled     *bool
+	ModelPricing                  *[]ChannelModelPricing
 	// 图片生成计费配置（仅 antigravity 平台使用）
 	AllowImageGeneration         *bool
 	AllowBatchImageGeneration    *bool

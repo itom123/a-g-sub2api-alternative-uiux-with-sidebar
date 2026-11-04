@@ -191,22 +191,12 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 		// ── 5. 按端点需要加载订阅 ───────────────────────────────────
 
 		var subscription *service.UserSubscription
-		isSubscriptionType := apiKey.Group != nil && apiKey.Group.IsSubscriptionType()
 
-		// 倍率自省不需要订阅数据；/v1/usage 仍保留原有订阅读取行为。
-		if isSubscriptionType && subscriptionService != nil && !billingInfoRequest {
-			sub, subErr := subscriptionService.GetActiveSubscription(
-				c.Request.Context(),
-				apiKey.User.ID,
-				apiKey.Group.ID,
-			)
-			if subErr != nil {
-				if !skipBilling {
-					AbortWithError(c, 403, "SUBSCRIPTION_NOT_FOUND", "No active subscription found for this group")
-					return
-				}
-				// skipBilling: 订阅不存在也放行，handler 会返回可用的数据
-			} else {
+		// skipBilling 端点（/v1/usage 等）只读取订阅用于展示，不做限额校验和窗口维护；
+		// 倍率自省不需要订阅数据。
+		if skipBilling && !billingInfoRequest && subscriptionService != nil &&
+			apiKey.Group != nil && apiKey.Group.IsSubscriptionType() {
+			if sub, subErr := subscriptionService.GetActiveSubscription(c.Request.Context(), apiKey.User.ID, apiKey.Group.ID); subErr == nil {
 				subscription = sub
 			}
 		}
@@ -234,36 +224,42 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 				return
 			}
 
-			// 订阅模式：验证订阅限额
-			if subscription != nil {
-				needsMaintenance, validateErr := subscriptionService.ValidateAndCheckLimits(subscription, apiKey.Group)
-				if needsMaintenance {
-					refreshed, maintenanceErr := subscriptionService.EnsureWindowMaintenance(c.Request.Context(), subscription)
-					if maintenanceErr != nil {
+			// 订阅解析与限额校验：订阅分组走自身订阅（可配置额度用完转扣余额），
+			// 标准分组可按配置共享订阅额度；返回 nil 表示本次请求按余额计费。
+			if subscriptionService != nil {
+				sub, subErr := subscriptionService.ResolveBillingSubscription(
+					c.Request.Context(),
+					apiKey.User,
+					apiKey.Group,
+					!apiKeyBalanceBelowAuthThreshold(apiKey.User.Balance, cfg),
+				)
+				if subErr != nil {
+					if errors.Is(subErr, service.ErrSubscriptionNotFound) {
+						AbortWithError(c, 403, "SUBSCRIPTION_NOT_FOUND", "No active subscription found for this group")
+						return
+					}
+					if errors.Is(subErr, service.ErrSubscriptionMaintenanceFailed) {
 						AbortWithError(c, 500, "SUBSCRIPTION_MAINTENANCE_FAILED", "Failed to maintain subscription usage windows")
 						return
 					}
-					subscription = refreshed
-					_, validateErr = subscriptionService.ValidateAndCheckLimits(subscription, apiKey.Group)
-				}
-				if validateErr != nil {
 					code := "SUBSCRIPTION_INVALID"
 					status := 403
-					if errors.Is(validateErr, service.ErrDailyLimitExceeded) ||
-						errors.Is(validateErr, service.ErrWeeklyLimitExceeded) ||
-						errors.Is(validateErr, service.ErrMonthlyLimitExceeded) {
+					if errors.Is(subErr, service.ErrDailyLimitExceeded) ||
+						errors.Is(subErr, service.ErrWeeklyLimitExceeded) ||
+						errors.Is(subErr, service.ErrMonthlyLimitExceeded) {
 						code = "USAGE_LIMIT_EXCEEDED"
 						status = 429
 					}
-					AbortWithError(c, status, code, validateErr.Error())
+					AbortWithError(c, status, code, subErr.Error())
 					return
 				}
-			} else {
-				// 非订阅模式 或 订阅模式但 subscriptionService 未注入：回退到余额检查
-				if apiKeyBalanceBelowAuthThreshold(apiKey.User.Balance, cfg) {
-					AbortWithError(c, 403, "INSUFFICIENT_BALANCE", "Insufficient account balance")
-					return
-				}
+				subscription = sub
+			}
+
+			// 余额计费（含订阅额度用完转扣余额、未注入 subscriptionService）：回退到余额检查
+			if subscription == nil && apiKeyBalanceBelowAuthThreshold(apiKey.User.Balance, cfg) {
+				AbortWithError(c, 403, "INSUFFICIENT_BALANCE", "Insufficient account balance")
+				return
 			}
 		}
 

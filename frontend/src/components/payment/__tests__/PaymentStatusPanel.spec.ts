@@ -3,6 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 
 const pollOrderStatus = vi.hoisted(() => vi.fn())
 const cancelOrder = vi.hoisted(() => vi.fn())
+const cancelSubscriptionSession = vi.hoisted(() => vi.fn())
 const verifyOrder = vi.hoisted(() => vi.fn())
 const showError = vi.hoisted(() => vi.fn())
 const toCanvas = vi.hoisted(() => vi.fn())
@@ -32,6 +33,7 @@ vi.mock('@/stores', () => ({
 vi.mock('@/api/payment', () => ({
   paymentAPI: {
     cancelOrder,
+    cancelSubscriptionSession,
     verifyOrder,
   },
 }))
@@ -63,7 +65,8 @@ describe('PaymentStatusPanel', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     pollOrderStatus.mockReset()
-    cancelOrder.mockReset()
+    cancelOrder.mockReset().mockResolvedValue({ data: { message: 'cancelled' } })
+    cancelSubscriptionSession.mockReset().mockResolvedValue({ data: { cancelled: true } })
     verifyOrder.mockReset()
     showError.mockReset()
     toCanvas.mockReset().mockResolvedValue(undefined)
@@ -71,6 +74,81 @@ describe('PaymentStatusPanel', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it('cancels a normal order and returns immediately without a second confirmation', async () => {
+    const wrapper = mount(PaymentStatusPanel, {
+      props: { orderId: 42, qrCode: 'test', expiresAt: '2099-01-01T12:30:00Z', paymentType: 'alipay' },
+      global: { stubs: { Icon: true } },
+    })
+    await wrapper.findAll('button').find(button => button.text() === 'payment.qr.cancelOrder')!.trigger('click')
+    await flushPromises()
+    expect(cancelOrder).toHaveBeenCalledWith(42)
+    expect(wrapper.emitted('done')).toHaveLength(1)
+    expect(wrapper.emitted('settled')).toEqual([['cancelled']])
+    wrapper.unmount()
+  })
+
+  it('cancels the entire legacy session instead of only its order', async () => {
+    const wrapper = mount(PaymentStatusPanel, {
+      props: { orderId: 42, paymentSessionId: 9, qrCode: '', expiresAt: '2099-01-01T12:30:00Z', paymentType: 'wxpay', orderType: 'subscription' },
+      global: { stubs: { Icon: true } },
+    })
+    await wrapper.findAll('button').find(button => button.text() === 'payment.qr.cancelOrder')!.trigger('click')
+    await flushPromises()
+    expect(cancelSubscriptionSession).toHaveBeenCalledWith(9)
+    expect(cancelOrder).not.toHaveBeenCalled()
+    expect(wrapper.emitted('done')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it('always permits dismissal while gateway cancellation is still in flight', async () => {
+    let complete!: (value: unknown) => void
+    cancelOrder.mockReturnValue(new Promise(resolve => { complete = resolve }))
+    const wrapper = mount(PaymentStatusPanel, {
+      props: { orderId: 42, qrCode: '', expiresAt: '2099-01-01T12:30:00Z', paymentType: 'stripe' },
+      global: { stubs: { Icon: true } },
+    })
+    await wrapper.findAll('button').find(button => button.text() === 'payment.qr.cancelOrder')!.trigger('click')
+    const exit = wrapper.get('[data-test="leave-payment"]')
+    expect(exit.attributes('disabled')).toBeUndefined()
+    await exit.trigger('click')
+    expect(wrapper.emitted('exit')).toHaveLength(1)
+    complete({ data: { message: 'cancelled' } })
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(6000)
+    expect(wrapper.emitted('done')).toBeUndefined()
+    expect(wrapper.emitted('success')).toBeUndefined()
+    expect(pollOrderStatus).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('keeps dismissal available after the gateway cannot confirm cancellation', async () => {
+    cancelOrder.mockRejectedValue({ reason: 'PAYMENT_CHECKING' })
+    const wrapper = mount(PaymentStatusPanel, {
+      props: { orderId: 42, qrCode: 'test', expiresAt: '2099-01-01T12:30:00Z', paymentType: 'wxpay' },
+      global: { stubs: { Icon: true } },
+    })
+    await wrapper.findAll('button').find(button => button.text() === 'payment.qr.cancelOrder')!.trigger('click')
+    await flushPromises()
+    expect(showError).toHaveBeenCalled()
+    await wrapper.get('[data-test="leave-payment"]').trigger('click')
+    expect(wrapper.emitted('exit')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it('does not label a payment cancelled when the gateway reports already paid', async () => {
+    cancelOrder.mockResolvedValue({ data: { message: 'already_paid' } })
+    pollOrderStatus.mockResolvedValue(orderFactory('PAID'))
+    const wrapper = mount(PaymentStatusPanel, {
+      props: { orderId: 42, qrCode: '', expiresAt: '2099-01-01T12:30:00Z', paymentType: 'stripe' },
+      global: { stubs: { Icon: true } },
+    })
+    await wrapper.findAll('button').find(button => button.text() === 'payment.qr.cancelOrder')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.emitted('success')).toHaveLength(1)
+    expect(wrapper.emitted('settled')).toEqual([['success']])
+    wrapper.unmount()
   })
 
   it('treats RECHARGING as a successful terminal state', async () => {
@@ -285,6 +363,8 @@ describe('PaymentStatusPanel', () => {
     await flushPromises()
     expect(assign).toHaveBeenCalledWith(expect.stringContaining('alipays://platformapi/startapp?saId=10000007&qrcode='))
     expect(wrapper.find('[data-test="alipay-qr-fallback"]').exists()).toBe(false)
+    expect(wrapper.get('[data-test="leave-payment"]').exists()).toBe(true)
+    expect(wrapper.findAll('button').some(button => button.text() === 'payment.qr.cancelOrder')).toBe(true)
 
     await vi.advanceTimersByTimeAsync(2200)
     await flushPromises()

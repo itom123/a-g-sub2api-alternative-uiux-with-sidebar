@@ -1665,6 +1665,7 @@ type stubUserSubscriptionRepo struct {
 	resetDaily     func(ctx context.Context, id int64, start time.Time) error
 	resetWeekly    func(ctx context.Context, id int64, start time.Time) error
 	resetMonthly   func(ctx context.Context, id int64, start time.Time) error
+	listActive     func(ctx context.Context, userID int64) ([]service.UserSubscription, error)
 }
 
 type fakeSettingRepo struct {
@@ -1749,6 +1750,9 @@ func (r *stubUserSubscriptionRepo) ListByUserID(ctx context.Context, userID int6
 }
 
 func (r *stubUserSubscriptionRepo) ListActiveByUserID(ctx context.Context, userID int64) ([]service.UserSubscription, error) {
+	if r.listActive != nil {
+		return r.listActive(ctx, userID)
+	}
 	return nil, errors.New("not implemented")
 }
 

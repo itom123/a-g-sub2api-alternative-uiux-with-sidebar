@@ -3,9 +3,9 @@ import { enableAutoUnmount, flushPromises, shallowMount } from '@vue/test-utils'
 import AirwallexPaymentView from '../AirwallexPaymentView.vue'
 import { PAYMENT_RECOVERY_STORAGE_KEY } from '@/components/payment/paymentFlow'
 
-const mocks = vi.hoisted(() => ({ init: vi.fn(), redirectToCheckout: vi.fn() }))
+const mocks = vi.hoisted(() => ({ init: vi.fn(), redirectToCheckout: vi.fn(), push: vi.fn() }))
 vi.mock('@airwallex/components-sdk', () => ({ init: mocks.init }))
-vi.mock('vue-router', () => ({ useRoute: () => ({ query: {} }), useRouter: () => ({ push: vi.fn() }) }))
+vi.mock('vue-router', () => ({ useRoute: () => ({ query: {} }), useRouter: () => ({ push: mocks.push }) }))
 vi.mock('vue-i18n', async () => ({
   ...await vi.importActual<typeof import('vue-i18n')>('vue-i18n'),
   useI18n: () => ({ t: (key: string) => key, locale: { value: 'zh-CN' } })
@@ -31,6 +31,19 @@ function mountView() {
 }
 
 describe('Airwallex checkout lifecycle', () => {
+  it('can dismiss a pending SDK initialization without a later gateway redirect', async () => {
+    let finish!: (value: unknown) => void
+    mocks.init.mockReturnValue(new Promise(resolve => { finish = resolve }))
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.get('[data-testid="exit-airwallex-payment"]').trigger('click')
+    expect(mocks.push).toHaveBeenCalledWith('/dashboard')
+    expect(window.localStorage.getItem(PAYMENT_RECOVERY_STORAGE_KEY)).toBeNull()
+    finish({ payments: { redirectToCheckout: mocks.redirectToCheckout } })
+    await flushPromises()
+    expect(mocks.redirectToCheckout).not.toHaveBeenCalled()
+  })
+
   it('does not initialize checkout after leaving during the SDK import', async () => {
     mocks.init.mockResolvedValue({ payments: { redirectToCheckout: mocks.redirectToCheckout } })
     const wrapper = mountView()

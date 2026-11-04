@@ -1,0 +1,6 @@
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS balance_overflow_admin_allowed BOOLEAN NOT NULL DEFAULT TRUE,
+    ADD COLUMN IF NOT EXISTS balance_overflow_enabled BOOLEAN NOT NULL DEFAULT TRUE;
+
+ALTER TABLE groups
+    ADD COLUMN IF NOT EXISTS subscription_source_any BOOLEAN NOT NULL DEFAULT FALSE;

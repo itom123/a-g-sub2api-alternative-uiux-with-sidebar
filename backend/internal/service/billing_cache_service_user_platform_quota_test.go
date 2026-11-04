@@ -578,7 +578,7 @@ func TestCheckBillingEligibility_SubscriptionMode_BypassesPlatformQuota(t *testi
 		Status:           "active",
 		// 无 DailyLimitUSD → checkSubscriptionEligibility 不会因超限失败
 	}
-	sub := &UserSubscription{Status: "active"}
+	sub := &UserSubscription{GroupID: 10, Status: "active"}
 	user := &User{ID: 42}
 
 	err := s.CheckBillingEligibility(context.Background(), user, nil, subGroup, sub, "anthropic")

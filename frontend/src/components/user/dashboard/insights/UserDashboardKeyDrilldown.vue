@@ -42,11 +42,12 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { cnyNumber } from '@/utils/currency'
-import type { ApiKey, ModelStat } from '@/types'
+import type { ModelStat } from '@/types'
+import type { DashboardKeyInfo } from './types'
 import type { ApiKeyDailyUsageResponse } from '@/api/usage'
 
 const props = withDefaults(defineProps<{
-  keyInfo: ApiKey | null
+  keyInfo: DashboardKeyInfo | null
   daily: ApiKeyDailyUsageResponse | null
   models: ModelStat[]
   loading: boolean

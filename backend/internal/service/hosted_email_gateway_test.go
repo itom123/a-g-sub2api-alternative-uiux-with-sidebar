@@ -185,7 +185,7 @@ func TestHostedCloudflareEmailGatewayEnvironmentUsesSecretFileAndPinsEndpoint(t 
 	_, err = NewHostedCloudflareEmailGatewayFromEnvironment()
 	require.ErrorContains(t, err, "must be an HTTPS URL")
 
-	t.Setenv(hostedEmailGatewayURLEnv, "https://mail.example.net"+hostedEmailGatewayPath)
+	t.Setenv(hostedEmailGatewayURLEnv, "https://mail.example.com"+hostedEmailGatewayPath)
 	_, err = NewHostedCloudflareEmailGatewayFromEnvironment()
 	require.ErrorContains(t, err, "host must be example.com")
 }
@@ -229,7 +229,7 @@ func TestHostedCloudflareEmailGatewayRejectsNonFirstPartyActionURLsBeforeSigning
 		Locale:    "en",
 		Data: map[string]string{
 			"recipient_name":     "Person",
-			"reset_url":          "https://example.net/reset",
+			"reset_url":          "https://example.com/reset",
 			"expires_in_minutes": "15",
 		},
 	})

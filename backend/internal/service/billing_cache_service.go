@@ -756,10 +756,11 @@ func (s *BillingCacheService) CheckBillingEligibility(ctx context.Context, user 
 	}
 
 	// 判断计费模式
-	isSubscriptionMode := group != nil && group.IsSubscriptionType() && subscription != nil
+	billingGroup := SubscriptionBillingGroup(group, subscription)
+	isSubscriptionMode := billingGroup != nil
 
 	if isSubscriptionMode {
-		if err := s.checkSubscriptionEligibility(ctx, user.ID, group, subscription); err != nil {
+		if err := s.checkSubscriptionEligibility(ctx, user.ID, billingGroup, subscription); err != nil {
 			return err
 		}
 	} else {
@@ -804,7 +805,8 @@ func (s *BillingCacheService) ReserveFixedCharge(ctx context.Context, user *User
 	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
 		return nil, nil
 	}
-	subscriptionBill := group != nil && group.IsSubscriptionType() && subscription != nil
+	billingGroup := SubscriptionBillingGroup(group, subscription)
+	subscriptionBill := billingGroup != nil
 	if !subscriptionBill {
 		balance, err := s.GetUserBalance(ctx, user.ID)
 		if err != nil {
@@ -819,14 +821,14 @@ func (s *BillingCacheService) ReserveFixedCharge(ctx context.Context, user *User
 		return nil, err
 	}
 	var subscriptionPending, apiKeyPending float64
-	if subscriptionBill && (group.HasDailyLimit() || group.HasWeeklyLimit() || group.HasMonthlyLimit()) {
+	if subscriptionBill && (billingGroup.HasDailyLimit() || billingGroup.HasWeeklyLimit() || billingGroup.HasMonthlyLimit()) {
 		res, subscriptionPending = s.reserveInflightScope(ctx, res, user.ID, inflightSubscriptionScope(subscription.ID), amount)
 	}
 	if apiKey != nil && (apiKey.Quota > 0 || apiKey.HasRateLimits()) {
 		res, apiKeyPending = s.reserveInflightScope(ctx, res, user.ID, inflightAPIKeyScope(apiKey.ID), amount)
 	}
 	if subscriptionBill {
-		err = s.checkFixedChargeSubscription(ctx, user.ID, group, amount+subscriptionPending)
+		err = s.checkFixedChargeSubscription(ctx, user.ID, billingGroup, amount+subscriptionPending)
 	}
 	if err == nil && apiKey != nil {
 		err = s.checkFixedChargeAPIKey(ctx, apiKey, amount+apiKeyPending)
@@ -1044,6 +1046,9 @@ func (s *BillingCacheService) checkBalanceEligibility(ctx context.Context, userI
 
 // checkSubscriptionEligibility 检查订阅模式资格
 func (s *BillingCacheService) checkSubscriptionEligibility(ctx context.Context, userID int64, group *Group, subscription *UserSubscription) error {
+	if group == nil || subscription == nil {
+		return ErrSubscriptionInvalid
+	}
 	// 获取订阅缓存数据
 	subData, err := s.GetSubscriptionStatus(ctx, userID, group.ID)
 	if err != nil {

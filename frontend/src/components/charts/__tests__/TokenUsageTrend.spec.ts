@@ -31,6 +31,38 @@ vi.mock('vue-chartjs', () => ({
 }))
 
 describe('TokenUsageTrend', () => {
+  it('keeps the shared-chart card by default and supports a cardless embedded mode', async () => {
+    const wrapper = mount(TokenUsageTrend, { props: { trendData: [] } })
+    expect(wrapper.classes()).toContain('card')
+    await wrapper.setProps({ embedded: true })
+    expect(wrapper.classes()).not.toContain('card')
+    expect(wrapper.classes()).toContain('account-token-embedded')
+  })
+  it('only applies aligned scales and an external legend when comparison is requested', async () => {
+    const wrapper = mount(TokenUsageTrend, { props: { trendData: [{ date: '2026-11-01', requests: 1, input_tokens: 10, output_tokens: 1, cache_creation_tokens: 0, cache_read_tokens: 0, cost: 1, actual_cost: 1 }] } })
+    const line = wrapper.findComponent({ name: 'Line' })
+    expect((line.props('options') as any).plugins.legend.display).toBe(true)
+    await wrapper.setProps({ comparison: { layout: { labels: ['2026-11-01'], tickIndices: [0], gutter: 80, maximum: 100 }, plugins: [] } })
+    const options = line.props('options') as any
+    expect(options.plugins.legend.display).toBe(false)
+    expect(options.scales.y.max).toBe(100)
+    const axis = { width: 0 }; options.scales.y.afterFit(axis); expect(axis.width).toBe(80)
+    expect(wrapper.find('h3').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('keeps missing comparison token samples as visible gaps rather than fabricated zeros', () => {
+    const wrapper = mount(TokenUsageTrend, { props: {
+      trendData: [{ date: '2026-11-01', requests: 1, input_tokens: null, output_tokens: 0, cache_creation_tokens: 0, cache_read_tokens: 0, cost: 0, actual_cost: 0 }] as any,
+      comparison: { layout: { labels: ['2026-11-01'], tickIndices: [0], gutter: 80, maximum: 1 }, plugins: [] },
+    } })
+    const data = wrapper.findComponent({ name: 'Line' }).props('data') as any
+    expect(data.datasets[0].data).toEqual([null])
+    expect(data.datasets[0].spanGaps).toBe(false)
+    expect(data.datasets[1].data).toEqual([0])
+    wrapper.unmount()
+  })
+
   it('calculates cache hit rate against all prompt tokens', () => {
     const wrapper = mount(TokenUsageTrend, {
       props: {

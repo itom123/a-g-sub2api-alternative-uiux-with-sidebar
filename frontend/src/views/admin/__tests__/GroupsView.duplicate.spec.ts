@@ -325,6 +325,29 @@ describe('GroupsView duplicate action', () => {
     wrapper.unmount()
   })
 
+  it('allows changing the managed OpenClaw group rate while retaining reserved actions', async () => {
+    const group = { ...sourceGroup, name: 'openai-龙虾', rate_multiplier: 0.3 }
+    listGroups.mockResolvedValue({ items: [group], total: 1, page: 1, page_size: 20, pages: 1 })
+    updateGroup.mockResolvedValue({ ...group, rate_multiplier: 0.225 })
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="group-duplicate"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('[data-testid="group-rate-multipliers"]').attributes('disabled')).toBeDefined()
+    await wrapper.findAll('button').find(button => button.text() === 'common.edit')!.trigger('click')
+    await flushPromises()
+
+    const multiplier = wrapper.get('#edit-group-form [data-tour="group-form-multiplier"]')
+    expect(multiplier.attributes('disabled')).toBeUndefined()
+    await multiplier.setValue('0.225')
+    await wrapper.get('#edit-group-form').trigger('submit')
+    await flushPromises()
+    expect(updateGroup).toHaveBeenCalledWith(42, expect.objectContaining({
+      name: 'openai-龙虾', rate_multiplier: 0.225,
+    }))
+    wrapper.unmount()
+  })
+
   it('loads, edits, and saves custom reasoning multipliers for group pricing', async () => {
     const group = {
       ...sourceGroup,

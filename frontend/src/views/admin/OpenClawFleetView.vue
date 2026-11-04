@@ -22,7 +22,7 @@
       <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-dark-700 dark:bg-dark-800">
         <div class="border-b border-gray-200 px-4 py-4 dark:border-dark-700">
           <h2 class="font-semibold text-gray-900 dark:text-white">Customer workspaces</h2>
-          <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">openai-龙虾 ×0.3 pricing, key binding, model policy, usage, and bridge health are visible here.</p>
+          <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">View openai-龙虾 pricing, key binding, model policy, usage, and bridge health. Set group pricing in Group Management.</p>
           <input v-model="search" class="input mt-3 w-full max-w-md" placeholder="Search user or workspace" />
         </div>
         <div v-if="loading" class="p-8 text-center text-sm text-gray-500">Loading fleet…</div>

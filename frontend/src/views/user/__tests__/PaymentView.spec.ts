@@ -5,6 +5,7 @@ import { PAYMENT_RECOVERY_STORAGE_KEY } from '@/components/payment/paymentFlow'
 import { formatPaymentAmount } from '@/components/payment/currency'
 import PaymentStatusPanel from '@/components/payment/PaymentStatusPanel.vue'
 import AmountInput from '@/components/payment/AmountInput.vue'
+import PaymentMethodSelector from '@/components/payment/PaymentMethodSelector.vue'
 import SubscriptionPlanCard from '@/components/payment/SubscriptionPlanCard.vue'
 import en from '@/i18n/locales/en'
 import zh from '@/i18n/locales/zh'
@@ -29,7 +30,11 @@ const getMyPaymentSessions = vi.hoisted(() => vi.fn().mockResolvedValue({ data: 
 const getSubscriptionCheckout = vi.hoisted(() => vi.fn())
 const getPaymentSessions = vi.hoisted(() => vi.fn())
 const reconcileSession = vi.hoisted(() => vi.fn())
+const cancelSubscriptionSession = vi.hoisted(() => vi.fn())
+const activeSubscriptionsState = vi.hoisted(() => ({ value: [] as Array<Record<string, unknown>> }))
 beforeEach(() => {
+ activeSubscriptionsState.value = []
+ cancelSubscriptionSession.mockReset().mockResolvedValue({ data: { cancelled: true } })
  getMyPaymentSessions.mockReset().mockResolvedValue({ data: [] })
  getPaymentSessions.mockReset().mockResolvedValue({ data:{items:[],total:0} })
  reconcileSession.mockReset().mockResolvedValue({ data:{checked:true} })
@@ -40,10 +45,10 @@ beforeEach(() => {
   const base = Math.round((plan?.price || 0) * (checkout?.methods[method]?.currency === 'CNY' ? checkout.subscription_usd_to_cny_rate || 1 : 1) * 100) / 100
   const total = session?.target_amount ?? plan?.fixed_price_cny ?? (base + Math.ceil(base * (checkout?.recharge_fee_rate || 0)) / 100)
   const remaining = Math.round((total - (session?.paid_amount || 0)) * 100) / 100
-  const schedule = session?.installment_schedule_cents || plan?.installment_schedule_cents || []
+  const schedule = session?.installment_schedule_cents || []
   let paid = Math.round((session?.paid_amount || 0) * 100)
   const next = schedule.find((amount: number) => {if (paid === 0) return true; paid -= amount; return false})
-  return { data:{total_cents:Math.round(total * 100),next_amount:next ? next / 100 : Math.min(1000,remaining)} }
+  return { data:{total_cents:Math.round(total * 100),next_amount:next ? next / 100 : remaining} }
  })
 })
 const bridgeInvoke = vi.hoisted(() => vi.fn())
@@ -95,7 +100,7 @@ vi.mock('@/stores/payment', () => ({
 
 vi.mock('@/stores/subscriptions', () => ({
   useSubscriptionStore: () => ({
-    activeSubscriptions: [],
+    get activeSubscriptions() { return activeSubscriptionsState.value },
     fetchActiveSubscriptions,
   }),
 }))
@@ -125,6 +130,7 @@ vi.mock('@/api/payment', () => ({
     getSubscriptionCheckout,
     getPaymentSessions,
     reconcileSession,
+    cancelSubscriptionSession,
   },
 }))
 
@@ -915,7 +921,7 @@ describe('PaymentView subscription feature flag', () => {
 })
 
 
-describe('subscription installments', () => {
+describe('one-time subscription checkout and legacy compatibility', () => {
   it('opens subscription plans directly without a tab query or recharge content', async () => {
     const wrapper = await mountSubscriptionPlanList(3, '/subscription')
     expect(wrapper.findAllComponents(SubscriptionPlanCard)).toHaveLength(3)
@@ -924,43 +930,45 @@ describe('subscription installments', () => {
     wrapper.unmount()
   })
 
-  it('pays 800 then exact 505 under a 1000 limit and resumes after reload', async () => {
-    const options = { checkout: { subscription_allowed: true, subscription_usd_to_cny_rate: 6.686217, recharge_fee_rate: 0.5 }, method: { currency: 'CNY', single_max: 1000 }, plan: { price: 195.18, fixed_price_cny: 1305 } }
-    const wrapper = await mountSubscriptionConfirm(options)
-    await wrapper.findAll('button').find(button => button.text().includes('purchase.bill.changeAmount'))!.trigger('click')
-    const input = wrapper.get('#subscription-installment')
-    await input.setValue(800)
-    const session = { id: 42, plan_id: 7, subscription_group_id: 3, target_amount: 1305, paid_amount: 0, currency: 'CNY', status: 'PENDING', orders: [] as { id:number;pay_amount:number;status:string;expires_at:string }[] }
-    getMyPaymentSessions.mockImplementation(async () => ({ data: [structuredClone(session)] }))
-    createOrder.mockResolvedValue({ order_id: 123, amount: 119.65, pay_amount: 800, fee_rate: 0, payment_type: 'wxpay', qr_code: 'weixin://pay/123', result_type: 'qr_code', expires_at: '2099-01-01T00:10:00Z', payment_session_id:42, installment_remaining:505 })
-    const pay = wrapper.findAll('button').find(b => b.text().includes('purchase.bill.pay'))!
+  it('charges the full fixed CNY price above 1000 without a new payment session', async () => {
+    const wrapper = await mountSubscriptionConfirm({
+      checkout: { subscription_usd_to_cny_rate: 7.15, recharge_fee_rate: 2.5 },
+      method: { currency: 'CNY', single_max: 0 },
+      plan: { price: 195.18, fixed_price_cny: 1566, installment_schedule_cents: [100000, 56600] },
+    })
+    createOrder.mockResolvedValue({ order_id: 123, amount: 195.18, pay_amount: 1566, fee_rate: 0, payment_type: 'wxpay', qr_code: 'weixin://pay/123', expires_at: '2099-01-01T00:10:00Z' })
+    expect(wrapper.text()).toContain(formatPaymentAmount(1566, 'CNY'))
+    expect(wrapper.text()).not.toContain('purchase.installment.description')
+    expect(wrapper.find('#subscription-installment').exists()).toBe(false)
+    const pay = wrapper.findAll('button').find(button => button.text().includes('purchase.bill.pay'))!
     expect(pay.attributes('disabled')).toBeUndefined()
     await pay.trigger('click')
     await flushPromises()
-    expect(createOrder).toHaveBeenCalledWith(expect.objectContaining({amount:800,order_type:'subscription',plan_id:7}))
-    // Only the server-confirmed sum advances progress.
-    session.paid_amount=800
-    session.orders=[{id:123,pay_amount:800,status:'COMPLETED',expires_at:'2099-01-01T00:10:00Z'}]
-    wrapper.findComponent(PaymentStatusPanel).vm.$emit('success')
+    expect(createOrder).toHaveBeenCalledWith(expect.objectContaining({ amount: 1566, expected_total_cents: 156600, order_type: 'subscription', request_key: expect.any(String) }))
+    expect(createOrder.mock.calls[0][0]).not.toHaveProperty('payment_session_id')
+    wrapper.getComponent(PaymentStatusPanel).vm.$emit('success')
     await flushPromises()
-    expect(wrapper.text()).toContain('purchase.bill.next')
-    expect(wrapper.find('#subscription-installment').exists()).toBe(false)
-    expect(wrapper.get('[data-testid="subscription-payment-progress"]').text()).toContain(formatPaymentAmount(800,'CNY'))
+    expect(routerPush).toHaveBeenCalledWith(expect.objectContaining({ path: '/payment/result' }))
     wrapper.unmount()
-    const restored = await mountSubscriptionConfirm(options)
-    expect(restored.find('#subscription-installment').exists()).toBe(false)
-    createOrder.mockResolvedValue({ order_id:124,amount:75.53,pay_amount:505,fee_rate:0,payment_type:'wxpay',qr_code:'weixin://pay/124',result_type:'qr_code',expires_at:'2099-01-01T00:10:00Z',payment_session_id:42,installment_remaining:0 })
-    await restored.findAll('button').find(b=>b.text().includes('purchase.bill.pay'))!.trigger('click')
+  })
+
+  it('keeps a partially paid legacy bill resumable without offering new installment controls', async () => {
+    const session = { id: 42, plan_id: 7, subscription_group_id: 3, target_amount: 1305, paid_amount: 800, currency: 'CNY', status: 'PENDING', orders: [{ id: 123, pay_amount: 800, status: 'COMPLETED', paid_at: '2026-10-20T12:00:00Z', expires_at: '2026-10-20T12:30:00Z' }] }
+    getMyPaymentSessions.mockImplementation(async () => ({ data: [structuredClone(session)] }))
+    const wrapper = await mountSubscriptionConfirm({ method: { currency: 'CNY' }, plan: { fixed_price_cny: 1305 } })
+    createOrder.mockResolvedValue({ order_id: 124, amount: 75.53, pay_amount: 505, fee_rate: 0, payment_type: 'wxpay', qr_code: 'weixin://pay/124', expires_at: '2099-01-01T00:10:00Z', payment_session_id: 42 })
+    expect(wrapper.find('#subscription-installment').exists()).toBe(false)
+    await wrapper.findAll('button').find(button => button.text().includes('purchase.bill.pay'))!.trigger('click')
     await flushPromises()
-    expect(createOrder).toHaveBeenCalledWith(expect.objectContaining({amount:505,payment_session_id:42}))
-    session.paid_amount=1305
-    session.status='FULFILLED'
-    restored.findComponent(PaymentStatusPanel).vm.$emit('success')
+    expect(createOrder).toHaveBeenCalledWith(expect.objectContaining({ amount: 505, payment_session_id: 42 }))
+    session.paid_amount = 1305
+    session.status = 'FULFILLED'
+    wrapper.getComponent(PaymentStatusPanel).vm.$emit('success')
     await flushPromises()
-    expect(restored.text()).toContain('purchase.installment.allocated')
-    expect(restored.findAll('button').find(b=>b.text().includes('purchase.bill.pay'))).toBeUndefined()
-    expect(restored.text()).toContain('purchase.bill.renew')
-    restored.unmount()
+    expect(wrapper.text()).toContain('purchase.installment.allocated')
+    expect(wrapper.text()).not.toContain('purchase.bill.renew')
+    expect(wrapper.findAll('button').some(button => button.text().includes('purchase.bill.pay'))).toBe(false)
+    wrapper.unmount()
   })
 
   it('blocks another payment while an installment is pending', async () => {
@@ -981,7 +989,167 @@ describe('subscription installments', () => {
 })
 
 
+describe('checkout exit recovery', () => {
+  it.each(['ready', 'timeout'])('does not launch WeChat or QR fallback after exiting a bridge wait (%s)', async (bridgeResult) => {
+    const wrapper = await mountSubscriptionConfirm()
+    vi.useFakeTimers()
+    createOrder.mockResolvedValue(jsapiOrderFixture('waiting-bridge'))
+    await wrapper.findAll('button').find(button => button.text().includes('purchase.bill.pay'))!.trigger('click')
+    await flushPromises()
+    expect(wrapper.findComponent(PaymentStatusPanel).exists()).toBe(true)
+    await wrapper.get('[data-testid="exit-checkout"]').trigger('click')
+    if (bridgeResult === 'ready') {
+      bridgeInvoke.mockImplementation((_action, _payload, callback) => callback({ err_msg: 'get_brand_wcpay_request:ok' }))
+      ;(window as Window & { WeixinJSBridge?: { invoke: typeof bridgeInvoke } }).WeixinJSBridge = { invoke: bridgeInvoke }
+      document.dispatchEvent(new Event('WeixinJSBridgeReady'))
+    } else {
+      await vi.advanceTimersByTimeAsync(4000)
+    }
+    await flushPromises()
+    expect(bridgeInvoke).not.toHaveBeenCalled()
+    expect(createOrder).toHaveBeenCalledTimes(1)
+    expect(routerPush).toHaveBeenCalledTimes(1)
+    expect(routerPush).toHaveBeenCalledWith('/dashboard')
+    expect(window.localStorage.getItem(PAYMENT_RECOVERY_STORAGE_KEY)).toBeNull()
+    wrapper.unmount()
+    vi.useRealTimers()
+  })
+
+  it('invalidates a pending create response when switching to another saved bill', async () => {
+    getPaymentSessions.mockResolvedValue({ data: { items: [{ id: 43, plan_id: 8, plan_name: 'Bill B', subscription_group_id: 4, target_amount: 13, paid_amount: 0, currency: 'CNY', status: 'CANCELLED', orders: [], created_at: '2026-10-20T12:00:00Z' }], total: 1 } })
+    const wrapper = await mountSubscriptionConfirm()
+    let complete!: (value: unknown) => void
+    createOrder.mockReturnValue(new Promise(resolve => { complete = resolve }))
+    await wrapper.findAll('button').find(button => button.text().includes('purchase.bill.pay'))!.trigger('click')
+    await wrapper.get('[data-testid="subscription-bill-history"] button').trigger('click')
+    await flushPromises()
+    complete({ order_id: 123, amount: 128, pay_amount: 128, fee_rate: 0, qr_code: 'weixin://old-plan', expires_at: '2099-01-01T00:00:00Z' })
+    await flushPromises()
+    expect(wrapper.get('h3').text()).toBe('Bill B')
+    expect(wrapper.findComponent(PaymentStatusPanel).exists()).toBe(false)
+    expect(window.localStorage.getItem(PAYMENT_RECOVERY_STORAGE_KEY)).toBeNull()
+    expect(routerPush).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('lets a single-plan user return to plans and stops selected-bill polling', async () => {
+    getMyPaymentSessions.mockResolvedValue({ data: [{ id: 42, plan_id: 7, status: 'PENDING', target_amount: 1566, paid_amount: 0, currency: 'CNY', orders: [{ id: 12, status: 'PENDING', pay_amount: 1000, expires_at: '2099-01-01T00:00:00Z' }] }] })
+    const wrapper = await mountSubscriptionConfirm()
+    await wrapper.findAll('button').find(button => button.text() === 'purchase.bill.back')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.findAllComponents(SubscriptionPlanCard)).toHaveLength(1)
+    expect(wrapper.find('[data-testid="subscription-payment-progress"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('closes an unpaid legacy bill and does not reopen it on reselection', async () => {
+    getMyPaymentSessions.mockResolvedValue({ data: [{ id: 42, plan_id: 7, status: 'PENDING', target_amount: 13, paid_amount: 0, currency: 'CNY', orders: [{ id: 12, status: 'EXPIRED', expires_at: '2020-01-01T00:00:00Z' }] }] })
+    const wrapper = await mountSubscriptionConfirm()
+    await wrapper.get('[data-testid="cancel-subscription-bill"]').trigger('click')
+    await flushPromises()
+    expect(cancelSubscriptionSession).toHaveBeenCalledWith(42)
+    expect(wrapper.find('[data-testid="subscription-payment-progress"]').exists()).toBe(false)
+    wrapper.getComponent(SubscriptionPlanCard).vm.$emit('select', checkoutInfoWithPlansFixture().data.plans[0])
+    await flushPromises()
+    expect(wrapper.text()).toContain('payment.oneTimeSubscription')
+    expect(wrapper.find('[data-testid="cancel-subscription-bill"]').exists()).toBe(false)
+    expect(createOrder).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('stops refresh timers when leaving the selected pending bill', async () => {
+    getMyPaymentSessions.mockResolvedValue({ data: [{ id: 42, plan_id: 7, status: 'PENDING', target_amount: 13, paid_amount: 0, currency: 'CNY', orders: [{ id: 12, status: 'PENDING', expires_at: '2099-01-01T00:00:00Z' }] }] })
+    const wrapper = await mountSubscriptionConfirm()
+    vi.useFakeTimers()
+    // Reopen explicitly so the selected-session watcher installs a tracked timer.
+    await wrapper.findAll('button').find(button => button.text() === 'purchase.bill.back')!.trigger('click')
+    wrapper.getComponent(SubscriptionPlanCard).vm.$emit('select', checkoutInfoWithPlansFixture().data.plans[0])
+    await flushPromises()
+    expect(vi.getTimerCount()).toBeGreaterThan(0)
+    await wrapper.findAll('button').find(button => button.text() === 'purchase.bill.back')!.trigger('click')
+    await flushPromises()
+    expect(vi.getTimerCount()).toBe(0)
+    wrapper.unmount()
+    vi.useRealTimers()
+  })
+
+  it('allows retrying a CANCELLING legacy bill without offering a fresh payment', async () => {
+    getMyPaymentSessions.mockResolvedValue({ data: [{ id: 42, plan_id: 7, status: 'CANCELLING', target_amount: 13, paid_amount: 0, currency: 'CNY', orders: [] }] })
+    const wrapper = await mountSubscriptionConfirm()
+    expect(wrapper.text()).toContain('payment.cancellationChecking')
+    expect(wrapper.findAll('button').some(button => button.text().includes('purchase.bill.pay'))).toBe(false)
+    await wrapper.get('[data-testid="cancel-subscription-bill"]').trigger('click')
+    await flushPromises()
+    expect(cancelSubscriptionSession).toHaveBeenCalledWith(42)
+    expect(wrapper.findAllComponents(SubscriptionPlanCard)).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it('does not auto-open an unfinished bill when entering the general recharge page', async () => {
+    getMyPaymentSessions.mockResolvedValue({ data: [{ id: 42, plan_id: 1, status: 'PENDING', target_amount: 13, paid_amount: 0, currency: 'CNY', orders: [] }] })
+    const wrapper = await mountSubscriptionPlanList(2)
+    expect(wrapper.findAllComponents(SubscriptionPlanCard)).toHaveLength(2)
+    expect(wrapper.find('[data-testid="subscription-payment-progress"]').exists()).toBe(false)
+    expect(createOrder).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('allows immediate exit while a create request is unresolved and ignores its late response', async () => {
+    const wrapper = await mountSubscriptionConfirm()
+    let complete!: (value: unknown) => void
+    createOrder.mockReturnValue(new Promise(resolve => { complete = resolve }))
+    await wrapper.findAll('button').find(button => button.text().includes('purchase.bill.pay'))!.trigger('click')
+    await wrapper.get('[data-testid="exit-checkout"]').trigger('click')
+    expect(routerPush).toHaveBeenCalledWith('/dashboard')
+    complete({ order_id: 123, amount: 128, pay_amount: 128, fee_rate: 0, qr_code: 'weixin://late', expires_at: '2099-01-01T00:00:00Z' })
+    await flushPromises()
+    expect(wrapper.findComponent(PaymentStatusPanel).exists()).toBe(false)
+    expect(window.localStorage.getItem(PAYMENT_RECOVERY_STORAGE_KEY)).toBeNull()
+    wrapper.unmount()
+  })
+
+  it('lets users leave even when cancellation fails and never clears a paid bill', async () => {
+    getMyPaymentSessions.mockResolvedValue({ data: [{ id: 42, plan_id: 7, status: 'PENDING', target_amount: 13, paid_amount: 0, currency: 'CNY', orders: [] }] })
+    cancelSubscriptionSession.mockRejectedValue({ reason: 'PAYMENT_CHECKING' })
+    const wrapper = await mountSubscriptionConfirm()
+    await wrapper.get('[data-testid="cancel-subscription-bill"]').trigger('click')
+    await flushPromises()
+    expect(showError).toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="subscription-payment-progress"]').exists()).toBe(true)
+    await wrapper.get('[data-testid="exit-checkout"]').trigger('click')
+    expect(routerPush).toHaveBeenCalledWith('/dashboard')
+    wrapper.unmount()
+  })
+})
+
 describe('saved subscription bill checkout', () => {
+ it('keeps the paid legacy bill and quote attached to a mobile QR retry', async () => {
+  getMyPaymentSessions.mockResolvedValue({ data: [{ id: 42, plan_id: 7, subscription_group_id: 3, target_amount: 1305, paid_amount: 800, currency: 'CNY', status: 'PENDING', orders: [] }] })
+  const wrapper = await mountSubscriptionConfirm({ method: { currency: 'CNY' }, plan: { fixed_price_cny: 1305 } })
+  createOrder.mockRejectedValueOnce({ reason: 'WECHAT_H5_NOT_AUTHORIZED' }).mockResolvedValueOnce({ order_id: 124, amount: 75.53, pay_amount: 505, fee_rate: 0, qr_code: 'weixin://fallback/124', payment_session_id: 42, expires_at: '2099-01-01T00:00:00Z' })
+  await wrapper.findAll('button').find(button => button.text().includes('purchase.bill.pay'))!.trigger('click')
+  await flushPromises()
+  expect(createOrder).toHaveBeenCalledTimes(2)
+  const initial = createOrder.mock.calls[0][0]
+  expect(initial).toMatchObject({ amount: 505, payment_session_id: 42, expected_total_cents: 130500 })
+  expect(createOrder.mock.calls[1][0]).toMatchObject({ amount: 505, payment_session_id: 42, expected_total_cents: 130500, is_mobile: false, request_key: `${initial.request_key}:qr` })
+  expect(wrapper.getComponent(PaymentStatusPanel).props('paymentSessionId')).toBe(42)
+  wrapper.unmount()
+ })
+
+ it('selects legacy payment channels by the next payable amount, not the bill total', async () => {
+  getMyPaymentSessions.mockResolvedValue({ data: [{ id: 42, plan_id: 7, subscription_group_id: 3, target_amount: 1566, paid_amount: 1000, currency: 'CNY', status: 'PENDING', orders: [] }] })
+  const lowLimit = { ...checkoutInfoFixture().data.methods.wxpay, currency: 'CNY', single_min: 0, single_max: 1000 }
+  const wrapper = await mountSubscriptionConfirm({ checkout: { methods: { alipay: { ...lowLimit, single_min: 1000, single_max: 5000 } } }, method: lowLimit, plan: { fixed_price_cny: 1566 } })
+  const selector = wrapper.getComponent(PaymentMethodSelector)
+  expect(selector.props('selected')).toBe('wxpay')
+  expect(selector.props('methods')).toEqual(expect.arrayContaining([{ type: 'wxpay', display_name: undefined, fee_rate: 0, available: true }, { type: 'alipay', display_name: undefined, fee_rate: 0, available: false }]))
+  const pay = wrapper.findAll('button').find(button => button.text().includes('purchase.bill.pay'))!
+  expect(pay.text()).toContain(formatPaymentAmount(566, 'CNY'))
+  expect(pay.attributes('disabled')).toBeUndefined()
+  wrapper.unmount()
+ })
+
  it('restores a server payment without local storage and never creates a second order', async () => {
   getMyPaymentSessions.mockResolvedValue({data:[{id:42,plan_id:7,plan_name:'Private test',subscription_group_id:3,target_amount:13,paid_amount:0,currency:'CNY',status:'PENDING',created_at:'2026-10-20T12:00:00Z',installment_schedule_cents:[800,500],orders:[{id:123,pay_amount:8,status:'PENDING',expires_at:'2099-01-01T00:00:00Z'}]}]})
   getSubscriptionCheckout.mockResolvedValue({data:{total_cents:1300,next_amount:0,pending_order:{id:123,payment_type:'wxpay',pay_amount:8,currency:'CNY',expires_at:'2099-01-01T00:00:00Z',out_trade_no:'test_123',pay_url:'',qr_code:'weixin://same-order',qr_code_img:'',checking:false}}})
@@ -995,14 +1163,14 @@ describe('saved subscription bill checkout', () => {
   expect(createOrder).not.toHaveBeenCalled()
   wrapper.unmount()
  })
- it('locks the private test to 8 then 5 and sends the confirmed quote and a request key', async () => {
+ it('ignores a retired plan schedule for fresh checkout and sends a full quote and request key', async () => {
   const wrapper=await mountSubscriptionConfirm({plan:{price:13,fixed_price_cny:13,installment_schedule_cents:[800,500]},method:{currency:'CNY',single_min:1,single_max:1000}})
   expect(wrapper.find('#subscription-installment').exists()).toBe(false)
   expect(wrapper.text()).not.toContain('purchase.bill.changeAmount')
   createOrder.mockResolvedValue({order_id:123,amount:8,pay_amount:8,fee_rate:0,payment_type:'wxpay',qr_code:'weixin://first',result_type:'qr_code',expires_at:'2099-01-01T00:00:00Z',payment_session_id:42})
   await wrapper.findAll('button').find(button=>button.text().includes('purchase.bill.pay'))!.trigger('click')
   await flushPromises()
-  expect(createOrder).toHaveBeenCalledWith(expect.objectContaining({amount:8,expected_total_cents:1300,request_key:expect.any(String)}))
+  expect(createOrder).toHaveBeenCalledWith(expect.objectContaining({amount:13,expected_total_cents:1300,request_key:expect.any(String)}))
   wrapper.unmount()
  })
  it('keeps an expired unconfirmed payment blocked while checking status', async () => {
@@ -1028,16 +1196,17 @@ it('opens the sole assigned plan automatically on the Subscription route', async
  wrapper.unmount()
 })
 
-it('reopens the settled bill without starting another purchase until renewal is requested', async () => {
- getMyPaymentSessions.mockResolvedValue({data:[{id:42,plan_id:1,plan_name:'Settled bill',subscription_group_id:3,target_amount:128,paid_amount:128,currency:'CNY',status:'FULFILLED',created_at:'2026-10-20T12:00:00Z',orders:[]}]})
- const wrapper=await mountSubscriptionPlanList(1,'/subscription')
- expect(wrapper.text()).toContain('purchase.installment.allocated')
- expect(wrapper.findAll('button').some(button=>button.text().includes('purchase.bill.pay'))).toBe(false)
+it('blocks buying another active subscription on the same platform instead of offering renewal', async () => {
+ activeSubscriptionsState.value = [{ id: 9, group_id: 99, group: { platform: 'openai' }, status: 'active', expires_at: '2099-01-01T00:00:00Z' }]
+ const wrapper = await mountSubscriptionPlanList(1, '/subscription')
+ expect(wrapper.text()).toContain('payment.platformSubscriptionActive')
+ const pay = wrapper.findAll('button').find(button => button.text().includes('purchase.bill.pay'))!
+ expect(pay.attributes('disabled')).toBeDefined()
+ await pay.trigger('click')
  expect(createOrder).not.toHaveBeenCalled()
- await wrapper.findAll('button').find(button=>button.text().includes('purchase.bill.renew'))!.trigger('click')
- await flushPromises()
- expect(wrapper.findAll('button').some(button=>button.text().includes('purchase.bill.pay'))).toBe(true)
- expect(createOrder).not.toHaveBeenCalled()
+ expect(wrapper.text()).not.toContain('purchase.bill.renew')
+ await wrapper.get('[data-testid="exit-checkout"]').trigger('click')
+ expect(routerPush).toHaveBeenCalledWith('/dashboard')
  wrapper.unmount()
 })
 

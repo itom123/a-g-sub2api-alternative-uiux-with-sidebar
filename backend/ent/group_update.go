@@ -243,6 +243,46 @@ func (_u *GroupUpdate) SetNillableSubscriptionType(v *string) *GroupUpdate {
 	return _u
 }
 
+// SetSubscriptionSourceGroupIds sets the "subscription_source_group_ids" field.
+func (_u *GroupUpdate) SetSubscriptionSourceGroupIds(v []int64) *GroupUpdate {
+	_u.mutation.SetSubscriptionSourceGroupIds(v)
+	return _u
+}
+
+// AppendSubscriptionSourceGroupIds appends value to the "subscription_source_group_ids" field.
+func (_u *GroupUpdate) AppendSubscriptionSourceGroupIds(v []int64) *GroupUpdate {
+	_u.mutation.AppendSubscriptionSourceGroupIds(v)
+	return _u
+}
+
+// SetSubscriptionOverflowToBalance sets the "subscription_overflow_to_balance" field.
+func (_u *GroupUpdate) SetSubscriptionOverflowToBalance(v bool) *GroupUpdate {
+	_u.mutation.SetSubscriptionOverflowToBalance(v)
+	return _u
+}
+
+// SetNillableSubscriptionOverflowToBalance sets the "subscription_overflow_to_balance" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableSubscriptionOverflowToBalance(v *bool) *GroupUpdate {
+	if v != nil {
+		_u.SetSubscriptionOverflowToBalance(*v)
+	}
+	return _u
+}
+
+// SetSubscriptionSourceAny sets the "subscription_source_any" field.
+func (_u *GroupUpdate) SetSubscriptionSourceAny(v bool) *GroupUpdate {
+	_u.mutation.SetSubscriptionSourceAny(v)
+	return _u
+}
+
+// SetNillableSubscriptionSourceAny sets the "subscription_source_any" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableSubscriptionSourceAny(v *bool) *GroupUpdate {
+	if v != nil {
+		_u.SetSubscriptionSourceAny(*v)
+	}
+	return _u
+}
+
 // SetDailyLimitUsd sets the "daily_limit_usd" field.
 func (_u *GroupUpdate) SetDailyLimitUsd(v float64) *GroupUpdate {
 	_u.mutation.ResetDailyLimitUsd()
@@ -1640,6 +1680,20 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.SubscriptionType(); ok {
 		_spec.SetField(group.FieldSubscriptionType, field.TypeString, value)
 	}
+	if value, ok := _u.mutation.SubscriptionSourceGroupIds(); ok {
+		_spec.SetField(group.FieldSubscriptionSourceGroupIds, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedSubscriptionSourceGroupIds(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, group.FieldSubscriptionSourceGroupIds, value)
+		})
+	}
+	if value, ok := _u.mutation.SubscriptionOverflowToBalance(); ok {
+		_spec.SetField(group.FieldSubscriptionOverflowToBalance, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.SubscriptionSourceAny(); ok {
+		_spec.SetField(group.FieldSubscriptionSourceAny, field.TypeBool, value)
+	}
 	if value, ok := _u.mutation.DailyLimitUsd(); ok {
 		_spec.SetField(group.FieldDailyLimitUsd, field.TypeFloat64, value)
 	}
@@ -2459,6 +2513,46 @@ func (_u *GroupUpdateOne) SetSubscriptionType(v string) *GroupUpdateOne {
 func (_u *GroupUpdateOne) SetNillableSubscriptionType(v *string) *GroupUpdateOne {
 	if v != nil {
 		_u.SetSubscriptionType(*v)
+	}
+	return _u
+}
+
+// SetSubscriptionSourceGroupIds sets the "subscription_source_group_ids" field.
+func (_u *GroupUpdateOne) SetSubscriptionSourceGroupIds(v []int64) *GroupUpdateOne {
+	_u.mutation.SetSubscriptionSourceGroupIds(v)
+	return _u
+}
+
+// AppendSubscriptionSourceGroupIds appends value to the "subscription_source_group_ids" field.
+func (_u *GroupUpdateOne) AppendSubscriptionSourceGroupIds(v []int64) *GroupUpdateOne {
+	_u.mutation.AppendSubscriptionSourceGroupIds(v)
+	return _u
+}
+
+// SetSubscriptionOverflowToBalance sets the "subscription_overflow_to_balance" field.
+func (_u *GroupUpdateOne) SetSubscriptionOverflowToBalance(v bool) *GroupUpdateOne {
+	_u.mutation.SetSubscriptionOverflowToBalance(v)
+	return _u
+}
+
+// SetNillableSubscriptionOverflowToBalance sets the "subscription_overflow_to_balance" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableSubscriptionOverflowToBalance(v *bool) *GroupUpdateOne {
+	if v != nil {
+		_u.SetSubscriptionOverflowToBalance(*v)
+	}
+	return _u
+}
+
+// SetSubscriptionSourceAny sets the "subscription_source_any" field.
+func (_u *GroupUpdateOne) SetSubscriptionSourceAny(v bool) *GroupUpdateOne {
+	_u.mutation.SetSubscriptionSourceAny(v)
+	return _u
+}
+
+// SetNillableSubscriptionSourceAny sets the "subscription_source_any" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableSubscriptionSourceAny(v *bool) *GroupUpdateOne {
+	if v != nil {
+		_u.SetSubscriptionSourceAny(*v)
 	}
 	return _u
 }
@@ -3889,6 +3983,20 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	}
 	if value, ok := _u.mutation.SubscriptionType(); ok {
 		_spec.SetField(group.FieldSubscriptionType, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.SubscriptionSourceGroupIds(); ok {
+		_spec.SetField(group.FieldSubscriptionSourceGroupIds, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedSubscriptionSourceGroupIds(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, group.FieldSubscriptionSourceGroupIds, value)
+		})
+	}
+	if value, ok := _u.mutation.SubscriptionOverflowToBalance(); ok {
+		_spec.SetField(group.FieldSubscriptionOverflowToBalance, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.SubscriptionSourceAny(); ok {
+		_spec.SetField(group.FieldSubscriptionSourceAny, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.DailyLimitUsd(); ok {
 		_spec.SetField(group.FieldDailyLimitUsd, field.TypeFloat64, value)

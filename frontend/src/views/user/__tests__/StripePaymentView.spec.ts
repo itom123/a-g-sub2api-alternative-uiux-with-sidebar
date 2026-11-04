@@ -152,6 +152,20 @@ describe('StripePaymentView', () => {
     writeSnapshot()
   })
 
+  it('can dismiss waiting during SDK loading without allowing a late launch', async () => {
+    let finish!: (value: unknown) => void
+    loadStripe.mockReturnValue(new Promise(resolve => { finish = resolve }))
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.get('[data-testid="exit-stripe-payment"]').trigger('click')
+    expect(routerPush).toHaveBeenCalledWith('/dashboard')
+    expect(window.localStorage.getItem(PAYMENT_RECOVERY_STORAGE_KEY)).toBeNull()
+    finish(stripeInstance)
+    await flushPromises()
+    expect(stripeInstance.confirmPayment).not.toHaveBeenCalled()
+    expect(stripeInstance.confirmAlipayPayment).not.toHaveBeenCalled()
+  })
+
   it('uses the client secret from the local snapshot of the same order', async () => {
     routeState.query.method = 'alipay'
     mountView()

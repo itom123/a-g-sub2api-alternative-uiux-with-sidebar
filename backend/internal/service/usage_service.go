@@ -13,7 +13,8 @@ import (
 )
 
 var (
-	ErrUsageLogNotFound = infraerrors.NotFound("USAGE_LOG_NOT_FOUND", "usage log not found")
+	ErrUsageLogNotFound           = infraerrors.NotFound("USAGE_LOG_NOT_FOUND", "usage log not found")
+	ErrUserKeyActivityUnsupported = errors.New("user key activity aggregation is unsupported")
 )
 
 // CreateUsageLogRequest 创建使用日志请求
@@ -296,6 +297,29 @@ func (s *UsageService) GetUserDashboardStats(ctx context.Context, userID int64) 
 		return nil, fmt.Errorf("get user dashboard stats: %w", err)
 	}
 	return stats, nil
+}
+
+// GetUserKeyActivity requires the full aggregation capability. It must never
+// fall back to paginated logs, bounded batch stats, or synthetic zero values.
+func (s *UsageService) GetUserKeyActivity(ctx context.Context, query usagestats.UserInsightsQuery) (*usagestats.UserKeyActivity, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	type userKeyActivityRepository interface {
+		GetUserKeyActivity(context.Context, usagestats.UserInsightsQuery) (*usagestats.UserKeyActivity, error)
+	}
+	repo, ok := s.usageRepo.(userKeyActivityRepository)
+	if !ok {
+		return nil, ErrUserKeyActivityUnsupported
+	}
+	result, err := repo.GetUserKeyActivity(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("get user key activity: %w", err)
+	}
+	if result == nil {
+		return nil, errors.New("user key activity aggregation returned no snapshot")
+	}
+	return result, nil
 }
 
 // GetAPIKeyDashboardStats returns dashboard summary stats filtered by API Key.

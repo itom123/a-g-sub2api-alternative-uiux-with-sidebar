@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"math"
 	"testing"
 	"time"
 
@@ -131,7 +132,7 @@ func TestEnsureOpenClawGroupRepairsExistingManagedGroup(t *testing.T) {
 		Name:             OpenClawBillingGroupName,
 		Description:      "old",
 		Platform:         PlatformAnthropic,
-		RateMultiplier:   1,
+		RateMultiplier:   0.225,
 		IsExclusive:      true,
 		Status:           StatusDisabled,
 		SubscriptionType: SubscriptionTypeSubscription,
@@ -145,15 +146,31 @@ func TestEnsureOpenClawGroupRepairsExistingManagedGroup(t *testing.T) {
 	if repo.updated == nil {
 		t.Fatal("EnsureOpenClawGroup() did not repair the existing group")
 	}
-	if group.ID != 52 || group.Platform != PlatformOpenAI || group.RateMultiplier != OpenClawBillingRateMultiplier || group.IsExclusive || group.Status != StatusActive || group.SubscriptionType != SubscriptionTypeStandard {
+	if group.ID != 52 || group.Platform != PlatformOpenAI || group.RateMultiplier != 0.225 || group.IsExclusive || group.Status != StatusActive || group.SubscriptionType != SubscriptionTypeStandard {
 		t.Fatalf("repaired group = %#v", group)
 	}
 	for range 2 {
 		repo.updated = nil
 		again, err := apiKeys.EnsureOpenClawGroup(context.Background())
-		if err != nil || again.ID != 52 || again.Name != "openai-龙虾" || again.RateMultiplier != 0.3 || repo.created != nil || repo.updated != nil {
+		if err != nil || again.ID != 52 || again.Name != "openai-龙虾" || again.RateMultiplier != 0.225 || repo.created != nil || repo.updated != nil {
 			t.Fatalf("repeat repair changed the canonical group: group=%#v err=%v", again, err)
 		}
+	}
+}
+
+func TestEnsureOpenClawGroupRepairsInvalidRate(t *testing.T) {
+	for name, rate := range map[string]float64{"zero": 0, "negative": -0.1, "nan": math.NaN(), "infinity": math.Inf(1)} {
+		t.Run(name, func(t *testing.T) {
+			repo := &openClawGroupRepoStub{byName: &Group{
+				ID: 52, Name: OpenClawBillingGroupName, Platform: PlatformOpenAI,
+				RateMultiplier: rate, Status: StatusActive, SubscriptionType: SubscriptionTypeStandard,
+			}}
+			apiKeys := &APIKeyService{groupRepo: repo}
+			group, err := apiKeys.EnsureOpenClawGroup(context.Background())
+			if err != nil || group.RateMultiplier != OpenClawBillingRateMultiplier || repo.updated == nil {
+				t.Fatalf("invalid rate was not repaired: group=%#v err=%v", group, err)
+			}
+		})
 	}
 }
 

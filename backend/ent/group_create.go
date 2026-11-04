@@ -238,6 +238,40 @@ func (_c *GroupCreate) SetNillableSubscriptionType(v *string) *GroupCreate {
 	return _c
 }
 
+// SetSubscriptionSourceGroupIds sets the "subscription_source_group_ids" field.
+func (_c *GroupCreate) SetSubscriptionSourceGroupIds(v []int64) *GroupCreate {
+	_c.mutation.SetSubscriptionSourceGroupIds(v)
+	return _c
+}
+
+// SetSubscriptionOverflowToBalance sets the "subscription_overflow_to_balance" field.
+func (_c *GroupCreate) SetSubscriptionOverflowToBalance(v bool) *GroupCreate {
+	_c.mutation.SetSubscriptionOverflowToBalance(v)
+	return _c
+}
+
+// SetNillableSubscriptionOverflowToBalance sets the "subscription_overflow_to_balance" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableSubscriptionOverflowToBalance(v *bool) *GroupCreate {
+	if v != nil {
+		_c.SetSubscriptionOverflowToBalance(*v)
+	}
+	return _c
+}
+
+// SetSubscriptionSourceAny sets the "subscription_source_any" field.
+func (_c *GroupCreate) SetSubscriptionSourceAny(v bool) *GroupCreate {
+	_c.mutation.SetSubscriptionSourceAny(v)
+	return _c
+}
+
+// SetNillableSubscriptionSourceAny sets the "subscription_source_any" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableSubscriptionSourceAny(v *bool) *GroupCreate {
+	if v != nil {
+		_c.SetSubscriptionSourceAny(*v)
+	}
+	return _c
+}
+
 // SetDailyLimitUsd sets the "daily_limit_usd" field.
 func (_c *GroupCreate) SetDailyLimitUsd(v float64) *GroupCreate {
 	_c.mutation.SetDailyLimitUsd(v)
@@ -1107,6 +1141,18 @@ func (_c *GroupCreate) defaults() error {
 		v := group.DefaultSubscriptionType
 		_c.mutation.SetSubscriptionType(v)
 	}
+	if _, ok := _c.mutation.SubscriptionSourceGroupIds(); !ok {
+		v := group.DefaultSubscriptionSourceGroupIds
+		_c.mutation.SetSubscriptionSourceGroupIds(v)
+	}
+	if _, ok := _c.mutation.SubscriptionOverflowToBalance(); !ok {
+		v := group.DefaultSubscriptionOverflowToBalance
+		_c.mutation.SetSubscriptionOverflowToBalance(v)
+	}
+	if _, ok := _c.mutation.SubscriptionSourceAny(); !ok {
+		v := group.DefaultSubscriptionSourceAny
+		_c.mutation.SetSubscriptionSourceAny(v)
+	}
 	if _, ok := _c.mutation.DefaultValidityDays(); !ok {
 		v := group.DefaultDefaultValidityDays
 		_c.mutation.SetDefaultValidityDays(v)
@@ -1317,6 +1363,15 @@ func (_c *GroupCreate) check() error {
 		if err := group.SubscriptionTypeValidator(v); err != nil {
 			return &ValidationError{Name: "subscription_type", err: fmt.Errorf(`ent: validator failed for field "Group.subscription_type": %w`, err)}
 		}
+	}
+	if _, ok := _c.mutation.SubscriptionSourceGroupIds(); !ok {
+		return &ValidationError{Name: "subscription_source_group_ids", err: errors.New(`ent: missing required field "Group.subscription_source_group_ids"`)}
+	}
+	if _, ok := _c.mutation.SubscriptionOverflowToBalance(); !ok {
+		return &ValidationError{Name: "subscription_overflow_to_balance", err: errors.New(`ent: missing required field "Group.subscription_overflow_to_balance"`)}
+	}
+	if _, ok := _c.mutation.SubscriptionSourceAny(); !ok {
+		return &ValidationError{Name: "subscription_source_any", err: errors.New(`ent: missing required field "Group.subscription_source_any"`)}
 	}
 	if _, ok := _c.mutation.DefaultValidityDays(); !ok {
 		return &ValidationError{Name: "default_validity_days", err: errors.New(`ent: missing required field "Group.default_validity_days"`)}
@@ -1542,6 +1597,18 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.SubscriptionType(); ok {
 		_spec.SetField(group.FieldSubscriptionType, field.TypeString, value)
 		_node.SubscriptionType = value
+	}
+	if value, ok := _c.mutation.SubscriptionSourceGroupIds(); ok {
+		_spec.SetField(group.FieldSubscriptionSourceGroupIds, field.TypeJSON, value)
+		_node.SubscriptionSourceGroupIds = value
+	}
+	if value, ok := _c.mutation.SubscriptionOverflowToBalance(); ok {
+		_spec.SetField(group.FieldSubscriptionOverflowToBalance, field.TypeBool, value)
+		_node.SubscriptionOverflowToBalance = value
+	}
+	if value, ok := _c.mutation.SubscriptionSourceAny(); ok {
+		_spec.SetField(group.FieldSubscriptionSourceAny, field.TypeBool, value)
+		_node.SubscriptionSourceAny = value
 	}
 	if value, ok := _c.mutation.DailyLimitUsd(); ok {
 		_spec.SetField(group.FieldDailyLimitUsd, field.TypeFloat64, value)
@@ -2096,6 +2163,42 @@ func (u *GroupUpsert) SetSubscriptionType(v string) *GroupUpsert {
 // UpdateSubscriptionType sets the "subscription_type" field to the value that was provided on create.
 func (u *GroupUpsert) UpdateSubscriptionType() *GroupUpsert {
 	u.SetExcluded(group.FieldSubscriptionType)
+	return u
+}
+
+// SetSubscriptionSourceGroupIds sets the "subscription_source_group_ids" field.
+func (u *GroupUpsert) SetSubscriptionSourceGroupIds(v []int64) *GroupUpsert {
+	u.Set(group.FieldSubscriptionSourceGroupIds, v)
+	return u
+}
+
+// UpdateSubscriptionSourceGroupIds sets the "subscription_source_group_ids" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateSubscriptionSourceGroupIds() *GroupUpsert {
+	u.SetExcluded(group.FieldSubscriptionSourceGroupIds)
+	return u
+}
+
+// SetSubscriptionOverflowToBalance sets the "subscription_overflow_to_balance" field.
+func (u *GroupUpsert) SetSubscriptionOverflowToBalance(v bool) *GroupUpsert {
+	u.Set(group.FieldSubscriptionOverflowToBalance, v)
+	return u
+}
+
+// UpdateSubscriptionOverflowToBalance sets the "subscription_overflow_to_balance" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateSubscriptionOverflowToBalance() *GroupUpsert {
+	u.SetExcluded(group.FieldSubscriptionOverflowToBalance)
+	return u
+}
+
+// SetSubscriptionSourceAny sets the "subscription_source_any" field.
+func (u *GroupUpsert) SetSubscriptionSourceAny(v bool) *GroupUpsert {
+	u.Set(group.FieldSubscriptionSourceAny, v)
+	return u
+}
+
+// UpdateSubscriptionSourceAny sets the "subscription_source_any" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateSubscriptionSourceAny() *GroupUpsert {
+	u.SetExcluded(group.FieldSubscriptionSourceAny)
 	return u
 }
 
@@ -3256,6 +3359,48 @@ func (u *GroupUpsertOne) SetSubscriptionType(v string) *GroupUpsertOne {
 func (u *GroupUpsertOne) UpdateSubscriptionType() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateSubscriptionType()
+	})
+}
+
+// SetSubscriptionSourceGroupIds sets the "subscription_source_group_ids" field.
+func (u *GroupUpsertOne) SetSubscriptionSourceGroupIds(v []int64) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetSubscriptionSourceGroupIds(v)
+	})
+}
+
+// UpdateSubscriptionSourceGroupIds sets the "subscription_source_group_ids" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateSubscriptionSourceGroupIds() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateSubscriptionSourceGroupIds()
+	})
+}
+
+// SetSubscriptionOverflowToBalance sets the "subscription_overflow_to_balance" field.
+func (u *GroupUpsertOne) SetSubscriptionOverflowToBalance(v bool) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetSubscriptionOverflowToBalance(v)
+	})
+}
+
+// UpdateSubscriptionOverflowToBalance sets the "subscription_overflow_to_balance" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateSubscriptionOverflowToBalance() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateSubscriptionOverflowToBalance()
+	})
+}
+
+// SetSubscriptionSourceAny sets the "subscription_source_any" field.
+func (u *GroupUpsertOne) SetSubscriptionSourceAny(v bool) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetSubscriptionSourceAny(v)
+	})
+}
+
+// UpdateSubscriptionSourceAny sets the "subscription_source_any" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateSubscriptionSourceAny() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateSubscriptionSourceAny()
 	})
 }
 
@@ -4730,6 +4875,48 @@ func (u *GroupUpsertBulk) SetSubscriptionType(v string) *GroupUpsertBulk {
 func (u *GroupUpsertBulk) UpdateSubscriptionType() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateSubscriptionType()
+	})
+}
+
+// SetSubscriptionSourceGroupIds sets the "subscription_source_group_ids" field.
+func (u *GroupUpsertBulk) SetSubscriptionSourceGroupIds(v []int64) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetSubscriptionSourceGroupIds(v)
+	})
+}
+
+// UpdateSubscriptionSourceGroupIds sets the "subscription_source_group_ids" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateSubscriptionSourceGroupIds() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateSubscriptionSourceGroupIds()
+	})
+}
+
+// SetSubscriptionOverflowToBalance sets the "subscription_overflow_to_balance" field.
+func (u *GroupUpsertBulk) SetSubscriptionOverflowToBalance(v bool) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetSubscriptionOverflowToBalance(v)
+	})
+}
+
+// UpdateSubscriptionOverflowToBalance sets the "subscription_overflow_to_balance" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateSubscriptionOverflowToBalance() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateSubscriptionOverflowToBalance()
+	})
+}
+
+// SetSubscriptionSourceAny sets the "subscription_source_any" field.
+func (u *GroupUpsertBulk) SetSubscriptionSourceAny(v bool) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetSubscriptionSourceAny(v)
+	})
+}
+
+// UpdateSubscriptionSourceAny sets the "subscription_source_any" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateSubscriptionSourceAny() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateSubscriptionSourceAny()
 	})
 }
 
