@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AdminGroup } from '@/types'
 import GroupsView from '@/views/admin/GroupsView.vue'
-import { adminAPI } from '@/api/admin'
 
 const {
   getAllGroups,
@@ -13,6 +12,7 @@ const {
   updateGroup,
   getModelAllowlistCandidates,
   getUsageSummary,
+  getSubscriptionUsageSummary,
   getCapacitySummary,
   getLiveCapability,
   showSuccess,
@@ -24,6 +24,7 @@ const {
   updateGroup: vi.fn(),
   getModelAllowlistCandidates: vi.fn(),
   getUsageSummary: vi.fn(),
+  getSubscriptionUsageSummary: vi.fn(),
   getCapacitySummary: vi.fn(),
   getLiveCapability: vi.fn(),
   showSuccess: vi.fn(),
@@ -46,6 +47,9 @@ vi.mock('@/api/admin', () => ({
       update: updateGroup,
       delete: vi.fn(),
       updateSortOrder: vi.fn()
+    },
+    subscriptions: {
+      getUsageSummary: getSubscriptionUsageSummary
     },
     accounts: {
       list: vi.fn(),
@@ -201,13 +205,14 @@ describe('GroupsView subscription sharing', () => {
     authState.isSimpleMode = false
     localStorage.clear()
     vi.spyOn(console, 'error').mockImplementation(() => {})
-    for (const fn of [getAllGroups, listGroups, updateGroup, getModelAllowlistCandidates, getUsageSummary, getCapacitySummary, getLiveCapability, showSuccess, showError]) {
+    for (const fn of [getAllGroups, listGroups, updateGroup, getModelAllowlistCandidates, getUsageSummary, getSubscriptionUsageSummary, getCapacitySummary, getLiveCapability, showSuccess, showError]) {
       fn.mockReset()
     }
     // Only the full group list (not the current page) feeds the source picker.
     getAllGroups.mockResolvedValue([sourceGroup, planA, planB])
     getModelAllowlistCandidates.mockResolvedValue([])
     getUsageSummary.mockResolvedValue([])
+    getSubscriptionUsageSummary.mockResolvedValue([])
     getCapacitySummary.mockResolvedValue([])
     getLiveCapability.mockResolvedValue({ supported: false })
   })

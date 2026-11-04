@@ -12,6 +12,7 @@ const {
   updateGroup,
   getModelAllowlistCandidates,
   getUsageSummary,
+  getSubscriptionUsageSummary,
   getCapacitySummary,
   getLiveCapability,
   showSuccess,
@@ -22,6 +23,7 @@ const {
   updateGroup: vi.fn(),
   getModelAllowlistCandidates: vi.fn(),
   getUsageSummary: vi.fn(),
+  getSubscriptionUsageSummary: vi.fn(),
   getCapacitySummary: vi.fn(),
   getLiveCapability: vi.fn(),
   showSuccess: vi.fn(),
@@ -44,6 +46,9 @@ vi.mock('@/api/admin', () => ({
       update: updateGroup,
       delete: vi.fn(),
       updateSortOrder: vi.fn()
+    },
+    subscriptions: {
+      getUsageSummary: getSubscriptionUsageSummary
     },
     accounts: {
       list: vi.fn(),

@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { subscriptionsAPI } from '../admin/subscriptions'
 
-const { post } = vi.hoisted(() => ({ post: vi.fn() }))
-vi.mock('../client', () => ({ apiClient: { post } }))
+const { get, post } = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }))
+vi.mock('../client', () => ({ apiClient: { get, post } }))
 
 describe('admin subscription batch APIs', () => {
   beforeEach(() => vi.clearAllMocks())
@@ -25,5 +25,19 @@ describe('admin subscription batch APIs', () => {
     post.mockResolvedValue({ data: result })
     expect(await subscriptionsAPI.bulkAssign(request)).toEqual(result)
     expect(post).toHaveBeenCalledWith('/admin/subscriptions/bulk-assign', request)
+  })
+
+  it('gets active subscription usage counters by group', async () => {
+    const summary = [{
+      group_id: 3,
+      active_subscriptions: 2,
+      daily_usage_usd: 1.25,
+      weekly_usage_usd: 2.5,
+      monthly_usage_usd: 3.75,
+    }]
+    get.mockResolvedValue({ data: summary })
+
+    await expect(subscriptionsAPI.getUsageSummary()).resolves.toEqual(summary)
+    expect(get).toHaveBeenCalledWith('/admin/subscriptions/usage-summary')
   })
 })

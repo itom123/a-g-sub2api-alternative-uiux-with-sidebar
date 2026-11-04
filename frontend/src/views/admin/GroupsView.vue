@@ -198,7 +198,7 @@
                 >
                   <span v-if="row.daily_limit_usd" class="whitespace-nowrap">
                     <span
-                      v-if="usageLoading"
+                      v-if="subscriptionUsageLoading"
                       class="font-medium text-gray-400 dark:text-gray-500"
                       >—</span
                     >
@@ -206,12 +206,12 @@
                       v-else
                       :class="
                         getQuotaUsageClass(
-                          usageMap.get(row.id)?.today_cost ?? 0,
+                          subscriptionUsageMap.get(row.id)?.daily_usage_usd ?? 0,
                           row.daily_limit_usd
                         )
                       "
                       >{{
-                        formatUsd(usageMap.get(row.id)?.today_cost ?? 0)
+                        formatUsd(subscriptionUsageMap.get(row.id)?.daily_usage_usd ?? 0)
                       }}</span
                     >
                     <span class="text-gray-400 dark:text-gray-500">
@@ -228,32 +228,70 @@
                     class="mx-1 text-gray-300 dark:text-gray-600"
                     >·</span
                   >
-                  <span v-if="row.weekly_limit_usd" class="whitespace-nowrap"
-                    >{{ formatUsd(row.weekly_limit_usd) }}/{{
-                      t("admin.groups.limitWeek")
-                    }}</span
-                  >
+                  <span v-if="row.weekly_limit_usd" class="whitespace-nowrap">
+                    <span
+                      v-if="subscriptionUsageLoading"
+                      class="font-medium text-gray-400 dark:text-gray-500"
+                      >—</span
+                    >
+                    <span
+                      v-else
+                      :class="
+                        getQuotaUsageClass(
+                          subscriptionUsageMap.get(row.id)?.weekly_usage_usd ?? 0,
+                          row.weekly_limit_usd
+                        )
+                      "
+                      >{{
+                        formatUsd(subscriptionUsageMap.get(row.id)?.weekly_usage_usd ?? 0)
+                      }}</span
+                    >
+                    <span class="text-gray-400 dark:text-gray-500">
+                      / {{ formatUsd(row.weekly_limit_usd) }}/{{
+                        t("admin.groups.limitWeek")
+                      }}</span
+                    >
+                  </span>
                   <span
                     v-if="row.weekly_limit_usd && row.monthly_limit_usd"
                     class="mx-1 text-gray-300 dark:text-gray-600"
                     >·</span
                   >
-                  <span v-if="row.monthly_limit_usd" class="whitespace-nowrap"
-                    >{{ formatUsd(row.monthly_limit_usd) }}/{{
-                      t("admin.groups.limitMonth")
-                    }}</span
-                  >
+                  <span v-if="row.monthly_limit_usd" class="whitespace-nowrap">
+                    <span
+                      v-if="subscriptionUsageLoading"
+                      class="font-medium text-gray-400 dark:text-gray-500"
+                      >—</span
+                    >
+                    <span
+                      v-else
+                      :class="
+                        getQuotaUsageClass(
+                          subscriptionUsageMap.get(row.id)?.monthly_usage_usd ?? 0,
+                          row.monthly_limit_usd
+                        )
+                      "
+                      >{{
+                        formatUsd(subscriptionUsageMap.get(row.id)?.monthly_usage_usd ?? 0)
+                      }}</span
+                    >
+                    <span class="text-gray-400 dark:text-gray-500">
+                      / {{ formatUsd(row.monthly_limit_usd) }}/{{
+                        t("admin.groups.limitMonth")
+                      }}</span
+                    >
+                  </span>
                 </div>
                 <span v-else class="text-gray-400 dark:text-gray-500">{{
                   t("admin.groups.subscription.noLimit")
                 }}</span>
                 <div class="text-gray-400 dark:text-gray-500">
-                  {{ t("admin.groups.usageTotal") }}
+                  {{ t("admin.groups.subscription.activePacks") }}
                   <span class="ml-1 font-medium text-gray-600 dark:text-gray-300"
                     >{{
-                      usageLoading
+                      subscriptionUsageLoading
                         ? "—"
-                        : formatUsd(usageMap.get(row.id)?.total_cost ?? 0)
+                        : subscriptionUsageMap.get(row.id)?.active_subscriptions ?? 0
                     }}</span
                   >
                 </div>
@@ -4715,7 +4753,10 @@ const saveColumnsToStorage = () => {
 
 const isColumnVisible = (key: string) => !hiddenColumns.has(key);
 const hasVisibleUsageSummaryConsumer = computed(
-  () => !authStore.isSimpleMode && (isColumnVisible("usage") || isColumnVisible("billing_type")),
+  () => !authStore.isSimpleMode && isColumnVisible("usage"),
+);
+const hasVisibleSubscriptionUsageConsumer = computed(
+  () => !authStore.isSimpleMode && isColumnVisible("billing_type"),
 );
 const hasVisibleCapacityColumn = computed(() => !authStore.isSimpleMode && isColumnVisible("capacity"));
 
@@ -4731,8 +4772,11 @@ const toggleColumn = (key: string) => {
   }
   saveColumnsToStorage();
 
-  if (wasHidden && (key === "usage" || key === "billing_type")) {
+  if (wasHidden && key === "usage") {
     loadUsageSummary();
+  }
+  if (wasHidden && key === "billing_type") {
+    loadSubscriptionUsageSummary();
   }
   if (wasHidden && key === "capacity") {
     loadCapacitySummary();
@@ -4981,8 +5025,17 @@ type GroupUsageSummary = {
   total_cost: number;
 };
 
+type GroupSubscriptionUsageSummary = {
+  active_subscriptions: number;
+  daily_usage_usd: number;
+  weekly_usage_usd: number;
+  monthly_usage_usd: number;
+};
+
 const usageMap = ref<Map<number, GroupUsageSummary>>(new Map());
 const usageLoading = ref(false);
+const subscriptionUsageMap = ref<Map<number, GroupSubscriptionUsageSummary>>(new Map());
+const subscriptionUsageLoading = ref(false);
 const capacityMap = ref<
   Map<
     number,
@@ -5834,11 +5887,10 @@ const loadGroups = async () => {
     groups.value = response.items;
     pagination.total = response.total;
     pagination.pages = response.pages;
-    if (hasVisibleUsageSummaryConsumer.value) {
-      loadUsageSummary();
-    } else {
-      usageLoading.value = false;
-    }
+    if (hasVisibleUsageSummaryConsumer.value) loadUsageSummary();
+    else usageLoading.value = false;
+    if (hasVisibleSubscriptionUsageConsumer.value) loadSubscriptionUsageSummary();
+    else subscriptionUsageLoading.value = false;
     if (hasVisibleCapacityColumn.value) {
       loadCapacitySummary();
     }
@@ -5906,6 +5958,26 @@ const loadUsageSummary = async () => {
     console.error("Error loading group usage summary:", error);
   } finally {
     usageLoading.value = false;
+  }
+};
+
+const loadSubscriptionUsageSummary = async () => {
+  if (!hasVisibleSubscriptionUsageConsumer.value) {
+    subscriptionUsageLoading.value = false;
+    return;
+  }
+  subscriptionUsageLoading.value = true;
+  try {
+    const data = await adminAPI.subscriptions.getUsageSummary();
+    const map = new Map<number, GroupSubscriptionUsageSummary>();
+    for (const item of data) {
+      map.set(item.group_id, item);
+    }
+    subscriptionUsageMap.value = map;
+  } catch (error) {
+    console.error("Error loading subscription usage summary:", error);
+  } finally {
+    subscriptionUsageLoading.value = false;
   }
 };
 

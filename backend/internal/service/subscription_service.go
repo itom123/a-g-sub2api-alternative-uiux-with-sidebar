@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand/v2"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -807,6 +808,53 @@ func (s *SubscriptionService) ListActiveUserSubscriptions(ctx context.Context, u
 	}
 	normalizeExpiredWindows(subs)
 	return subs, nil
+}
+
+// GroupSubscriptionUsageSummary aggregates current active subscription-pack counters by group.
+type GroupSubscriptionUsageSummary struct {
+	GroupID             int64   `json:"group_id"`
+	ActiveSubscriptions int     `json:"active_subscriptions"`
+	DailyUsageUSD       float64 `json:"daily_usage_usd"`
+	WeeklyUsageUSD      float64 `json:"weekly_usage_usd"`
+	MonthlyUsageUSD     float64 `json:"monthly_usage_usd"`
+}
+
+// GetActiveGroupUsageSummary returns the persisted counters shown in the active
+// subscriptions view, aggregated by group.
+func (s *SubscriptionService) GetActiveGroupUsageSummary(ctx context.Context) ([]GroupSubscriptionUsageSummary, error) {
+	subs, err := s.userSubRepo.ListActive(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Keep the aggregate consistent with List's current-window presentation.
+	normalizeExpiredWindowsAt(subs, s.now())
+
+	summaries := make(map[int64]*GroupSubscriptionUsageSummary)
+	for i := range subs {
+		sub := &subs[i]
+		summary := summaries[sub.GroupID]
+		if summary == nil {
+			summary = &GroupSubscriptionUsageSummary{GroupID: sub.GroupID}
+			summaries[sub.GroupID] = summary
+		}
+		summary.ActiveSubscriptions++
+		summary.DailyUsageUSD += sub.DailyUsageUSD
+		summary.WeeklyUsageUSD += sub.WeeklyUsageUSD
+		summary.MonthlyUsageUSD += sub.MonthlyUsageUSD
+	}
+
+	groupIDs := make([]int64, 0, len(summaries))
+	for groupID := range summaries {
+		groupIDs = append(groupIDs, groupID)
+	}
+	sort.Slice(groupIDs, func(i, j int) bool { return groupIDs[i] < groupIDs[j] })
+
+	results := make([]GroupSubscriptionUsageSummary, 0, len(groupIDs))
+	for _, groupID := range groupIDs {
+		results = append(results, *summaries[groupID])
+	}
+	return results, nil
 }
 
 // ListGroupSubscriptions 获取分组的所有订阅

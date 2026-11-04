@@ -97,6 +97,17 @@ func (h *SubscriptionHandler) List(c *gin.Context) {
 	response.PaginatedWithResult(c, adminSubscriptionResponse(c, out), toResponsePagination(pagination))
 }
 
+// GetUsageSummary returns active subscription-pack counters aggregated by group.
+// GET /api/v1/admin/subscriptions/usage-summary
+func (h *SubscriptionHandler) GetUsageSummary(c *gin.Context) {
+	results, err := h.subscriptionService.GetActiveGroupUsageSummary(c.Request.Context())
+	if err != nil {
+		response.Error(c, 500, "Failed to get subscription usage summary")
+		return
+	}
+	response.Success(c, results)
+}
+
 // GetByID handles getting a subscription by ID
 // GET /api/v1/admin/subscriptions/:id
 func (h *SubscriptionHandler) GetByID(c *gin.Context) {

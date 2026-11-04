@@ -9,6 +9,7 @@ const {
   getAllGroups,
   getModelAllowlistCandidates,
   getUsageSummary,
+  getSubscriptionUsageSummary,
   getCapacitySummary,
   getLiveCapability,
   listAccounts,
@@ -22,6 +23,7 @@ const {
   getAllGroups: vi.fn(),
   getModelAllowlistCandidates: vi.fn(),
   getUsageSummary: vi.fn(),
+  getSubscriptionUsageSummary: vi.fn(),
   getCapacitySummary: vi.fn(),
   getLiveCapability: vi.fn(),
   listAccounts: vi.fn(),
@@ -48,6 +50,11 @@ const messages: Record<string, string> = {
   'admin.groups.usageToday': 'Today',
   'admin.groups.usageYesterday': 'Yesterday',
   'admin.groups.usageTotal': 'Total',
+  'admin.groups.subscription.activePacks': 'Active packs:',
+  'admin.groups.subscription.subscription': 'Subscription',
+  'admin.groups.limitDay': 'd',
+  'admin.groups.limitWeek': 'w',
+  'admin.groups.limitMonth': 'mo',
 }
 
 vi.mock('@/api/admin', () => ({
@@ -63,6 +70,9 @@ vi.mock('@/api/admin', () => ({
       update: vi.fn(),
       delete: vi.fn(),
       updateSortOrder: vi.fn(),
+    },
+    subscriptions: {
+      getUsageSummary: getSubscriptionUsageSummary,
     },
     accounts: {
       list: listAccounts,
@@ -163,6 +173,9 @@ const DataTableStub = {
       <div v-if="data.length" data-test="usage-cell">
         <slot name="cell-usage" :row="data[0]" />
       </div>
+      <div v-if="data.length" data-test="billing-type-cell">
+        <slot name="cell-billing_type" :row="data[0]" />
+      </div>
     </div>
   `,
 }
@@ -241,6 +254,7 @@ describe('admin GroupsView column settings', () => {
     getAllGroups.mockReset()
     getModelAllowlistCandidates.mockReset()
     getUsageSummary.mockReset()
+    getSubscriptionUsageSummary.mockReset()
     getCapacitySummary.mockReset()
     getLiveCapability.mockReset()
     listAccounts.mockReset()
@@ -260,6 +274,7 @@ describe('admin GroupsView column settings', () => {
     getAllGroups.mockResolvedValue([])
     getModelAllowlistCandidates.mockResolvedValue([])
     getUsageSummary.mockResolvedValue([])
+    getSubscriptionUsageSummary.mockResolvedValue([])
     getCapacitySummary.mockResolvedValue([])
     getLiveCapability.mockResolvedValue({ supported: false })
     listAccounts.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20, pages: 0 })
@@ -273,6 +288,7 @@ describe('admin GroupsView column settings', () => {
     expect(getLiveCapability).not.toHaveBeenCalled()
     expect(getModelAllowlistCandidates).not.toHaveBeenCalled()
     expect(getUsageSummary).not.toHaveBeenCalled()
+    expect(getSubscriptionUsageSummary).not.toHaveBeenCalled()
     expect(getCapacitySummary).not.toHaveBeenCalled()
     expect(listGroups).toHaveBeenCalledWith(
       expect.any(Number),
@@ -404,13 +420,18 @@ describe('admin GroupsView column settings', () => {
     const wrapper = await mountView()
 
     expect(getUsageSummary).not.toHaveBeenCalled()
+    expect(getSubscriptionUsageSummary).not.toHaveBeenCalled()
     expect(getCapacitySummary).not.toHaveBeenCalled()
 
     await openColumnSettings(wrapper)
     await clickColumnToggle(wrapper, 'Usage')
     expect(getUsageSummary).toHaveBeenCalledTimes(1)
     expect(getUsageSummary).toHaveBeenCalledWith()
+    expect(getSubscriptionUsageSummary).not.toHaveBeenCalled()
     expect(getCapacitySummary).not.toHaveBeenCalled()
+
+    await clickColumnToggle(wrapper, 'Billing Type')
+    expect(getSubscriptionUsageSummary).toHaveBeenCalledTimes(1)
 
     await clickColumnToggle(wrapper, 'Capacity')
     expect(getUsageSummary).toHaveBeenCalledTimes(1)
@@ -430,5 +451,37 @@ describe('admin GroupsView column settings', () => {
     expect(text).toContain('Total¥9.75')
     expect(text.indexOf('Today')).toBeLessThan(text.indexOf('Yesterday'))
     expect(text.indexOf('Yesterday')).toBeLessThan(text.indexOf('Total'))
+  })
+
+  it('uses active subscription-pack counters in the subscription billing cell', async () => {
+    listGroups.mockResolvedValue({
+      items: [createGroup({
+        subscription_type: 'subscription',
+        daily_limit_usd: 10,
+        weekly_limit_usd: 50,
+        monthly_limit_usd: 100,
+      })],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1,
+    })
+    getSubscriptionUsageSummary.mockResolvedValue([
+      {
+        group_id: 1,
+        active_subscriptions: 2,
+        daily_usage_usd: 2.5,
+        weekly_usage_usd: 12.25,
+        monthly_usage_usd: 30.5,
+      },
+    ])
+
+    const wrapper = await mountView()
+    const text = wrapper.get('[data-test="billing-type-cell"]').text()
+
+    expect(text).toContain('¥3 / ¥10/d')
+    expect(text).toContain('¥12 / ¥50/w')
+    expect(text).toContain('¥31 / ¥100/mo')
+    expect(text).toContain('Active packs: 2')
   })
 })

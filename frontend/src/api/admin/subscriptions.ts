@@ -40,6 +40,22 @@ export interface BulkAssignSubscriptionResult {
   statuses?: Record<string, 'created' | 'reused' | 'failed'>
 }
 
+export interface GroupSubscriptionUsageSummary {
+  group_id: number
+  active_subscriptions: number
+  daily_usage_usd: number
+  weekly_usage_usd: number
+  monthly_usage_usd: number
+}
+
+/** Get active subscription-pack usage counters aggregated by group. */
+export async function getUsageSummary(): Promise<GroupSubscriptionUsageSummary[]> {
+  const { data } = await apiClient.get<GroupSubscriptionUsageSummary[]>(
+    '/admin/subscriptions/usage-summary'
+  )
+  return data
+}
+
 export async function bulkAction(
   request: SubscriptionBulkActionRequest,
   idempotencyKey: string
@@ -231,6 +247,7 @@ export async function listByUser(
 
 export const subscriptionsAPI = {
   list,
+  getUsageSummary,
   getById,
   getProgress,
   assign,

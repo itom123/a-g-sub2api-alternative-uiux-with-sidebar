@@ -1079,6 +1079,7 @@ export default {
         defaultValidityDays: '默认有效期（天）',
         validityHint: '分配给用户时订阅的有效天数',
         noLimit: '无限制',
+        activePacks: '生效订阅包:',
         sourceGroups: '可使用的订阅额度',
         sourceGroupsPlaceholder: '选择订阅分组',
         sourceGroupsHint: '订阅了所选套餐的用户在本分组的用量，会先计入该订阅的额度；额度用完后扣余额。按列表顺序使用第一个仍有额度的订阅。',

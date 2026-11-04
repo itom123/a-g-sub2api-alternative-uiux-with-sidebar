@@ -2272,6 +2272,9 @@ func (r *stubUserSubscriptionRepo) ListByUserID(ctx context.Context, userID int6
 	}
 	return append([]service.UserSubscription(nil), r.byUser[userID]...), nil
 }
+func (stubUserSubscriptionRepo) ListActive(ctx context.Context) ([]service.UserSubscription, error) {
+	return nil, errors.New("not implemented")
+}
 func (r *stubUserSubscriptionRepo) ListActiveByUserID(ctx context.Context, userID int64) ([]service.UserSubscription, error) {
 	if r.activeByUser == nil {
 		return nil, nil

@@ -134,6 +134,9 @@ func (userSubRepoNoop) Restore(context.Context, int64, string) (*UserSubscriptio
 func (userSubRepoNoop) ListByUserID(context.Context, int64) ([]UserSubscription, error) {
 	panic("unexpected ListByUserID call")
 }
+func (userSubRepoNoop) ListActive(context.Context) ([]UserSubscription, error) {
+	panic("unexpected ListActive call")
+}
 func (userSubRepoNoop) ListActiveByUserID(context.Context, int64) ([]UserSubscription, error) {
 	panic("unexpected ListActiveByUserID call")
 }
@@ -257,6 +260,17 @@ func (s *subscriptionUserSubRepoStub) GetByIDForUpdate(ctx context.Context, id i
 	return s.GetByID(ctx, id)
 }
 
+func (s *subscriptionUserSubRepoStub) ListActive(_ context.Context) ([]UserSubscription, error) {
+	results := make([]UserSubscription, 0, len(s.byID))
+	for _, sub := range s.byID {
+		if sub.Status != SubscriptionStatusActive || !sub.ExpiresAt.After(time.Now()) {
+			continue
+		}
+		results = append(results, *sub)
+	}
+	return results, nil
+}
+
 func (s *subscriptionUserSubRepoStub) Update(_ context.Context, sub *UserSubscription) error {
 	if sub == nil {
 		return ErrSubscriptionNilInput
@@ -273,6 +287,36 @@ func (s *subscriptionUserSubRepoStub) Update(_ context.Context, sub *UserSubscri
 	}
 	s.byUserGroup[s.key(cp.UserID, cp.GroupID)] = &cp
 	return nil
+}
+
+func TestGetActiveGroupUsageSummary(t *testing.T) {
+	now := time.Now()
+	subRepo := newSubscriptionUserSubRepoStub()
+	subRepo.seed(&UserSubscription{
+		UserID: 1, GroupID: 10, Status: SubscriptionStatusActive, ExpiresAt: now.Add(time.Hour),
+		DailyUsageUSD: 1.25, WeeklyUsageUSD: 2.5, MonthlyUsageUSD: 3.75,
+	})
+	subRepo.seed(&UserSubscription{
+		UserID: 2, GroupID: 10, Status: SubscriptionStatusActive, ExpiresAt: now.Add(time.Hour),
+		DailyUsageUSD: 4.0, WeeklyUsageUSD: 5.0, MonthlyUsageUSD: 6.0,
+	})
+	subRepo.seed(&UserSubscription{
+		UserID: 3, GroupID: 20, Status: SubscriptionStatusActive, ExpiresAt: now.Add(time.Hour),
+		DailyUsageUSD: 7.0, WeeklyUsageUSD: 8.0, MonthlyUsageUSD: 9.0,
+	})
+	subRepo.seed(&UserSubscription{
+		UserID: 4, GroupID: 10, Status: SubscriptionStatusActive, ExpiresAt: now.Add(-time.Hour),
+		DailyUsageUSD: 100.0, WeeklyUsageUSD: 100.0, MonthlyUsageUSD: 100.0,
+	})
+
+	svc := NewSubscriptionService(groupRepoNoop{}, subRepo, nil, nil, nil)
+	svc.now = func() time.Time { return now }
+	summaries, err := svc.GetActiveGroupUsageSummary(context.Background())
+	require.NoError(t, err)
+	require.ElementsMatch(t, []GroupSubscriptionUsageSummary{
+		{GroupID: 10, ActiveSubscriptions: 2, DailyUsageUSD: 5.25, WeeklyUsageUSD: 7.5, MonthlyUsageUSD: 9.75},
+		{GroupID: 20, ActiveSubscriptions: 1, DailyUsageUSD: 7.0, WeeklyUsageUSD: 8.0, MonthlyUsageUSD: 9.0},
+	}, summaries)
 }
 
 func TestAssignSubscriptionReuseWhenSemanticsMatch(t *testing.T) {

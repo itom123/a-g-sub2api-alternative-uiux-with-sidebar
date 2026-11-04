@@ -8,14 +8,18 @@ import GroupsView from "@/views/admin/GroupsView.vue";
 
 const {
   listGroups,
+  getAllGroups,
   getModelAllowlistCandidates,
   getUsageSummary,
+  getSubscriptionUsageSummary,
   getCapacitySummary,
   getLiveCapability,
 } = vi.hoisted(() => ({
   listGroups: vi.fn(),
+  getAllGroups: vi.fn(),
   getModelAllowlistCandidates: vi.fn(),
   getUsageSummary: vi.fn(),
+  getSubscriptionUsageSummary: vi.fn(),
   getCapacitySummary: vi.fn(),
   getLiveCapability: vi.fn(),
 }));
@@ -24,7 +28,7 @@ vi.mock("@/api/admin", () => ({
   adminAPI: {
     groups: {
       list: listGroups,
-      getAll: vi.fn(),
+      getAll: getAllGroups,
       getModelAllowlistCandidates,
       getUsageSummary,
       getCapacitySummary,
@@ -34,6 +38,9 @@ vi.mock("@/api/admin", () => ({
       delete: vi.fn(),
       duplicate: vi.fn(),
       updateSortOrder: vi.fn(),
+    },
+    subscriptions: {
+      getUsageSummary: getSubscriptionUsageSummary,
     },
     accounts: {
       list: vi.fn(),
@@ -232,8 +239,10 @@ describe("GroupsView Codex manifest binding", () => {
   beforeEach(() => {
     localStorage.clear();
     listGroups.mockReset();
+    getAllGroups.mockReset();
     getModelAllowlistCandidates.mockReset();
     getUsageSummary.mockReset();
+    getSubscriptionUsageSummary.mockReset();
     getCapacitySummary.mockReset();
     getLiveCapability.mockReset();
 
@@ -244,8 +253,10 @@ describe("GroupsView Codex manifest binding", () => {
       page_size: 20,
       pages: 1,
     });
+    getAllGroups.mockResolvedValue([]);
     getModelAllowlistCandidates.mockResolvedValue([]);
     getUsageSummary.mockResolvedValue([]);
+    getSubscriptionUsageSummary.mockResolvedValue([]);
     getCapacitySummary.mockResolvedValue([]);
     getLiveCapability.mockResolvedValue({ supported: false });
   });

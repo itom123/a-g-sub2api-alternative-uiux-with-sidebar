@@ -56,6 +56,10 @@ func (r *subscriptionExpiryRepoStub) ListByUserID(context.Context, int64) ([]Use
 	return nil, nil
 }
 
+func (r *subscriptionExpiryRepoStub) ListActive(context.Context) ([]UserSubscription, error) {
+	return nil, nil
+}
+
 func (r *subscriptionExpiryRepoStub) ListActiveByUserID(context.Context, int64) ([]UserSubscription, error) {
 	return nil, nil
 }

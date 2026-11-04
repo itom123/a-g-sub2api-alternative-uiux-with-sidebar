@@ -1082,6 +1082,7 @@ export default {
         defaultValidityDays: 'Default Validity (Days)',
         validityHint: 'Number of days the subscription is valid when assigned to a user',
         noLimit: 'No limit',
+        activePacks: 'Active packs:',
         sourceGroups: 'Subscription quota sources',
         sourceGroupsPlaceholder: 'Select a subscription group',
         sourceGroupsHint: 'Usage in this group by users who hold a selected subscription is charged to that subscription quota first, then to their balance once it is used up. The first subscription in list order that still has quota is used.',
