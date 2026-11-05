@@ -84,6 +84,9 @@ type OpsService struct {
 	runtimeRefreshSuccess        atomic.Uint64
 	runtimeRefreshFailure        atomic.Uint64
 	runtimeRefreshLastFailureLog atomic.Int64
+
+	// gatewayOverhead feeds the dashboard's gateway-overhead card (in memory).
+	gatewayOverhead opsGatewayOverheadRecorder
 }
 
 // CleanupReloader 由 OpsCleanupService 实现。

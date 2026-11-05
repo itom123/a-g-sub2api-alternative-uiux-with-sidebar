@@ -44,6 +44,16 @@ const stats = {
 }
 
 describe('UsageStatsCards', () => {
+  it.each([[0, 0, '0', '0ms'], [1000, 999, '1.00K', '999ms'], [6893947355, 13206.111, '6.89B', '13.21s']])('preserves the usage-page display contract for %s tokens', (tokens, duration, tokenText, durationText) => {
+    const wrapper = mount(UsageStatsCards, { props: { stats: { ...stats, total_tokens: tokens, average_duration_ms: duration } } })
+    expect(wrapper.text()).toContain(tokenText)
+    expect(wrapper.text()).toContain(durationText)
+  })
+  it('preserves the usage page zero-value fallback when stats are absent', () => {
+    const wrapper = mount(UsageStatsCards, { props: { stats: null } })
+    expect(wrapper.text()).toContain('0ms')
+    expect(wrapper.text()).toContain('Total Tokens0')
+  })
   it('shows cache token breakdown values', () => {
     const wrapper = mount(UsageStatsCards, {
       props: {

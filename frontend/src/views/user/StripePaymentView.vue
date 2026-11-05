@@ -1,6 +1,7 @@
 <template>
   <component :is="isPopup ? 'div' : AppLayout" :class="isPopup ? 'min-h-screen bg-gray-50 dark:bg-dark-900' : ''">
     <div class="mx-auto max-w-lg space-y-6 py-8" :class="isPopup ? 'px-4' : ''">
+      <button type="button" data-testid="exit-stripe-payment" class="btn btn-secondary w-full" @click="leavePayment">{{ t('payment.dismissWaiting') }}</button>
       <PageLoading v-if="loading" />
       <div v-else-if="initError" class="card p-8 text-center">
         <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
@@ -281,12 +282,20 @@ async function handleGenericPay() {
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
+function leavePayment() {
+  disposed = true
+  if (redirectTimer) clearTimeout(redirectTimer)
+  if (pollTimer) clearInterval(pollTimer)
+  window.localStorage.removeItem(PAYMENT_RECOVERY_STORAGE_KEY)
+  void router.push('/dashboard')
+}
+
 function startPolling() {
   const orderId = Number(route.query.order_id)
   if (!orderId || disposed) return
   pollTimer = setInterval(async () => {
     const o = await paymentStore.pollOrderStatus(orderId)
-    if (!o) return
+    if (!o || disposed) return
     if (o.status === 'COMPLETED' || o.status === 'PAID') {
       if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
       stripeSuccess.value = true

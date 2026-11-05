@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 	"strings"
@@ -68,6 +69,10 @@ func NewUsageHandler(
 }
 
 func (h *UsageHandler) parseUserUsageFilters(c *gin.Context, requireRange bool) (*userUsageFilters, bool) {
+	return h.parseUserUsageFiltersAt(c, requireRange, time.Time{})
+}
+
+func (h *UsageHandler) parseUserUsageFiltersAt(c *gin.Context, requireRange bool, asOf time.Time) (*userUsageFilters, bool) {
 	subject, ok := middleware2.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
@@ -154,7 +159,18 @@ func (h *UsageHandler) parseUserUsageFilters(c *gin.Context, requireRange bool) 
 	}
 
 	userTZ := c.Query("timezone")
-	now := timezone.NowInUserLocation(userTZ)
+	var now time.Time
+	if asOf.IsZero() {
+		now = timezone.NowInUserLocation(userTZ)
+	} else {
+		loc := timezone.Location()
+		if userTZ != "" {
+			if userLoc, err := time.LoadLocation(userTZ); err == nil {
+				loc = userLoc
+			}
+		}
+		now = asOf.In(loc)
+	}
 	var startTime, endTime time.Time
 	var startPtr, endPtr *time.Time
 	startDateStr := strings.TrimSpace(c.Query("start_date"))
@@ -517,7 +533,9 @@ func (h *UsageHandler) DashboardModels(c *gin.Context) {
 // DashboardSnapshotV2 returns usage-page chart data scoped to the current user.
 // GET /api/v1/usage/dashboard/snapshot-v2
 func (h *UsageHandler) DashboardSnapshotV2(c *gin.Context) {
-	parsed, ok := h.parseUserUsageFilters(c, true)
+	// Reuse one event-time cutoff, including range defaults and generated_at.
+	asOf := time.Now().UTC()
+	parsed, ok := h.parseUserUsageFiltersAt(c, true, asOf)
 	if !ok {
 		return
 	}
@@ -538,9 +556,31 @@ func (h *UsageHandler) DashboardSnapshotV2(c *gin.Context) {
 	if !ok {
 		return
 	}
+	includeKeyActivity, ok := parseBoolQueryWithDefault(c, "include_key_activity", false)
+	if !ok {
+		return
+	}
+	var insightsQuery usagestats.UserInsightsQuery
+	if includeKeyActivity {
+		loc := timezone.Location()
+		if userTZ := c.Query("timezone"); userTZ != "" {
+			var err error
+			loc, err = time.LoadLocation(userTZ)
+			if err != nil || userTZ == "Local" {
+				response.BadRequest(c, "Invalid timezone, use an IANA timezone")
+				return
+			}
+		}
+		var err error
+		insightsQuery, err = usagestats.NewUserInsightsQuery(parsed.Filters, parsed.StartTime, parsed.EndTime, asOf, loc)
+		if err != nil {
+			response.BadRequest(c, "Invalid key activity range, use 1-30 calendar days ending after the start and not entirely in the future")
+			return
+		}
+	}
 
 	resp := gin.H{
-		"generated_at": time.Now().UTC().Format(time.RFC3339),
+		"generated_at": asOf.Format(time.RFC3339),
 		"start_date":   parsed.StartTime.Format("2006-01-02"),
 		"end_date":     parsed.EndTime.Add(-24 * time.Hour).Format("2006-01-02"),
 		"granularity":  granularity,
@@ -569,6 +609,21 @@ func (h *UsageHandler) DashboardSnapshotV2(c *gin.Context) {
 			return
 		}
 		resp["groups"] = userGroupStatsFromUsageStats(groups)
+	}
+	if includeKeyActivity {
+		// Bound this optional query while retaining request cancellation. Failure
+		// is a local unavailable state, not a fake empty successful aggregation.
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+		activity, err := h.usageService.GetUserKeyActivity(ctx, insightsQuery)
+		cancel()
+		if err != nil {
+			resp["key_activity"] = nil
+			resp["key_activity_status"] = "unavailable"
+			resp["key_activity_error"] = "KEY_ACTIVITY_UNAVAILABLE"
+		} else {
+			resp["key_activity"] = activity
+			resp["key_activity_status"] = "available"
+		}
 	}
 
 	response.Success(c, resp)

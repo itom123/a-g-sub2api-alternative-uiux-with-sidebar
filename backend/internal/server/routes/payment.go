@@ -51,6 +51,7 @@ func RegisterPaymentRoutes(
 		authenticated.GET("/sessions", paymentHandler.GetPaymentSessions)
 		authenticated.GET("/subscription-checkout", paymentHandler.GetSubscriptionCheckout)
 		authenticated.POST("/sessions/:id/reconcile", paymentHandler.ReconcileSubscriptionSession)
+		authenticated.POST("/sessions/:id/cancel", paymentHandler.CancelSubscriptionSession)
 		authenticated.GET("/limits", paymentHandler.GetLimits)
 
 		orders := authenticated.Group("/orders")

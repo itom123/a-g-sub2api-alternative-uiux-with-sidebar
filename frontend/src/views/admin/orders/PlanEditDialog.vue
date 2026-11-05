@@ -61,11 +61,6 @@
           <label v-for="account in visibleAccounts" :key="account.id" class="flex cursor-pointer items-center gap-3 py-2 text-sm"><input v-model="eligibleUserIds" type="checkbox" :value="account.id" /><span>{{ account.username }} · {{ account.email }}</span></label>
         </div>
       </fieldset>
-      <div>
-        <label class="input-label" for="plan-installment-schedule">{{ t('payment.admin.installmentSchedule') }}</label>
-        <input id="plan-installment-schedule" v-model="installmentSchedule" type="text" class="input" placeholder="8, 5" />
-        <p class="mt-1 text-xs text-gray-500">{{ t('payment.admin.installmentScheduleHint') }}</p>
-      </div>
       <div class="grid grid-cols-2 gap-4">
         <div><label class="input-label">{{ t('payment.admin.validity') }} <span class="text-red-500">*</span></label><input v-model.number="planForm.validity_days" type="number" min="1" class="input" required /></div>
         <div><label class="input-label">{{ t('payment.admin.validityUnit') }} <span class="text-red-500">*</span></label><Select v-model="planForm.validity_unit" :options="validityUnitOptions" /></div>
@@ -147,7 +142,6 @@ const saving = ref(false)
 const planForm = reactive({ name: '', group_id: null as number | null, description: '', price: 0, fixed_price_cny: 0, original_price: 0, currency: '', validity_days: 30, validity_unit: 'days', sort_order: 0, for_sale: true })
 const planFeaturesText = ref('')
 const eligibleUserIds = ref<number[]>([])
-const installmentSchedule = ref('')
 const accountSearch = ref('')
 const accounts = ref<AdminUser[]>([])
 const accountLabels = ref(new Map<number, AdminUser>())
@@ -215,7 +209,6 @@ const subscriptionCnyPreview = computed(() => {
 watch(() => props.show, (visible) => {
   if (!visible) return
   eligibleUserIds.value = [...(props.plan?.eligible_user_ids || [])]
-  installmentSchedule.value = (props.plan?.installment_schedule_cents || []).map(amount => (amount / 100).toFixed(2)).join(', ')
   accountSearch.value = ''
   void loadAccounts()
   for (const id of eligibleUserIds.value) {
@@ -240,7 +233,7 @@ function buildPlanPayload() {
     price: planForm.price,
     fixed_price_cny: planForm.fixed_price_cny || 0,
     eligible_user_ids: [...eligibleUserIds.value],
-    installment_schedule_cents: installmentSchedule.value.trim() ? installmentSchedule.value.split(/[,，]/).map(amount => Math.round(Number(amount.trim()) * 100)) : [],
+    installment_schedule_cents: [],
     original_price: planForm.original_price || 0,
     currency: planForm.currency.trim().toUpperCase(),
     validity_days: planForm.validity_days,
@@ -263,13 +256,6 @@ async function handleSavePlan() {
   if (!planForm.validity_days || planForm.validity_days < 1) {
     appStore.showError(t('payment.admin.validityRequired'))
     return
-  }
-  if (installmentSchedule.value.trim()) {
-    const amounts = installmentSchedule.value.split(/[,，]/).map(amount => Number(amount.trim()))
-    if (amounts.some(amount => !Number.isFinite(amount) || amount <= 0 || amount > 1000 || Math.abs(amount * 100 - Math.round(amount * 100)) > 0.000001) || amounts.reduce((sum, amount) => sum + Math.round(amount * 100), 0) !== Math.round(planForm.fixed_price_cny * 100)) {
-      appStore.showError(t('payment.admin.installmentScheduleInvalid'))
-      return
-    }
   }
   saving.value = true
   try {

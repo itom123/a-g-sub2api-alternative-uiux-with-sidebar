@@ -2352,7 +2352,6 @@
           }}</label>
           <input
             v-model.number="editForm.rate_multiplier"
-            :disabled="isManagedOpenClawGroup(editingGroup.name)"
             type="number"
             step="0.001"
             min="0.001"

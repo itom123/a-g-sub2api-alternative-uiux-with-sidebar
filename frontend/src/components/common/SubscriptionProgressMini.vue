@@ -1,326 +1,176 @@
 <template>
-  <div v-if="subscriptionFeatureEnabled && hasActiveSubscriptions" class="relative" ref="containerRef">
-    <!-- Mini Progress Display -->
+  <div v-if="subscriptionFeatureEnabled && visible" ref="containerRef" class="subscription-mini" data-testid="subscription-mini" @focusout="handleFocusOut">
     <button
-      @click="toggleTooltip"
-      class="flex cursor-pointer items-center gap-2 rounded-xl bg-purple-50 px-3 py-1.5 transition-colors hover:bg-purple-100 dark:bg-purple-900/20 dark:hover:bg-purple-900/30"
+      ref="triggerRef"
+      type="button"
+      class="subscription-mini-trigger"
       :title="t('subscriptionProgress.viewDetails')"
+      :aria-label="triggerLabel"
+      :aria-expanded="tooltipOpen"
+      aria-controls="header-subscription-details"
+      aria-haspopup="dialog"
+      @click="toggleTooltip"
     >
-      <Icon name="creditCard" size="sm" class="text-purple-600 dark:text-purple-400" />
-      <div class="flex items-center gap-1.5">
-        <!-- Combined progress indicator -->
-        <div class="flex items-center gap-0.5">
-          <div
-            v-for="(sub, index) in displaySubscriptions.slice(0, 3)"
-            :key="index"
-            class="h-2 w-2 rounded-full"
-            :class="getProgressDotClass(sub)"
-          ></div>
-        </div>
-        <span class="text-xs font-medium text-purple-700 dark:text-purple-300">
-          {{ activeSubscriptions.length }}
-        </span>
-      </div>
+      <span class="subscription-mini-name">{{ selected ? planName(selected) : t('subscriptionProgress.title') }}</span>
+      <span class="subscription-mini-value" data-testid="subscription-mini-remaining">
+        <template v-if="selected">
+          <span v-if="selected.state === 'finite' && selected.limitingWindow">
+            {{ periodLabel(selected.limitingWindow) }} {{ t('subscriptionProgress.remaining') }} {{ money(selected.limitingWindow.remaining!) }}
+          </span>
+          <span v-else>{{ t(`subscriptionProgress.${selected.state === 'unlimited' ? 'unlimited' : 'unknown'}`) }}</span>
+          <span v-if="plans.length > 1" class="subscription-mini-more">{{ t('subscriptionProgress.morePlans', { count: plans.length - 1 }) }}</span>
+        </template>
+        <template v-else>{{ t(`subscriptionProgress.${subscriptionStore.error ? 'unknown' : 'loading'}`) }}</template>
+      </span>
     </button>
 
-    <!-- Hover/Click Tooltip -->
-    <transition name="dropdown">
-      <div
-        v-if="tooltipOpen"
-        class="absolute right-0 z-50 mt-2 w-[340px] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl dark:border-dark-700 dark:bg-dark-800"
-      >
-        <div class="border-b border-gray-100 p-3 dark:border-dark-700">
-          <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
-            {{ t('subscriptionProgress.title') }}
-          </h3>
-          <p class="mt-0.5 text-xs text-gray-500 dark:text-dark-400">
-            {{ t('subscriptionProgress.activeCount', { count: activeSubscriptions.length }) }}
-          </p>
-        </div>
-
-        <div class="max-h-64 overflow-y-auto">
-          <div
-            v-for="subscription in displaySubscriptions"
-            :key="subscription.id"
-            class="border-b border-gray-50 p-3 last:border-b-0 dark:border-dark-700/50"
-          >
-            <div class="mb-2 flex items-center justify-between">
-              <span class="text-sm font-medium text-gray-900 dark:text-white">
-                {{ subscription.group?.name || `Group #${subscription.group_id}` }}
-              </span>
-              <span
-                v-if="subscription.expires_at"
-                class="text-xs"
-                :class="getDaysRemainingClass(subscription.expires_at)"
-              >
-                {{ formatDaysRemaining(subscription.expires_at) }}
-              </span>
-            </div>
-
-            <!-- Progress bars or Unlimited badge -->
-            <div class="space-y-1.5">
-              <!-- Unlimited subscription badge -->
-              <div
-                v-if="isUnlimited(subscription)"
-                class="flex items-center gap-2 rounded-lg bg-gradient-to-r from-emerald-50 to-teal-50 px-2.5 py-1.5 dark:from-emerald-900/20 dark:to-teal-900/20"
-              >
-                <span class="text-lg text-emerald-600 dark:text-emerald-400">∞</span>
-                <span class="text-xs font-medium text-emerald-700 dark:text-emerald-300">
-                  {{ t('subscriptionProgress.unlimited') }}
-                </span>
-              </div>
-
-              <!-- Progress bars for limited subscriptions -->
-              <template v-else>
-                <div v-if="subscription.group?.daily_limit_usd" class="flex items-center gap-2">
-                  <span class="w-8 flex-shrink-0 text-[10px] text-gray-500">{{
-                    t('subscriptionProgress.daily')
-                  }}</span>
-                  <div class="h-1.5 min-w-0 flex-1 rounded-full bg-gray-200 dark:bg-dark-600">
-                    <div
-                      class="h-1.5 rounded-full transition-all"
-                      :class="
-                        getProgressBarClass(
-                          subscription.daily_usage_usd,
-                          subscription.group?.daily_limit_usd
-                        )
-                      "
-                      :style="{
-                        width: getProgressWidth(
-                          subscription.daily_usage_usd,
-                          subscription.group?.daily_limit_usd
-                        )
-                      }"
-                    ></div>
-                  </div>
-                  <span class="w-24 flex-shrink-0 text-right text-[10px] text-gray-500">
-                    {{
-                      formatUsage(subscription.daily_usage_usd, subscription.group?.daily_limit_usd)
-                    }}
-                  </span>
-                </div>
-
-                <div v-if="subscription.group?.weekly_limit_usd" class="flex items-center gap-2">
-                  <span class="w-8 flex-shrink-0 text-[10px] text-gray-500">{{
-                    t('subscriptionProgress.weekly')
-                  }}</span>
-                  <div class="h-1.5 min-w-0 flex-1 rounded-full bg-gray-200 dark:bg-dark-600">
-                    <div
-                      class="h-1.5 rounded-full transition-all"
-                      :class="
-                        getProgressBarClass(
-                          subscription.weekly_usage_usd,
-                          subscription.group?.weekly_limit_usd
-                        )
-                      "
-                      :style="{
-                        width: getProgressWidth(
-                          subscription.weekly_usage_usd,
-                          subscription.group?.weekly_limit_usd
-                        )
-                      }"
-                    ></div>
-                  </div>
-                  <span class="w-24 flex-shrink-0 text-right text-[10px] text-gray-500">
-                    {{
-                      formatUsage(subscription.weekly_usage_usd, subscription.group?.weekly_limit_usd)
-                    }}
-                  </span>
-                </div>
-
-                <div v-if="subscription.group?.monthly_limit_usd" class="flex items-center gap-2">
-                  <span class="w-8 flex-shrink-0 text-[10px] text-gray-500">{{
-                    t('subscriptionProgress.monthly')
-                  }}</span>
-                  <div class="h-1.5 min-w-0 flex-1 rounded-full bg-gray-200 dark:bg-dark-600">
-                    <div
-                      class="h-1.5 rounded-full transition-all"
-                      :class="
-                        getProgressBarClass(
-                          subscription.monthly_usage_usd,
-                          subscription.group?.monthly_limit_usd
-                        )
-                      "
-                      :style="{
-                        width: getProgressWidth(
-                          subscription.monthly_usage_usd,
-                          subscription.group?.monthly_limit_usd
-                        )
-                      }"
-                    ></div>
-                  </div>
-                  <span class="w-24 flex-shrink-0 text-right text-[10px] text-gray-500">
-                    {{
-                      formatUsage(
-                        subscription.monthly_usage_usd,
-                        subscription.group?.monthly_limit_usd
-                      )
-                    }}
-                  </span>
-                </div>
-              </template>
-            </div>
-          </div>
-        </div>
-
-        <div class="border-t border-gray-100 p-2 dark:border-dark-700">
-          <router-link
-            to="/subscriptions"
-            @click="closeTooltip"
-            class="block w-full py-1 text-center text-xs text-primary-600 hover:underline dark:text-primary-400"
-          >
-            {{ t('subscriptionProgress.viewAll') }}
-          </router-link>
-        </div>
+    <div
+      v-if="tooltipOpen"
+      id="header-subscription-details"
+      class="subscription-popover"
+      :style="{ '--subscription-popover-top': `${popoverTop}px` }"
+      role="dialog"
+      :aria-label="t('subscriptionProgress.title')"
+      tabindex="-1"
+    >
+      <div class="subscription-popover-heading">
+        <h3>{{ t('subscriptionProgress.title') }}</h3>
+        <button type="button" class="subscription-close" :aria-label="t('subscriptionProgress.close')" @click="closeTooltip(true)">×</button>
       </div>
-    </transition>
+      <p class="subscription-popover-note">{{ t('subscriptionProgress.independentQuotas') }}</p>
+      <p v-if="subscriptionStore.error" role="status" class="subscription-popover-note">
+        {{ t(`subscriptionProgress.${subscriptionStore.loaded ? 'refreshError' : 'loadError'}`) }}
+        <button type="button" class="subscription-text-button" :disabled="subscriptionStore.loading" @click="refresh">{{ t('subscriptionProgress.retry') }}</button>
+      </p>
+      <p v-else-if="!subscriptionStore.loaded" role="status" class="subscription-popover-note">{{ t('subscriptionProgress.loading') }}</p>
+      <div v-for="plan in plans" :key="plan.id" class="subscription-plan" :data-plan-id="plan.id">
+        <h4>{{ planName(plan) }}</h4>
+        <p class="subscription-expiry">{{ expiryLabel(plan.expiresAt) }}</p>
+        <dl class="subscription-windows">
+          <div v-for="window in plan.windows" :key="window.period" class="subscription-window">
+            <dt>{{ periodLabel(window) }}</dt>
+            <dd>
+              <strong>{{ t('subscriptionProgress.remaining') }} {{ remainingLabel(window) }}</strong>
+              <span>{{ t('subscriptionProgress.used') }} {{ window.used === null ? t('subscriptionProgress.unknown') : money(window.used) }} / {{ t('subscriptionProgress.limit') }} {{ limitLabel(window) }}</span>
+            </dd>
+          </div>
+        </dl>
+      </div>
+      <router-link to="/subscriptions" class="subscription-view-all" @click="closeTooltip()">{{ t('subscriptionProgress.viewAll') }}</router-link>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { cnyNumber } from '@/utils/currency'
-
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import Icon from '@/components/icons/Icon.vue'
 import { useSubscriptionStore } from '@/stores'
 import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
-import type { UserSubscription } from '@/types'
-import { getExpirationDateRelation } from '@/utils/subscriptionQuota'
+import { formatSubscriptionMoney as money, getExpirationDateRelation } from '@/utils/subscriptionQuota'
+import type { SubscriptionAllowance, SubscriptionQuotaWindow } from '@/utils/subscriptionQuota'
 
 const { t } = useI18n()
-
 const subscriptionStore = useSubscriptionStore()
-
 const containerRef = ref<HTMLElement | null>(null)
+const triggerRef = ref<HTMLButtonElement | null>(null)
 const tooltipOpen = ref(false)
-
-// Use store data instead of local state
-const activeSubscriptions = computed(() => subscriptionStore.activeSubscriptions)
-const hasActiveSubscriptions = computed(() => subscriptionStore.hasActiveSubscriptions)
-// 订阅功能关闭后，即使用户仍持有后台分配的订阅，顶栏也不再露出订阅进度与「查看全部订阅」入口。
+const popoverTop = ref(72)
 const subscriptionFeatureEnabled = computed(() => isFeatureFlagEnabled(FeatureFlags.subscription))
-
-const displaySubscriptions = computed(() => {
-  // Sort by most usage (highest percentage first)
-  return [...activeSubscriptions.value].sort((a, b) => {
-    const aMax = getMaxUsagePercentage(a)
-    const bMax = getMaxUsagePercentage(b)
-    return bMax - aMax
-  })
+const plans = computed(() => subscriptionStore.allowances)
+const selected = computed(() => plans.value[0])
+const visible = computed(() => plans.value.length > 0 || !subscriptionStore.loaded || Boolean(subscriptionStore.error))
+const triggerLabel = computed(() => {
+  if (!selected.value) return t('subscriptionProgress.viewDetails')
+  const plan = selected.value
+  const allowance = plan.state === 'finite' && plan.limitingWindow
+    ? `${periodLabel(plan.limitingWindow)} ${t('subscriptionProgress.remaining')} ${money(plan.limitingWindow.remaining!)}`
+    : t(`subscriptionProgress.${plan.state === 'unlimited' ? 'unlimited' : 'unknown'}`)
+  return `${planName(plan)}: ${allowance}. ${t('subscriptionProgress.viewDetails')}`
 })
 
-function getMaxUsagePercentage(sub: UserSubscription): number {
-  const percentages: number[] = []
-  if (sub.group?.daily_limit_usd) {
-    percentages.push(((sub.daily_usage_usd || 0) / sub.group.daily_limit_usd) * 100)
-  }
-  if (sub.group?.weekly_limit_usd) {
-    percentages.push(((sub.weekly_usage_usd || 0) / sub.group.weekly_limit_usd) * 100)
-  }
-  if (sub.group?.monthly_limit_usd) {
-    percentages.push(((sub.monthly_usage_usd || 0) / sub.group.monthly_limit_usd) * 100)
-  }
-  return percentages.length > 0 ? Math.max(...percentages) : 0
+function planName(plan: SubscriptionAllowance) {
+  return plan.name || t('subscriptionProgress.planFallback', { id: plan.groupId })
 }
-
-function isUnlimited(sub: UserSubscription): boolean {
-  return (
-    !sub.group?.daily_limit_usd &&
-    !sub.group?.weekly_limit_usd &&
-    !sub.group?.monthly_limit_usd
-  )
+function periodLabel(window: SubscriptionQuotaWindow) {
+  return t(`subscriptionProgress.${window.oneTime ? 'oneTime' : window.period}`)
 }
-
-function getProgressDotClass(sub: UserSubscription): string {
-  // Unlimited subscriptions get a special color
-  if (isUnlimited(sub)) {
-    return 'bg-emerald-500'
-  }
-  const maxPercentage = getMaxUsagePercentage(sub)
-  if (maxPercentage >= 90) return 'bg-red-500'
-  if (maxPercentage >= 70) return 'bg-orange-500'
-  return 'bg-green-500'
+function remainingLabel(window: SubscriptionQuotaWindow) {
+  return window.state === 'finite' ? money(window.remaining!) : t(`subscriptionProgress.${window.state}`)
 }
-
-function getProgressBarClass(used: number | undefined, limit: number | null | undefined): string {
-  if (!limit || limit === 0) return 'bg-gray-400'
-  const percentage = ((used || 0) / limit) * 100
-  if (percentage >= 90) return 'bg-red-500'
-  if (percentage >= 70) return 'bg-orange-500'
-  return 'bg-green-500'
+function limitLabel(window: SubscriptionQuotaWindow) {
+  return window.state === 'finite' ? money(window.limit!) : t(`subscriptionProgress.${window.state}`)
 }
-
-function getProgressWidth(used: number | undefined, limit: number | null | undefined): string {
-  if (!limit || limit === 0) return '0%'
-  const percentage = Math.min(((used || 0) / limit) * 100, 100)
-  return `${percentage}%`
-}
-
-function formatUsage(used: number | undefined, limit: number | null | undefined): string {
-  return `¥${cnyNumber(used || 0, 0)}/${limit == null ? '∞' : `¥${cnyNumber(limit, 0)}`}`
-}
-
-function formatDaysRemaining(expiresAt: string): string {
-  const now = new Date()
-  const expires = new Date(expiresAt)
-  const diff = expires.getTime() - now.getTime()
-  const relation = getExpirationDateRelation(expires, now)
+function expiryLabel(expiresAt: string | null) {
+  if (!expiresAt) return t('subscriptionProgress.noExpiry')
+  const now = new Date(subscriptionStore.currentTime)
+  const relation = getExpirationDateRelation(expiresAt, now)
+  if (!relation) return t('subscriptionProgress.unknown')
   if (relation === 'expired') return t('subscriptionProgress.expired')
   if (relation === 'today') return t('subscriptionProgress.expiresToday')
   if (relation === 'tomorrow') return t('subscriptionProgress.expiresTomorrow')
-  const days = Math.ceil(diff / (1000 * 60 * 60 * 24))
-  return t('subscriptionProgress.daysRemaining', { days })
+  return t('subscriptionProgress.daysRemaining', { days: Math.ceil((Date.parse(expiresAt) - now.getTime()) / 86_400_000) })
 }
-
-function getDaysRemainingClass(expiresAt: string): string {
-  const now = new Date()
-  const expires = new Date(expiresAt)
-  const diff = expires.getTime() - now.getTime()
-  const days = Math.ceil(diff / (1000 * 60 * 60 * 24))
-  if (days <= 3) return 'text-red-600 dark:text-red-400'
-  if (days <= 7) return 'text-orange-600 dark:text-orange-400'
-  return 'text-gray-500 dark:text-dark-400'
+function refresh() {
+  if (subscriptionFeatureEnabled.value) subscriptionStore.fetchActiveSubscriptions(true).catch(() => {})
 }
-
 function toggleTooltip() {
+  popoverTop.value = (triggerRef.value?.getBoundingClientRect().bottom || 64) + 8
   tooltipOpen.value = !tooltipOpen.value
 }
-
-function closeTooltip() {
+function closeTooltip(restoreFocus = false) {
   tooltipOpen.value = false
+  if (restoreFocus) triggerRef.value?.focus()
 }
-
 function handleClickOutside(event: MouseEvent) {
-  if (containerRef.value && !containerRef.value.contains(event.target as Node)) {
-    closeTooltip()
+  if (containerRef.value && !containerRef.value.contains(event.target as Node)) closeTooltip()
+}
+function handleKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && tooltipOpen.value) {
+    event.preventDefault()
+    closeTooltip(true)
   }
 }
-
+function handleFocusOut(event: FocusEvent) {
+  if (event.relatedTarget instanceof Node && !containerRef.value?.contains(event.relatedTarget)) closeTooltip()
+}
+watch(subscriptionFeatureEnabled, (enabled) => {
+  if (!enabled) closeTooltip()
+  else subscriptionStore.fetchActiveSubscriptions().catch(() => {})
+})
 onMounted(() => {
   document.addEventListener('click', handleClickOutside)
-  // Trigger initial fetch if not already loaded
-  // The actual data loading is handled by App.vue globally
-  if (!subscriptionFeatureEnabled.value) return
-  subscriptionStore.fetchActiveSubscriptions().catch((error) => {
-    console.error('Failed to load subscriptions in SubscriptionProgressMini:', error)
-  })
+  document.addEventListener('keydown', handleKeydown)
+  if (subscriptionFeatureEnabled.value) subscriptionStore.fetchActiveSubscriptions().catch(() => {})
 })
-
 onBeforeUnmount(() => {
   document.removeEventListener('click', handleClickOutside)
+  document.removeEventListener('keydown', handleKeydown)
 })
 </script>
 
 <style scoped>
-.dropdown-enter-active,
-.dropdown-leave-active {
-  transition: all 0.2s ease;
-}
-
-.dropdown-enter-from,
-.dropdown-leave-to {
-  opacity: 0;
-  transform: scale(0.95) translateY(-4px);
+.subscription-mini { min-width: 0; max-width: 22rem; color: var(--ag-ink, #000); }
+.subscription-mini-trigger { display: flex; min-width: 0; max-width: 100%; flex-direction: column; align-items: flex-start; padding: 0.35rem 0.5rem; border: 1px solid var(--ag-rule, currentColor); background: var(--ag-paper, #fff); text-align: left; line-height: 1.3; }
+.subscription-mini-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.75rem; }
+.subscription-mini-value { font-size: 0.75rem; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.subscription-mini-more { margin-inline-start: 0.4rem; font-weight: 400; }
+.subscription-popover { position: fixed; top: var(--subscription-popover-top); right: 1rem; z-index: 60; width: min(30rem, calc(100vw - 2rem)); max-height: calc(100dvh - var(--subscription-popover-top) - 1rem); overflow-y: auto; border: 1px solid var(--ag-rule, currentColor); background: var(--ag-paper, #fff); padding: 1rem; color: var(--ag-ink, #000); }
+.subscription-popover-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; font-size: 0.875rem; font-weight: 600; }
+.subscription-close { min-width: 2rem; min-height: 2rem; font-size: 1.25rem; }
+.subscription-popover-note, .subscription-expiry { margin-top: 0.4rem; font-size: 0.75rem; line-height: 1.5; }
+.subscription-plan { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--ag-rule, currentColor); }
+.subscription-plan h4 { font-size: 0.875rem; font-weight: 600; overflow-wrap: anywhere; }
+.subscription-windows { margin-top: 0.75rem; display: grid; gap: 0.65rem; font-size: 0.75rem; }
+.subscription-window { display: grid; grid-template-columns: minmax(4rem, 1fr) minmax(0, 3fr); gap: 0.5rem; }
+.subscription-window dd { display: flex; flex-direction: column; gap: 0.2rem; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.subscription-window strong { font-weight: 600; }
+.subscription-text-button, .subscription-view-all { text-decoration: underline; text-underline-offset: 3px; }
+.subscription-view-all { display: block; margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--ag-rule, currentColor); font-size: 0.75rem; }
+button:focus-visible, a:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+@media (max-width: 639px) {
+  .subscription-mini { max-width: min(45vw, 14rem); }
+  .subscription-mini-trigger { padding: 0.25rem 0.35rem; }
+  .subscription-mini-name { font-size: 0.625rem; }
+  .subscription-mini-value { font-size: 0.6875rem; }
 }
 </style>

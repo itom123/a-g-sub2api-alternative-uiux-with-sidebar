@@ -13,6 +13,10 @@ describe('UserDashboardConsistency', () => {
     expect(wrapper.text()).toContain('3')
     expect(wrapper.text()).toContain('120')
     expect(wrapper.text()).toContain('accountInsights.consistency.up')
+    expect(wrapper.get('[data-testid="consistency-recentCalls"]').text()).toContain('10')
+    expect(wrapper.get('[data-testid="consistency-priorCalls"]').text()).toContain('8')
+    expect(wrapper.get('[data-testid="consistency-activeRate"]').text()).toContain('16.7%')
+    expect(wrapper.findAll('.account-consistency-metrics > div')).toHaveLength(8)
     expect(wrapper.text()).not.toMatch(/team|peer|other user/i)
   })
 

@@ -106,6 +106,42 @@ export interface UsageDashboardSnapshotV2Params extends TrendParams {
   include_trend?: boolean
   include_model_stats?: boolean
   include_group_stats?: boolean
+  include_key_activity?: boolean
+}
+
+export interface DashboardKeyActivityRow {
+  api_key_id: number
+  key_name: string
+  status: string
+  deleted: boolean
+  range_actual_cost: number
+  lifetime_actual_cost: number
+  today_actual_cost: number
+  requests: number
+  input_tokens: number
+  cache_creation_tokens: number
+  cache_read_tokens: number
+  output_tokens: number
+  total_tokens: number
+  favourite_model: string | null
+  last_used_at: string | null
+}
+export interface DashboardActiveWindow {
+  id: '60m' | '12h' | '24h'
+  requests: number
+  tokens: number
+  rpm: number
+  tpm: number
+  last_call_at: string | null
+  model_shares: Array<{ model: string; requests: number; tokens: number; share: number }>
+}
+export interface DashboardKeyActivity {
+  as_of: string
+  range_start: string
+  range_end_exclusive: string
+  coverage: 'retained_logs'
+  keys: DashboardKeyActivityRow[]
+  active_windows: DashboardActiveWindow[]
 }
 
 export interface UsageDashboardSnapshotV2Response {
@@ -116,6 +152,9 @@ export interface UsageDashboardSnapshotV2Response {
   trend?: TrendDataPoint[]
   models?: ModelStat[]
   groups?: GroupStat[]
+  key_activity?: DashboardKeyActivity | null
+  key_activity_status?: 'available' | 'unavailable'
+  key_activity_error?: string
 }
 
 /**

@@ -80,6 +80,12 @@ function startSubscriptionSync() {
   subscriptionStore.startPolling()
 }
 
+watch(() => authStore.user?.id, (id, previous) => {
+  if (previous == null || id === previous) return
+  subscriptionStore.clear()
+  if (id != null && subscriptionFeatureEnabled.value) startSubscriptionSync()
+})
+
 watch(subscriptionFeatureEnabled, (enabled) => {
   if (!authStore.isAuthenticated) return
   if (enabled) {

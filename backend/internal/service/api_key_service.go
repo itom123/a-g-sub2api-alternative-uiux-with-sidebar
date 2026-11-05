@@ -382,7 +382,9 @@ func (s *APIKeyService) EnsureOpenClawGroup(ctx context.Context) (*Group, error)
 	}
 
 	changed := false
-	if managed.RateMultiplier != OpenClawBillingRateMultiplier {
+	// Existing groups use the administrator's price. Only repair invalid rates;
+	// provisioning a workspace must not reset an intentional billing change.
+	if managed.RateMultiplier <= 0 || math.IsNaN(managed.RateMultiplier) || math.IsInf(managed.RateMultiplier, 0) {
 		managed.RateMultiplier = OpenClawBillingRateMultiplier
 		changed = true
 	}

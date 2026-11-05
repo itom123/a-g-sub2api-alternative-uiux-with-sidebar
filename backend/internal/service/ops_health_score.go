@@ -5,6 +5,14 @@ import (
 	"time"
 )
 
+// TTFT P90 band for the business score. LLM time to first token is set mostly
+// by the upstream model (prompt size, reasoning effort, prompt-cache hits), so
+// the old 1–3s P99 band scored normal long-prompt traffic as broken.
+const (
+	opsHealthTTFTGoodMs = 5_000
+	opsHealthTTFTBadMs  = 20_000
+)
+
 // computeDashboardHealthScore computes a 0-100 health score from the metrics returned by the dashboard overview.
 //
 // Design goals:
@@ -12,7 +20,7 @@ import (
 // - Layered scoring: Business Health (70%) + Infrastructure Health (30%)
 // - Avoids double-counting (e.g., DB failure affects both infra and business metrics)
 // - Conservative + stable: penalize clear degradations; avoid overreacting to missing/idle data.
-func computeDashboardHealthScore(now time.Time, overview *OpsDashboardOverview) int {
+func computeDashboardHealthScore(now time.Time, overview *OpsDashboardOverview, jobs opsJobHeartbeatPolicies) int {
 	if overview == nil {
 		return 0
 	}
@@ -24,7 +32,7 @@ func computeDashboardHealthScore(now time.Time, overview *OpsDashboardOverview) 
 	}
 
 	businessHealth := computeBusinessHealth(overview)
-	infraHealth := computeInfraHealth(now, overview)
+	infraHealth := computeInfraHealth(now, overview, jobs)
 
 	// Weighted combination: 70% business + 30% infrastructure
 	score := businessHealth*0.7 + infraHealth*0.3
@@ -35,27 +43,27 @@ func computeDashboardHealthScore(now time.Time, overview *OpsDashboardOverview) 
 // Components: Error Rate (50%) + TTFT (50%)
 func computeBusinessHealth(overview *OpsDashboardOverview) float64 {
 	// Error rate score: 1% → 100, 10% → 0 (linear)
-	// Combines request errors and upstream errors
+	// Uses the client-visible (SLA) error rate only. The upstream error rate also
+	// counts attempts that failed over and then succeeded on another account,
+	// which clients never saw; it stays a diagnosis signal, not a score input.
 	errorScore := 100.0
 	errorPct := clampFloat64(overview.ErrorRate*100, 0, 100)
-	upstreamPct := clampFloat64(overview.UpstreamErrorRate*100, 0, 100)
-	combinedErrorPct := math.Max(errorPct, upstreamPct) // Use worst case
-	if combinedErrorPct > 1.0 {
-		if combinedErrorPct <= 10.0 {
-			errorScore = (10.0 - combinedErrorPct) / 9.0 * 100
+	if errorPct > 1.0 {
+		if errorPct <= 10.0 {
+			errorScore = (10.0 - errorPct) / 9.0 * 100
 		} else {
 			errorScore = 0
 		}
 	}
 
-	// TTFT score: 1s → 100, 3s → 0 (linear)
-	// Time to first token is critical for user experience
+	// TTFT score: P90 5s → 100, 20s → 0 (linear). P90 tracks what most users
+	// see without one huge prompt deciding the score.
 	ttftScore := 100.0
-	if overview.TTFT.P99 != nil {
-		p99 := float64(*overview.TTFT.P99)
-		if p99 > 1000 {
-			if p99 <= 3000 {
-				ttftScore = (3000 - p99) / 2000 * 100
+	if overview.TTFT.P90 != nil {
+		p90 := float64(*overview.TTFT.P90)
+		if p90 > opsHealthTTFTGoodMs {
+			if p90 <= opsHealthTTFTBadMs {
+				ttftScore = (opsHealthTTFTBadMs - p90) / (opsHealthTTFTBadMs - opsHealthTTFTGoodMs) * 100
 			} else {
 				ttftScore = 0
 			}
@@ -68,7 +76,7 @@ func computeBusinessHealth(overview *OpsDashboardOverview) float64 {
 
 // computeInfraHealth calculates infrastructure health score (0-100)
 // Components: Storage (40%) + Compute Resources (30%) + Background Jobs (30%)
-func computeInfraHealth(now time.Time, overview *OpsDashboardOverview) float64 {
+func computeInfraHealth(now time.Time, overview *OpsDashboardOverview, jobs opsJobHeartbeatPolicies) float64 {
 	// Storage score: DB critical, Redis less critical
 	storageScore := 100.0
 	if overview.SystemMetrics != nil {
@@ -109,7 +117,8 @@ func computeInfraHealth(now time.Time, overview *OpsDashboardOverview) float64 {
 		computeScore = (cpuScore + memScore) / 2
 	}
 
-	// Background jobs score
+	// Background jobs score: a job counts as failed when its latest run failed
+	// or it missed its own schedule (see opsJobHeartbeatPolicy).
 	jobScore := 100.0
 	failedJobs := 0
 	totalJobs := 0
@@ -117,10 +126,12 @@ func computeInfraHealth(now time.Time, overview *OpsDashboardOverview) float64 {
 		if hb == nil {
 			continue
 		}
+		policy := jobs.policyFor(hb.JobName)
+		if policy.skip {
+			continue
+		}
 		totalJobs++
-		if hb.LastErrorAt != nil && (hb.LastSuccessAt == nil || hb.LastErrorAt.After(*hb.LastSuccessAt)) {
-			failedJobs++
-		} else if hb.LastSuccessAt != nil && now.Sub(*hb.LastSuccessAt) > 15*time.Minute {
+		if policy.failed(now, hb) {
 			failedJobs++
 		}
 	}

@@ -35,7 +35,7 @@ var (
 	ErrOpenClawRequestPending      = errors.New("openclaw access request already pending")
 	ErrOpenClawRequestNotFound     = errors.New("openclaw access request not found")
 	ErrOpenClawGroupImmutable      = infraerrors.Forbidden("OPENCLAW_GROUP_IMMUTABLE", "OpenClaw workspace keys must remain in the openai-龙虾 group")
-	ErrOpenClawBillingLocked       = infraerrors.Forbidden("OPENCLAW_BILLING_LOCKED", "The managed OpenClaw group is reserved and locked to openai-龙虾 at x0.3")
+	ErrOpenClawBillingLocked       = infraerrors.Forbidden("OPENCLAW_BILLING_LOCKED", "The managed OpenClaw group's identity, availability, and user rate overrides are reserved")
 )
 
 const (
@@ -328,6 +328,8 @@ func (c *HTTPOpenClawFleetClient) Delete(ctx context.Context, tenant string) err
 	return err
 }
 func (c *HTTPOpenClawFleetClient) Status(ctx context.Context, tenant string) (OpenClawFleetResult, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
 	return c.call(ctx, "status", tenant)
 }
 
@@ -1556,21 +1558,75 @@ func (s *OpenClawService) GetDashboard(ctx context.Context, userID int64) (OpenC
 		}
 		dashboard.APIKey = apiKey
 	}
-	if s.fleet != nil && s.fleet.Enabled() {
+	if s.fleet != nil && s.fleet.Enabled() && openClawStatusRefreshable(instance) {
 		status, statusErr := s.fleet.Status(ctx, instance.TenantSlug)
-		if statusErr != nil {
-			// Health telemetry must not make the tenant console unusable while a
-			// worker is restarting. Keep the last control-plane data visible and
-			// label the bridge as unavailable until the next successful check.
+		if statusErr != nil || !validOpenClawObservation(status) {
+			// An unavailable observation is not evidence that the cell needs setup.
 			dashboard.FleetState = "unavailable"
 			return dashboard, nil
 		}
+		var port *int
+		if status.Port > 0 {
+			port = &status.Port
+		}
+		updated, updateErr := scanOpenClawInstance(s.db.QueryRowContext(ctx, refreshOpenClawStatusSQL,
+			status.State, port, status.LatencyMS, instance.ID, userID, instance.Status, instance.UpdatedAt))
+		if errors.Is(updateErr, sql.ErrNoRows) {
+			// Stop, deletion, or another lifecycle change won while we observed the
+			// runtime. Never apply that old observation to the new control state.
+			current, currentErr := s.GetInstance(ctx, userID, instance.ID)
+			if currentErr != nil {
+				return OpenClawDashboard{}, currentErr
+			}
+			dashboard.Instance = current
+			dashboard.FleetState = current.Status
+			return dashboard, nil
+		}
+		if updateErr != nil {
+			dashboard.FleetState = "unavailable"
+			return dashboard, nil
+		}
+		dashboard.Instance = updated
 		dashboard.FleetState = status.State
 		dashboard.LatencyMS = status.LatencyMS
-		_, _ = s.db.ExecContext(ctx, `UPDATE openclaw_instances SET status = $1, last_latency_ms = $2, last_seen_at = NOW(), updated_at = NOW() WHERE id = $3 AND user_id = $4`, status.State, status.LatencyMS, instance.ID, userID)
 	}
 	return dashboard, nil
 }
+
+// Observation must not certify managed setup or cancel a pending lifecycle action.
+func openClawStatusRefreshable(instance OpenClawInstance) bool {
+	if instance.DeletionRequestedAt != nil || instance.DeletionScheduledAt != nil || instance.LastError != "" {
+		return false
+	}
+	switch instance.Status {
+	case "ready", "running", "stopped", "missing", "unknown", "unavailable":
+		return true
+	default:
+		return false
+	}
+}
+
+func validOpenClawObservation(status OpenClawFleetResult) bool {
+	switch status.State {
+	case "running", "ready":
+		return status.Port >= 19100 && status.Port < 19200 && (status.LatencyMS == nil || *status.LatencyMS >= 0)
+	case "stopped", "missing":
+		return status.LatencyMS == nil && (status.Port == 0 || status.Port >= 19100 && status.Port < 19200)
+	default:
+		return false
+	}
+}
+
+const refreshOpenClawStatusSQL = `
+	UPDATE openclaw_instances
+	SET status = $1, port = COALESCE($2::integer, port), last_latency_ms = $3::integer,
+	    last_seen_at = CASE WHEN $3::integer IS NOT NULL THEN NOW() ELSE last_seen_at END,
+	    updated_at = NOW()
+	WHERE id = $4 AND user_id = $5 AND status = $6 AND updated_at = $7
+	  AND deletion_requested_at IS NULL AND deletion_scheduled_at IS NULL
+	  AND COALESCE(last_error, '') = ''
+	RETURNING id, tenant_slug, name, status, worker_host, port, COALESCE(last_error, ''), created_at, updated_at,
+	          deletion_requested_at, deletion_scheduled_at`
 
 // GetGatewayLaunchURL issues the native OpenClaw browser handoff for the
 // authenticated owner's cell. The URL is short-lived and is returned only to

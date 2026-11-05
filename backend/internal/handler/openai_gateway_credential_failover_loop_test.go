@@ -319,6 +319,11 @@ type grokCredentialHandlerUpstream struct {
 	failAccountID int64
 	rateLimitIDs  map[int64]bool
 	failureStatus map[int64]int
+	// streamShedIDs answer a stream with HTTP 200, response.created, then an
+	// in-stream server_is_overloaded error (live 2026-11-01 capacity shedding).
+	streamShedIDs map[int64]bool
+	// realisticStream starts healthy streams with response.created, as real upstreams do.
+	realisticStream bool
 	cancelRequest context.CancelFunc
 }
 
@@ -334,8 +339,20 @@ func (u *grokCredentialHandlerUpstream) Do(req *http.Request, _ string, accountI
 	failAccountID := u.failAccountID
 	rateLimited := u.rateLimitIDs[accountID]
 	failureStatus := u.failureStatus[accountID]
+	streamShed := u.streamShedIDs[accountID]
+	realisticStream := u.realisticStream
 	cancelRequest := u.cancelRequest
 	u.mu.Unlock()
+	if streamShed && bytes.Contains(requestBody, []byte(`"stream":true`)) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+			Body: io.NopCloser(bytes.NewBufferString(
+				"data: {\"type\":\"response.created\",\"sequence_number\":0,\"response\":{\"id\":\"resp_shed\",\"model\":\"grok-4.5\",\"status\":\"in_progress\",\"output\":[]}}\n\n" +
+					"event: error\ndata: {\"type\":\"error\",\"sequence_number\":3,\"error\":{\"code\":\"server_is_overloaded\",\"type\":\"service_unavailable_error\",\"message\":\"Our servers are currently overloaded. Please try again later.\"}}\n\n",
+			)),
+		}, nil
+	}
 	if rateLimited {
 		return &http.Response{
 			StatusCode: http.StatusTooManyRequests,
@@ -364,10 +381,14 @@ func (u *grokCredentialHandlerUpstream) Do(req *http.Request, _ string, accountI
 		}, nil
 	}
 	if bytes.Contains(requestBody, []byte(`"stream":true`)) {
+		created := ""
+		if realisticStream {
+			created = "data: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_healthy\",\"model\":\"grok-4.5\",\"status\":\"in_progress\",\"output\":[]}}\n\n"
+		}
 		return &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
-			Body: io.NopCloser(bytes.NewBufferString(
+			Body: io.NopCloser(bytes.NewBufferString(created +
 				"data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_healthy\",\"model\":\"grok-4.5\",\"usage\":{\"input_tokens\":1,\"output_tokens\":1}}}\n\n",
 			)),
 		}, nil
@@ -862,7 +883,7 @@ func newGrokCredentialFailoverHandler(t *testing.T, mode string) (*OpenAIGateway
 			Extra: map[string]any{service.GrokMediaEligibleExtraKey: true},
 		},
 	}
-	if mode == "postmap_cancel" || mode == "first_402" || mode == "first_429" || mode == "all_429" || mode == "mixed_429_500" || mode == "mixed_500_429" || mode == "oauth_429_apikey_500" {
+	if mode == "postmap_cancel" || mode == "first_402" || mode == "first_429" || mode == "all_429" || mode == "mixed_429_500" || mode == "mixed_500_429" || mode == "oauth_429_apikey_500" || mode == "first_stream_shed" {
 		accounts[0].Credentials["expires_at"] = time.Now().Add(2 * time.Hour).UTC().Format(time.RFC3339)
 	}
 	if mode == "all_429" || mode == "mixed_429_500" || mode == "mixed_500_429" || mode == "oauth_429_apikey_500" {
@@ -920,6 +941,9 @@ func newGrokCredentialFailoverHandler(t *testing.T, mode string) (*OpenAIGateway
 	case "oauth_429_apikey_500":
 		upstream.rateLimitIDs = map[int64]bool{801: true}
 		upstream.failureStatus = map[int64]int{802: http.StatusInternalServerError}
+	case "first_stream_shed":
+		upstream.streamShedIDs = map[int64]bool{801: true}
+		upstream.realisticStream = true
 	}
 	cfg := &config.Config{RunMode: config.RunModeSimple}
 	cfg.Gateway.MaxAccountSwitches = 3
@@ -957,4 +981,35 @@ func newGrokCredentialFailoverHandler(t *testing.T, mode string) (*OpenAIGateway
 		billingCache.Stop()
 	}
 	return h, repo, upstream, router, cleanup
+}
+
+// Live 2026-11-01: an in-stream overload right after response.created reached
+// the client because message_start had already been sent. With message_start
+// held until content, the request moves to the next account and the client
+// sees one clean message.
+func TestMessagesStreamCapacityShedBeforeContentFailsOverToNextAccount(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	_, _, upstream, router, cleanup := newGrokCredentialFailoverHandler(t, "first_stream_shed")
+	defer cleanup()
+
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/openai/v1/messages",
+		bytes.NewBufferString(`{"model":"grok","max_tokens":16,"messages":[{"role":"user","content":"hello"}],"stream":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(recorder, req)
+
+	body := recorder.Body.String()
+	require.Equal(t, http.StatusOK, recorder.Code, body)
+	// The designed overload policy retries the same account a bounded number of
+	// times before switching; the request must end on the healthy account.
+	hits := upstream.accountHits()
+	require.GreaterOrEqual(t, len(hits), 2, hits)
+	require.Equal(t, int64(802), hits[len(hits)-1], hits)
+	for _, id := range hits[:len(hits)-1] {
+		require.Equal(t, int64(801), id, hits)
+	}
+	require.Equal(t, 1, strings.Count(body, "event: message_start"), body)
+	require.Contains(t, body, "event: message_stop")
+	require.NotContains(t, body, "event: error")
+	require.NotContains(t, body, "overloaded")
 }

@@ -1088,6 +1088,11 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 			releaseOpsCaptureWriter(w)
 		}()
 		c.Writer = w
+		// Timing starts before API-key and routing middleware, which may read the body.
+		var timing *service.OpsRequestTiming
+		if ops != nil {
+			timing = service.StartOpsRequestTiming(c, time.Now())
+		}
 		c.Next()
 		w.finalizeCapture()
 
@@ -1100,6 +1105,11 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 		}
 		if !ops.IsMonitoringEnabled(c.Request.Context()) {
 			return
+		}
+		// Every gateway request that finished pre-processing, successful or not,
+		// feeds the overhead metric.
+		if processingMs, uploadMs, ok := timing.PreprocessingSplit(); ok {
+			ops.RecordGatewayOverhead(time.Now(), processingMs, uploadMs, getContextLatencyMs(c, service.OpsRoutingLatencyMsKey))
 		}
 		if c.GetBool(opsDedicatedErrorRecordedKey) {
 			return
@@ -1261,6 +1271,7 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 			}
 		}
 		suppressOpsUpstreamAttributionForLocalModelConfiguration(c, entry)
+		applyOpsContextLimitAttribution(entry)
 
 		if apiKey != nil {
 			entry.APIKeyID = &apiKey.ID
@@ -1570,6 +1581,7 @@ func logOpsStreamErrorValue(c *gin.Context, ops *service.OpsService, wireStatus 
 	if streamErr.Turn > 0 && !streamErr.RequestScoped {
 		applyOpsStreamErrorSnapshot(entry, streamErr)
 	}
+	applyOpsContextLimitAttribution(entry)
 
 	if apiKey != nil {
 		entry.APIKeyID = &apiKey.ID
@@ -1590,6 +1602,29 @@ func logOpsStreamErrorValue(c *gin.Context, ops *service.OpsService, wireStatus 
 	}
 
 	enqueueOpsErrorLog(ops, entry)
+}
+
+// applyOpsContextLimitAttribution files "input does not fit the model's context
+// window" failures as client errors outside SLA. The upstream reports them, so
+// without this they land on the provider (and, when relayed as 502, count as
+// outages) even though retrying the same request can never succeed. The
+// upstream status and message stay on the entry for diagnosis.
+func applyOpsContextLimitAttribution(entry *service.OpsInsertErrorLogInput) {
+	if entry == nil {
+		return
+	}
+	limited := service.IsOpsContextLimitErrorMessage(entry.ErrorMessage)
+	if !limited && entry.UpstreamErrorMessage != nil {
+		limited = service.IsOpsContextLimitErrorMessage(*entry.UpstreamErrorMessage)
+	}
+	if !limited {
+		return
+	}
+	entry.ErrorPhase = "request"
+	entry.ErrorOwner = "client"
+	entry.ErrorSource = "client_request"
+	entry.IsBusinessLimited = true
+	entry.Severity = "P3"
 }
 
 func applyOpsStreamErrorSnapshot(entry *service.OpsInsertErrorLogInput, streamErr service.OpsStreamError) {

@@ -33,6 +33,9 @@ describe('clearing in-flight subscriptions', () => {
     else pending.reject(new Error('offline'))
     await request
     expect(store.loading).toBe(false)
+    expect(store.loaded).toBe(false)
+    expect(store.error).toBeNull()
+    expect(store.lastFetchedAt).toBeNull()
     expect(store.activeSubscriptions).toEqual([])
   })
 

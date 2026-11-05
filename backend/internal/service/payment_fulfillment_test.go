@@ -1093,7 +1093,7 @@ func createPaymentFulfillmentSubscriptionOrder(
 		SetPayAmount(80).
 		SetFeeRate(0).
 		SetRechargeCode("PAY-SUB-" + strconv.FormatInt(time.Now().UnixNano(), 10)).
-		SetOutTradeNo("sub2_fulfillment_" + strconv.FormatInt(time.Now().UnixNano(), 10)).
+		SetOutTradeNo(generateOutTradeNo()).
 		SetPaymentType(payment.TypeAlipay).
 		SetPaymentTradeNo("trade-fulfillment").
 		SetOrderType(payment.OrderTypeSubscription).

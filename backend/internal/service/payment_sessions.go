@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"time"
@@ -18,11 +19,11 @@ import (
 // so a user can resume a purchase after leaving the checkout page.
 func (s *PaymentService) GetUserPaymentSessions(ctx context.Context, userID int64) ([]PaymentSessionSummary, error) {
 	// Include every unfinished bill even when it predates the latest history page.
-	open, err := s.entClient.PaymentSession.Query().Where(paymentsession.UserIDEQ(userID), paymentsession.StatusIn("PENDING", "PAID", "ALLOCATION_FAILED")).Order(dbent.Desc(paymentsession.FieldID)).All(ctx)
+	open, err := s.entClient.PaymentSession.Query().Where(paymentsession.UserIDEQ(userID), paymentsession.StatusIn("PENDING", "CANCELLING", "PAID", "ALLOCATION_FAILED")).Order(dbent.Desc(paymentsession.FieldID)).All(ctx)
 	if err != nil {
 		return nil, err
 	}
-	recent, err := s.entClient.PaymentSession.Query().Where(paymentsession.UserIDEQ(userID)).Order(dbent.Desc(paymentsession.FieldID)).Limit(20).All(ctx)
+	recent, err := s.entClient.PaymentSession.Query().Where(paymentsession.UserIDEQ(userID), paymentsession.StatusNEQ(paymentSessionCancelled)).Order(dbent.Desc(paymentsession.FieldID)).Limit(20).All(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -92,14 +93,37 @@ func (s *PaymentService) ListUserSubscriptionPlans(ctx context.Context, userID i
 	if err != nil {
 		return nil, err
 	}
+	tx, err := s.entClient.Tx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if err := lockPaymentUser(ctx, tx.Client(), userID); err != nil {
+		return nil, err
+	}
+	txCtx := dbent.NewTxContext(ctx, tx)
 	eligible := make([]*dbent.SubscriptionPlan, 0, len(plans))
 	for _, plan := range plans {
-		if s.subscriptionPlanAllowed(ctx, userID, plan) {
-			eligible = append(eligible, plan)
+		if !s.subscriptionPlanAllowed(ctx, userID, plan) {
+			continue
 		}
+		g, err := tx.Group.Get(ctx, plan.GroupID)
+		if err != nil {
+			if dbent.IsNotFound(err) {
+				continue
+			}
+			return nil, err
+		}
+		if err := s.checkActiveSubscriptionPlatform(txCtx, userID, g.Platform); err != nil {
+			if errors.Is(err, ErrSubscriptionPlatformAlreadyActive) {
+				continue
+			}
+			return nil, err
+		}
+		eligible = append(eligible, plan)
 	}
 	plans = eligible
-	sessions, err := s.entClient.PaymentSession.Query().Where(paymentsession.UserIDEQ(userID), paymentsession.StatusIn("PENDING", "PAID", "ALLOCATION_FAILED")).All(ctx)
+	sessions, err := tx.PaymentSession.Query().Where(paymentsession.UserIDEQ(userID), paymentsession.StatusIn("PENDING", "CANCELLING", "PAID", "ALLOCATION_FAILED")).All(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -108,10 +132,24 @@ func (s *PaymentService) ListUserSubscriptionPlans(ctx context.Context, userID i
 		seen[p.ID] = true
 	}
 	for _, session := range sessions {
+		if session.Status == paymentSessionCancelled || session.Status == paymentSessionCancelling {
+			continue
+		}
 		if seen[session.PlanID] {
 			continue
 		}
-		plan, err := s.configService.GetPlan(ctx, session.PlanID)
+		g, err := tx.Group.Get(ctx, session.SubscriptionGroupID)
+		if err == nil {
+			if err := s.checkActiveSubscriptionPlatform(txCtx, userID, g.Platform); err != nil {
+				if errors.Is(err, ErrSubscriptionPlatformAlreadyActive) {
+					continue
+				}
+				return nil, err
+			}
+		} else if !dbent.IsNotFound(err) {
+			return nil, err
+		}
+		plan, err := tx.SubscriptionPlan.Get(ctx, session.PlanID)
 		if err != nil {
 			if !dbent.IsNotFound(err) {
 				return nil, err
@@ -193,6 +231,16 @@ func (s *PaymentService) GetSubscriptionCheckout(ctx context.Context, userID, pl
 			return quote, nil
 		}
 	}
+	if sessionID == 0 {
+		_, fullPay, err := subscriptionOneTimePayAmount(plan, cfg, currency, nil)
+		if err != nil {
+			return nil, err
+		}
+		quote.TotalCents = int64(math.Round(fullPay * 100))
+		quote.NextAmount = fullPay
+		return quote, nil
+	}
+
 	installment, err := s.prepareSubscriptionInstallment(ctx, req, plan, cfg, currency)
 	if err != nil {
 		return nil, err
@@ -202,11 +250,13 @@ func (s *PaymentService) GetSubscriptionCheckout(ctx context.Context, userID, pl
 	return quote, nil
 }
 func (s *PaymentService) ReconcileSubscriptionSession(ctx context.Context, userID, sessionID int64) error {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
 	session, err := s.entClient.PaymentSession.Get(ctx, sessionID)
 	if err != nil || session.UserID != userID {
 		return infraerrors.NotFound("NOT_FOUND", "bill not found")
 	}
-	orders, err := s.entClient.PaymentOrder.Query().Where(paymentorder.PaymentSessionIDEQ(sessionID), paymentorder.PaidAtIsNil(), paymentorder.ProviderClosedEQ(false)).All(ctx)
+	orders, err := s.entClient.PaymentOrder.Query().Where(paymentorder.PaymentSessionIDEQ(sessionID), paymentorder.PaidAtIsNil()).All(ctx)
 	if err != nil {
 		return err
 	}

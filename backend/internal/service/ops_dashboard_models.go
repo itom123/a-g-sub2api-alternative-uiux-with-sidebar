@@ -77,6 +77,9 @@ type OpsDashboardOverview struct {
 
 	Duration OpsPercentiles `json:"duration"`
 	TTFT     OpsPercentiles `json:"ttft"`
+
+	// GatewayOverhead is the gateway's own pre-upstream time (unfiltered view only).
+	GatewayOverhead *OpsGatewayOverhead `json:"gateway_overhead,omitempty"`
 }
 
 type OpsLatencyHistogramBucket struct {

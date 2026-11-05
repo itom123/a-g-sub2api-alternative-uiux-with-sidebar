@@ -8,6 +8,8 @@ const api = vi.hoisted(() => ({
   profile: vi.fn(), stats: vi.fn(), rangeStats: vi.fn(), trend: vi.fn(), snapshot: vi.fn(), query: vi.fn(), errors: vi.fn(), errorDetail: vi.fn(), quotas: vi.fn(), keys: vi.fn(), batch: vi.fn(), daily: vi.fn(), models: vi.fn(), auth: { user: { id: 1 } as { id: number } | null },
 }))
 vi.mock('@/stores/auth', async () => { const { reactive } = await import('vue'); return { useAuthStore: () => reactive(api.auth) } })
+vi.mock('@/stores/subscriptions', () => ({ useSubscriptionStore: () => ({ fetchActiveSubscriptions: vi.fn().mockResolvedValue([]) }) }))
+vi.mock('@/stores/app', () => ({ useAppStore: () => ({ cachedPublicSettings: { subscription_enabled: false } }) }))
 vi.mock('@/api/user', () => ({ getProfile: api.profile, getMyPlatformQuotas: api.quotas }))
 vi.mock('@/api/keys', () => ({ keysAPI: { list: api.keys } }))
 vi.mock('@/api/usage', () => ({ usageAPI: { getDashboardStats: api.stats, getStatsByRange: api.rangeStats, getDashboardTrend: api.trend, getDashboardSnapshotV2: api.snapshot, query: api.query, listMyErrorRequests: api.errors, getMyErrorDetail: api.errorDetail, getDashboardApiKeysUsage: api.batch, getMyApiKeyDailyUsage: api.daily, getDashboardModels: api.models } }))
@@ -15,8 +17,8 @@ vi.mock('vue-i18n', async (importOriginal) => ({ ...await importOriginal<typeof 
 
 const options = { global: { stubs: {
   AppLayout: { template: '<main><slot /></main>' }, PageLoading: { template: '<div data-testid="page-loading" />' },
-  UserDashboardStats: { props: ['rolling30'], template: '<div data-testid="stats-stub">{{ JSON.stringify(rolling30) }}</div>' }, UserDashboardCharts: { template: '<div data-testid="charts-stub" />' },
-  UserDashboardKeyRanking: { template: '<div data-testid="keys-stub" />' }, UserDashboardKeyDrilldown: { template: '<div />' }, UserDashboardActiveNow: { template: '<div />' }, UserDashboardConsistency: { props: ['summary'], template: '<div data-testid="consistency-stub">{{ summary ? JSON.stringify(summary) : "" }}</div>' }, UserDashboardErrors: { emits: ['select-error'], template: '<button data-testid="open-error" @click="$emit(\'select-error\', 42)">error</button>' },
+  UserDashboardStats: { props: ['rolling30', 'profile'], template: '<div><slot name="date-control"/><slot name="refresh-control"/><div v-if="profile" data-testid="stats-stub">{{ JSON.stringify(rolling30) }}</div></div>' }, UserDashboardCharts: { template: '<div data-testid="charts-stub" />' },
+  UserDashboardKeyRanking: { props: ['rows', 'unavailable'], template: '<div data-testid="keys-stub" :data-unavailable="unavailable">{{ JSON.stringify(rows) }}</div>' }, UserDashboardKeyDrilldown: { template: '<div />' }, UserDashboardActiveNow: { template: '<div />' }, UserDashboardConsistency: { props: ['summary'], template: '<div data-testid="consistency-stub">{{ summary ? JSON.stringify(summary) : "" }}</div>' }, UserDashboardErrors: { emits: ['select-error'], template: '<button data-testid="open-error" @click="$emit(\'select-error\', 42)">error</button>' },
 } } }
 const wrappers: ReturnType<typeof mount>[] = []
 function render() { const wrapper = mount(DashboardView, options); wrappers.push(wrapper); return wrapper }
@@ -76,6 +78,32 @@ describe('DashboardView orchestration', () => {
     const wrapper = render(); await flushPromises(); let resolveStats!: (value: any) => void; api.stats.mockReturnValueOnce(new Promise(resolve => { resolveStats = resolve }))
     await wrapper.get('button.btn-secondary').trigger('click'); await wrapper.get('button.btn-secondary').trigger('click'); await wrapper.get('button.btn-secondary').trigger('click'); expect(api.stats).toHaveBeenCalledTimes(2)
     resolveStats(stats()); await flushPromises(); expect(api.stats).toHaveBeenCalledTimes(3); await flushPromises(); expect(api.stats).toHaveBeenCalledTimes(3)
+  })
+  it('requests exact aggregate sections and never scans raw logs or a capped key list', async () => {
+    render(); await flushPromises()
+    expect(api.snapshot.mock.calls[0][0].include_key_activity).toBe(true)
+    expect(api.query).not.toHaveBeenCalled()
+    expect(api.keys).not.toHaveBeenCalled()
+    expect(api.batch).not.toHaveBeenCalled()
+  })
+  it('renders more than 1000 aggregate keys and >5000 requests without client scans', async () => {
+    const key = { api_key_id: 1, key_name: 'Exact key', status: 'active', deleted: false, range_actual_cost: 3, lifetime_actual_cost: 9, today_actual_cost: 1, requests: 6001, input_tokens: 1, cache_creation_tokens: 2, cache_read_tokens: 3, output_tokens: 4, total_tokens: 10, favourite_model: 'requested', last_used_at: null }
+    api.snapshot.mockResolvedValue({ trend: [], models: [], groups: [], key_activity_status: 'available', key_activity: { coverage: 'retained_logs', keys: Array.from({ length: 1005 }, (_, index) => ({ ...key, api_key_id: index + 1 })), active_windows: [] } })
+    const wrapper = render(); await flushPromises()
+    const rows = JSON.parse(wrapper.get('[data-testid="keys-stub"]').text())
+    expect(rows).toHaveLength(1005)
+    expect(rows[0].requests).toBe(6001)
+    expect(rows[0].lifetimeCostUsd).toBe(9)
+    expect(api.query).not.toHaveBeenCalled()
+    expect(api.keys).not.toHaveBeenCalled()
+  })
+  it('marks a missing or unavailable aggregate section instead of sampling or inventing zero', async () => {
+    const wrapper = render(); await flushPromises()
+    expect(wrapper.get('[data-testid="keys-stub"]').attributes('data-unavailable')).toBe('true')
+    api.snapshot.mockResolvedValue({ trend: [], models: [], groups: [], key_activity_status: 'unavailable', key_activity: null })
+    await wrapper.get('button.btn-secondary').trigger('click'); await flushPromises()
+    expect(wrapper.get('[data-testid="keys-stub"]').attributes('data-unavailable')).toBe('true')
+    expect(api.query).not.toHaveBeenCalled()
   })
   it('never sends a user_id field in any captured request', async () => { render(); await flushPromises(); expect(calls()).not.toMatch(/user_id/) })
 })

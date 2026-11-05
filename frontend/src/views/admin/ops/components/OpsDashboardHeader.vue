@@ -422,6 +422,20 @@ const ttftP50Ms = computed(() => overview.value?.ttft?.p50_ms ?? null)
 const ttftAvgMs = computed(() => overview.value?.ttft?.avg_ms ?? null)
 const ttftMaxMs = computed(() => overview.value?.ttft?.max_ms ?? null)
 
+// Same TTFT P90 band as the backend health score (full marks up to 5s, zero at 20s).
+const TTFT_P90_WARN_MS = 5000
+// The gateway's own pre-upstream time is normally tens of milliseconds.
+const GATEWAY_OVERHEAD_P90_WARN_MS = 300
+
+const gatewayOverhead = computed(() => overview.value?.gateway_overhead ?? null)
+const gatewayOverheadP90Ms = computed(() => gatewayOverhead.value?.p90_ms ?? null)
+// Client upload time is shown for the edge/tunnel but never raises the gateway warning.
+const gatewayUploadP90Ms = computed(() => gatewayOverhead.value?.upload_p90_ms ?? null)
+const gatewayOverheadLevel = computed<ThresholdLevel>(() => {
+  const p90 = gatewayOverheadP90Ms.value
+  return p90 != null && p90 > GATEWAY_OVERHEAD_P90_WARN_MS ? 'warning' : 'normal'
+})
+
 // --- Health Score & Diagnosis (primary) ---
 
 const isSystemIdle = computed(() => {
@@ -536,13 +550,26 @@ const diagnosisReport = computed<DiagnosisItem[]>(() => {
     }
   }
 
-  const ttftP99 = ov.ttft?.p99_ms ?? 0
-  if (ttftP99 > 500) {
+  const ttftP90 = ov.ttft?.p90_ms ?? 0
+  if (ttftP90 > TTFT_P90_WARN_MS) {
     report.push({
       type: 'warning',
-      message: t('admin.ops.diagnosis.ttftHigh', { ttft: ttftP99.toFixed(0) }),
+      message: t('admin.ops.diagnosis.ttftHigh', { ttft: ttftP90.toFixed(0) }),
       impact: t('admin.ops.diagnosis.ttftHighImpact'),
       action: t('admin.ops.diagnosis.ttftHighAction')
+    })
+  }
+
+  const overhead = ov.gateway_overhead
+  if (overhead?.p90_ms != null && overhead.p90_ms > GATEWAY_OVERHEAD_P90_WARN_MS) {
+    report.push({
+      type: 'warning',
+      message: t('admin.ops.diagnosis.gatewayOverheadHigh', { ms: overhead.p90_ms.toFixed(0) }),
+      impact: t('admin.ops.diagnosis.gatewayOverheadHighImpact'),
+      action: t('admin.ops.diagnosis.gatewayOverheadHighAction', {
+        processing: overhead.processing_p90_ms != null ? overhead.processing_p90_ms.toFixed(0) : '-',
+        routing: overhead.routing_p90_ms != null ? overhead.routing_p90_ms.toFixed(0) : '-'
+      })
     })
   }
 
@@ -1333,6 +1360,30 @@ function handleToolbarRefresh() {
               <span class="text-gray-500">Max:</span>
               <span class="font-bold" :class="getThresholdColorClass(getTTFTThresholdLevel(ttftMaxMs))">{{ ttftMaxMs ?? '-' }}</span>
               <span class="text-gray-400">ms</span>
+            </div>
+          </div>
+          <div
+            v-if="gatewayOverhead"
+            class="mt-2 space-y-1 border-t border-gray-200 pt-2 text-xs dark:border-dark-700"
+            data-testid="gateway-overhead"
+          >
+            <div class="flex flex-wrap items-baseline gap-1">
+              <span class="text-gray-500">{{ t('admin.ops.gatewayOverheadLabel') }}</span>
+              <span
+                class="font-bold"
+                :class="getThresholdColorClass(gatewayOverheadLevel)"
+                data-testid="gateway-overhead-p90"
+              >{{ gatewayOverheadP90Ms ?? '—' }}</span>
+              <span class="text-gray-400">ms</span>
+              <span class="text-gray-400" data-testid="gateway-overhead-scope">
+                ({{ t('admin.ops.gatewayOverheadScope', { minutes: gatewayOverhead.window_minutes }) }})
+              </span>
+            </div>
+            <div v-if="gatewayUploadP90Ms != null" class="flex flex-wrap items-baseline gap-1" data-testid="gateway-upload">
+              <span class="text-gray-500">{{ t('admin.ops.gatewayUploadLabel') }}</span>
+              <span class="font-bold text-gray-700 dark:text-gray-200" data-testid="gateway-upload-p90">{{ gatewayUploadP90Ms }}</span>
+              <span class="text-gray-400">ms</span>
+              <span class="text-gray-400">({{ t('admin.ops.gatewayUploadScope') }})</span>
             </div>
           </div>
         </div>

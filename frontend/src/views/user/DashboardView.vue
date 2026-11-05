@@ -1,39 +1,33 @@
 <template>
   <AppLayout>
-    <div class="space-y-6" data-testid="account-usage-page" :aria-busy="loading">
-      <header class="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 class="text-xl font-semibold text-gray-900 dark:text-white">{{ t('accountInsights.title') }}</h1>
-          <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">{{ t('accountInsights.subtitle') }}</p>
-          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('accountInsights.scope') }}<span v-if="updatedAt"> · {{ t('accountInsights.updatedAt', { time: formatDateTime(updatedAt) }) }}</span></p>
-        </div>
-        <div class="flex w-full flex-wrap items-center justify-start gap-3 sm:w-auto sm:justify-end">
-          <UserDashboardDatePresets :range="range" @update:range="setRange" />
-          <UserDashboardRefreshControl :seconds="refreshControlSeconds" :countdown="countdown" :hidden="documentHidden" @update:seconds="setRefreshInterval" />
-          <button type="button" class="btn btn-secondary" :aria-busy="loading" @click="refreshAll">{{ loading ? t('accountInsights.refreshing') : t('accountInsights.refresh') }}</button>
-        </div>
-      </header>
-
+    <div class="account-usage-page space-y-6" data-testid="account-usage-page" :aria-busy="loading">
       <div v-if="error && snapshot" role="status" aria-live="polite" class="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
         {{ t('accountInsights.refreshFailed') }} — {{ t('accountInsights.staleNotice', { start: snapshot.range.startDate, end: snapshot.range.endDate }) }}
         <span v-if="lastGoodAt"> {{ t('accountInsights.lastGoodAt', { time: formatDateTime(lastGoodAt) }) }}</span>
       </div>
       <div v-else-if="error" role="alert" class="rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-900 dark:border-red-800 dark:bg-red-950 dark:text-red-100">
-        {{ t('accountInsights.loadFailed') }} <button type="button" class="ml-2 underline" @click="refreshAll">{{ t('accountInsights.common.retry') }}</button>
+        {{ t('accountInsights.loadFailed') }} <button type="button" class="ml-2 underline" @click="refreshAll(true)">{{ t('accountInsights.common.retry') }}</button>
       </div>
 
-      <PageLoading v-if="loading && !snapshot" />
-      <template v-if="snapshot">
-        <UserDashboardStats
+      <UserDashboardStats
           ref="stats"
-          :profile="snapshot.profile"
-          :dashboard-stats="snapshot.dashboardStats"
-          :range-stats="snapshot.rangeStats"
-          :rolling30="snapshot.rolling30"
-          :quotas="snapshot.quotas"
-          :health="snapshot.health"
-          :low-balance="snapshot.lowBalance"
-        />
+          :profile="snapshot?.profile || null"
+          :dashboard-stats="snapshot?.dashboardStats"
+          :range-stats="snapshot?.rangeStats"
+          :rolling30="snapshot?.rolling30"
+          :quotas="snapshot?.quotas"
+          :health="snapshot?.health"
+          :low-balance="snapshot?.lowBalance"
+        >
+          <template #date-control><UserDashboardDatePresets :range="range" @update:range="setRange" /></template>
+          <template #refresh-control>
+            <UserDashboardRefreshControl :seconds="refreshControlSeconds" :countdown="countdown" :hidden="documentHidden" @update:seconds="setRefreshInterval">
+              <template #action><button type="button" class="btn btn-secondary shrink-0" :aria-busy="loading" @click="refreshAll(true)">{{ loading ? t('accountInsights.refreshing') : t('accountInsights.refresh') }}</button></template>
+            </UserDashboardRefreshControl>
+          </template>
+          <template #after-overview><UserDashboardSubscriptions /></template>
+        </UserDashboardStats>
+      <template v-if="snapshot">
         <UserDashboardCharts
           :loading="loading"
           :range="snapshot.range"
@@ -47,7 +41,7 @@
             :rows="snapshot.keyRows"
             :loading="keyLoading"
             :selected-key-id="selectedKeyId"
-            :truncated="snapshot.keyRowsTruncated"
+            :unavailable="snapshot.keyActivityUnavailable"
             @select-key="openKeyDrilldown"
             @sort-change="setKeySort"
             @export-csv="exportCsv"
@@ -56,6 +50,7 @@
             :windows="snapshot.activeNow"
             :selected-window="activeWindow"
             :loading="activeNowLoading"
+            :unavailable="snapshot.keyActivityUnavailable"
             @update:selected-window="activeWindow = $event"
           />
         </div>
@@ -120,14 +115,16 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
+import { useSubscriptionStore } from '@/stores/subscriptions'
+import { useAppStore } from '@/stores/app'
+import { FeatureFlags, resolveFeatureFlag } from '@/utils/featureFlags'
 import { usageAPI, type UserDashboardStats as DashboardStats } from '@/api/usage'
 import { getProfile, getMyPlatformQuotas } from '@/api/user'
-import { keysAPI } from '@/api/keys'
 import { currencyRate, toCny } from '@/utils/currency'
 import { formatDateTime } from '@/utils/format'
 import AppLayout from '@/components/layout/AppLayout.vue'
-import PageLoading from '@/components/common/PageLoading.vue'
 import UserDashboardStats from '@/components/user/dashboard/UserDashboardStats.vue'
+import UserDashboardSubscriptions from '@/components/user/dashboard/UserDashboardSubscriptions.vue'
 import UserDashboardCharts from '@/components/user/dashboard/UserDashboardCharts.vue'
 import UserDashboardDatePresets from '@/components/user/dashboard/core/UserDashboardDatePresets.vue'
 import UserDashboardRefreshControl from '@/components/user/dashboard/core/UserDashboardRefreshControl.vue'
@@ -136,13 +133,15 @@ import UserDashboardKeyDrilldown from '@/components/user/dashboard/insights/User
 import UserDashboardActiveNow from '@/components/user/dashboard/insights/UserDashboardActiveNow.vue'
 import UserDashboardConsistency from '@/components/user/dashboard/insights/UserDashboardConsistency.vue'
 import UserDashboardErrors from '@/components/user/dashboard/insights/UserDashboardErrors.vue'
-import { aggregateActiveNow, aggregateKeyUsage, aggregateRollingAndConsistency, deriveDashboardHealth } from '@/components/user/dashboard/insights/aggregate'
+import { aggregateRollingAndConsistency, deriveDashboardHealth } from '@/components/user/dashboard/insights/aggregate'
 import { exportDashboardCsv } from '@/components/user/dashboard/insights/exportCsv'
-import type { DashboardRange, DashboardHealth, DashboardKeyUsageRow, DashboardRolling30d, ActiveNowWindow, DashboardConsistency, DashboardErrorRow, DashboardKeyDrilldownState } from '@/components/user/dashboard/insights/types'
-import type { ApiKey, GroupStat, ModelStat, PlatformQuotaItem, TrendDataPoint, UsageLog, UsageStatsResponse, User } from '@/types'
+import type { DashboardRange, DashboardHealth, DashboardKeyUsageRow, DashboardRolling30d, ActiveNowWindow, DashboardConsistency, DashboardErrorRow, DashboardKeyDrilldownState, DashboardKeyInfo } from '@/components/user/dashboard/insights/types'
+import type { GroupStat, ModelStat, PlatformQuotaItem, TrendDataPoint, UsageStatsResponse, User } from '@/types'
 
 const { t } = useI18n()
 const authStore = useAuthStore()
+const subscriptionStore = useSubscriptionStore()
+const appStore = useAppStore()
 const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
 const loading = ref(false)
 const keyLoading = ref(false)
@@ -182,16 +181,16 @@ interface DashboardSnapshot {
   models: ModelStat[]
   groups: GroupStat[]
   keyRows: DashboardKeyUsageRow[]
-  keyRowsTruncated: boolean
+  keyActivityUnavailable: boolean
   activeNow: ActiveNowWindow[]
   consistency: DashboardConsistency | null
   errors: DashboardErrorRow[]
   health: DashboardHealth
   lowBalance: { visible: boolean; thresholdCny: number; dismissed: boolean }
-  keys: ApiKey[]
+  keys: DashboardKeyInfo[]
 }
 const snapshot = ref<DashboardSnapshot | null>(null)
-const selectedKeyInfo = computed<ApiKey | null>(() => snapshot.value?.keys.find((key) => key.id === selectedKeyId.value) ?? null)
+const selectedKeyInfo = computed<DashboardKeyInfo | null>(() => snapshot.value?.keys.find((key) => key.id === selectedKeyId.value) ?? null)
 const keyDrilldown = ref<DashboardKeyDrilldownState>({ keyInfo: null, daily: null, models: [], loading: false, dailyLoading: false, modelsLoading: false, dailyError: false, modelsError: false })
 const refreshControlSeconds = computed(() => refreshSeconds.value)
 
@@ -239,7 +238,6 @@ function setRefreshInterval(seconds: number) { refreshSeconds.value = [0, 30, 60
 function restartTimer() { if (timer) clearInterval(timer); timer = null; if (refreshSeconds.value > 0) timer = setInterval(onTimerTick, 1000) }
 function onTimerTick() { if (documentHidden.value || loading.value || refreshSeconds.value <= 0) return; countdown.value -= 1; if (countdown.value <= 0) { countdown.value = refreshSeconds.value; void refreshAll() } }
 function isCurrent(sequence: number, accountId: number): boolean { return sequence === requestSequence.value && authStore.user?.id === accountId }
-function todayAndYesterday(): { start_date: string; end_date: string; timezone: string } { const now = new Date(); return { start_date: localDate(shiftDate(now, -1)), end_date: localDate(now), timezone } }
 function numeric(value: unknown): number { const parsed = Number(value); return Number.isFinite(parsed) ? parsed : 0 }
 function sortRows(rows: DashboardKeyUsageRow[]): DashboardKeyUsageRow[] {
   const compareText = (a: string | null, b: string | null) => (a === null ? 1 : b === null ? -1 : a.localeCompare(b))
@@ -253,16 +251,6 @@ function sortRows(rows: DashboardKeyUsageRow[]): DashboardKeyUsageRow[] {
 }
 function setKeySort(value: typeof keySort.value) { keySort.value = value; if (snapshot.value) snapshot.value.keyRows = sortRows(snapshot.value.keyRows) }
 function exportCsv() { if (!snapshot.value) return; exportDashboardCsv({ range: snapshot.value.range, rangeStats: snapshot.value.rangeStats, models: snapshot.value.models, keys: snapshot.value.keyRows }) }
-async function fetchPages(params: Record<string, unknown>, signal: AbortSignal): Promise<{ rows: UsageLog[]; pages: number; hasMore: boolean }> {
-  const rows: UsageLog[] = []; let page = 1; let hasMore = false
-  for (; page <= 5; page += 1) {
-    const response = await usageAPI.query({ ...params, page, page_size: 1000, sort_by: 'created_at', sort_order: 'desc' }, { signal })
-    rows.push(...(response.items ?? []))
-    hasMore = Number(response.pages ?? page) > page || Boolean((response as { has_more?: boolean }).has_more)
-    if (!hasMore) break
-  }
-  return { rows, pages: page, hasMore }
-}
 function profileLowBalance(profile: User) {
   const threshold = Number(localStorage.getItem(userStorage('warning-threshold')) ?? 210)
   const thresholdCny = Number.isFinite(threshold) && threshold >= 0 ? threshold : 210
@@ -270,32 +258,30 @@ function profileLowBalance(profile: User) {
   const visible = Boolean(currencyRate.value) && Number.isFinite(toCny(profile.balance)) && toCny(profile.balance) <= thresholdCny
   return { visible, thresholdCny, dismissed }
 }
-async function refreshAll() {
+async function refreshAll(forceSubscription = false) {
   if (loading.value) {
     refreshQueued = true
     return
   }
   const accountId = authStore.user?.id
   if (accountId == null || !validateRange(range.value)) return
+  if (resolveFeatureFlag(appStore.cachedPublicSettings, FeatureFlags.subscription)) {
+    void subscriptionStore.fetchActiveSubscriptions(forceSubscription).catch(() => { /* Subscription state reports its own partial failure. */ })
+  }
   abortController?.abort(); abortController = new AbortController()
   const signal = abortController.signal
   const sequence = ++requestSequence.value
   loading.value = true; keyLoading.value = true; activeNowLoading.value = true; rollingLoading.value = true; errorsLoading.value = true
   const selected = { start_date: range.value.startDate, end_date: range.value.endDate, timezone: range.value.timezone }
   const rolling = last30Range()
-  const activeEnvelope = todayAndYesterday()
   const results = await Promise.allSettled([
     getProfile({ signal }),
     usageAPI.getDashboardStats({ signal }),
     usageAPI.getStatsByRange(selected, { signal }),
-    usageAPI.getDashboardSnapshotV2({ ...selected, granularity: range.value.preset === 'today' ? 'hour' : 'day', include_trend: true, include_model_stats: true, include_group_stats: true }, { signal }),
-    usageAPI.query({ ...selected, page: 1, page_size: 10, sort_by: 'created_at', sort_order: 'desc' }, { signal }),
-    keysAPI.list(1, 1000, undefined, { signal }),
+    usageAPI.getDashboardSnapshotV2({ ...selected, granularity: range.value.preset === 'today' ? 'hour' : 'day', include_trend: true, include_model_stats: true, include_group_stats: true, include_key_activity: true }, { signal }),
     getMyPlatformQuotas({ signal }),
     usageAPI.getStatsByRange({ start_date: rolling.startDate, end_date: rolling.endDate, timezone: rolling.timezone }, { signal }),
     usageAPI.getDashboardTrend({ start_date: rolling.startDate, end_date: rolling.endDate, timezone: rolling.timezone, granularity: 'day' }, { signal }),
-    fetchPages(selected, signal),
-    fetchPages(activeEnvelope, signal),
     usageAPI.listMyErrorRequests({ ...selected, page: 1, page_size: 10, sort_by: 'created_at', sort_order: 'desc' }, { signal }),
   ])
   if (!isCurrent(sequence, accountId) || signal.aborted) return
@@ -307,24 +293,26 @@ async function refreshAll() {
   }
   const profile = profileResult.value; const dashboardStats = statsResult.value; const rangeStats = rangeResult.value
   const snapshotResult = results[3].status === 'fulfilled' ? results[3].value : null
-  const keysResult = results[5].status === 'fulfilled' ? results[5].value.items : []
-  const quotas = results[6].status === 'fulfilled' ? results[6].value.platform_quotas ?? [] : []
-  const rollingStats = results[7].status === 'fulfilled' ? results[7].value : null
-  const rollingTrend = results[8].status === 'fulfilled' ? results[8].value.trend ?? [] : []
-  const keyScan = results[9].status === 'fulfilled' ? results[9].value : { rows: [], pages: 0, hasMore: false }
-  const activeScan = results[10].status === 'fulfilled' ? results[10].value : { rows: [], pages: 0, hasMore: false }
-  const batchStats: Record<string, { api_key_id: number; today_actual_cost: number; total_actual_cost: number }> = {}
-  if (keysResult.length) {
-    for (let offset = 0; offset < keysResult.length; offset += 100) {
-      const response = await usageAPI.getDashboardApiKeysUsage(keysResult.slice(offset, offset + 100).map((key) => key.id), { signal })
-      Object.assign(batchStats, response.stats)
-    }
-  }
-  if (!isCurrent(sequence, accountId) || signal.aborted) return
-  const keyRows = sortRows(aggregateKeyUsage(keyScan.rows, keysResult, batchStats, { maxPages: 5, pagesFetched: keyScan.pages, hasMore: keyScan.hasMore }))
-  const activeNow = aggregateActiveNow(activeScan.rows, { maxPages: 5, pagesFetched: activeScan.pages, hasMore: activeScan.hasMore })
+  const quotas = results[4].status === 'fulfilled' ? results[4].value.platform_quotas ?? [] : []
+  const rollingStats = results[5].status === 'fulfilled' ? results[5].value : null
+  const rollingTrend = results[6].status === 'fulfilled' ? results[6].value.trend ?? [] : []
+  const activity = snapshotResult?.key_activity_status === 'available' ? snapshotResult.key_activity : null
+  const keyActivityUnavailable = !activity || activity.coverage !== 'retained_logs'
+  const previous = snapshot.value?.range.startDate === range.value.startDate && snapshot.value?.range.endDate === range.value.endDate ? snapshot.value : null
+  const keyRows = activity && !keyActivityUnavailable ? sortRows(activity.keys.map(key => ({
+    apiKeyId: key.api_key_id, keyName: key.key_name, status: key.status, deleted: key.deleted,
+    selectedRangeCostUsd: key.range_actual_cost, lifetimeCostUsd: key.lifetime_actual_cost, todayCostUsd: key.today_actual_cost,
+    requests: key.requests, inputTokens: key.input_tokens, cacheCreationTokens: key.cache_creation_tokens,
+    cacheReadTokens: key.cache_read_tokens, outputTokens: key.output_tokens, totalTokens: key.total_tokens,
+    favouriteModel: key.favourite_model, lastUsedAt: key.last_used_at,
+  }))) : previous?.keyRows ?? []
+  const activeNow: ActiveNowWindow[] = activity && !keyActivityUnavailable ? activity.active_windows.map(window => ({
+    id: window.id, requests: window.requests, tokens: window.tokens, rpm: window.rpm, tpm: window.tpm,
+    lastCallAt: window.last_call_at, modelShares: window.model_shares,
+  })) : previous?.activeNow ?? []
+  const keysResult: DashboardKeyInfo[] = keyRows.map(key => ({ id: key.apiKeyId, name: key.keyName, deleted: key.deleted }))
   const { rolling30, consistency } = aggregateRollingAndConsistency(rolling.startDate, rolling.endDate, rollingStats, rollingTrend)
-  const failedOptional = results.some((result, index) => result.status === 'rejected' && index !== 4 && index !== 5 && index !== 6 && index !== 11)
+  const failedOptional = results.some((result, index) => result.status === 'rejected' && index !== 4 && index !== 7)
   const quotaAttention = quotas.some((quota) => (['daily', 'weekly', 'monthly'] as const).some((window) => { const limit = quota[`${window}_limit_usd`]; return limit != null && limit > 0 && numeric(quota[`${window}_usage_usd`]) / limit >= 0.8 }))
   const lowBalance = profileLowBalance(profile)
   const requiredFields = [
@@ -339,16 +327,17 @@ async function refreshAll() {
     rangeStats.average_duration_ms,
   ]
   const requiredFailed = requiredFields.some((value) => !Number.isFinite(Number(value)))
-  const health = deriveDashboardHealth({ loaded: true, stale: failedOptional, lowBalance: lowBalance.visible && !lowBalance.dismissed, truncated: keyScan.hasMore || activeScan.hasMore, quotaAttention, requiredFailed })
-  const errorResult = results[11]
+  const health = deriveDashboardHealth({ loaded: true, stale: failedOptional || keyActivityUnavailable, lowBalance: lowBalance.visible && !lowBalance.dismissed, quotaAttention, requiredFailed })
+  const errorResult = results[7]
   errorsUnavailable.value = errorResult.status === 'rejected'
   const errors = errorResult.status === 'fulfilled' ? errorResult.value.items.map((item) => ({ id: item.id, created_at: item.created_at, model: item.model, inbound_endpoint: item.inbound_endpoint, status_code: item.status_code, category: item.category, platform: item.platform, message: item.message, key_name: item.key_name })) : []
-  snapshot.value = { profile, dashboardStats, range: { ...range.value }, rangeStats, rolling30, quotas, trend: snapshotResult?.trend ?? [], models: snapshotResult?.models ?? [], groups: snapshotResult?.groups ?? [], keyRows, keyRowsTruncated: keyScan.hasMore, activeNow, consistency, errors, health, lowBalance, keys: keysResult }
+  snapshot.value = { profile, dashboardStats, range: { ...range.value }, rangeStats, rolling30, quotas, trend: snapshotResult?.trend ?? [], models: snapshotResult?.models ?? [], groups: snapshotResult?.groups ?? [], keyRows, keyActivityUnavailable, activeNow, consistency, errors, health, lowBalance, keys: keysResult }
   authStore.user = profile; updatedAt.value = new Date().toISOString(); lastGoodAt.value = updatedAt.value; error.value = failedOptional
   loading.value = false; keyLoading.value = false; activeNowLoading.value = false; rollingLoading.value = false; errorsLoading.value = false; countdown.value = refreshSeconds.value
   if (refreshQueued) { refreshQueued = false; void refreshAll() }
 }
 async function openKeyDrilldown(apiKeyId: number) {
+  if (snapshot.value?.keyRows.find(key => key.apiKeyId === apiKeyId)?.deleted) return
   selectedKeyId.value = apiKeyId
   keyDrilldown.value = {
     keyInfo: selectedKeyInfo.value,
@@ -412,3 +401,8 @@ watch(() => authStore.user?.id, (id, previous) => { if (id === previous) return;
 onMounted(() => { loadRefreshPreference(); dismissedListener = onDismissed; window.addEventListener('account-insights-warning-dismissed', dismissedListener); document.addEventListener('visibilitychange', onVisibilityChange); restartTimer(); void refreshAll() })
 onBeforeUnmount(() => { ++requestSequence.value; abortController?.abort(); errorDetailRequestVersion += 1; if (timer) clearInterval(timer); timer = null; document.removeEventListener('visibilitychange', onVisibilityChange); if (dismissedListener) window.removeEventListener('account-insights-warning-dismissed', dismissedListener) })
 </script>
+
+<style scoped>
+:deep(.account-overview-control .account-date-control), :deep(.account-overview-control .account-refresh-control) { width: 100%; }
+:deep(.account-overview-control select) { min-height: 42px; width: 100%; }
+</style>

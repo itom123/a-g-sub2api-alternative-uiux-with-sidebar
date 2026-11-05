@@ -156,12 +156,7 @@ func (s *OpsCleanupService) applyScheduleLocked(ctx context.Context) error {
 		schedule = opsCleanupDefaultSchedule
 	}
 
-	loc := time.Local
-	if s.cfg != nil && strings.TrimSpace(s.cfg.Timezone) != "" {
-		if parsed, err := time.LoadLocation(strings.TrimSpace(s.cfg.Timezone)); err == nil && parsed != nil {
-			loc = parsed
-		}
-	}
+	loc := opsCleanupLocation(s.cfg)
 
 	c := cron.New(cron.WithParser(opsCleanupCronParser), cron.WithLocation(loc))
 	if _, err := c.AddFunc(schedule, func() { s.runScheduled() }); err != nil {

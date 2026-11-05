@@ -141,6 +141,13 @@ function mountDialog({
 }
 
 describe('PlanEditDialog', () => {
+  it('removes the retired installment schedule input from plan editing', () => {
+    const wrapper = mountDialog()
+    expect(wrapper.find('#plan-installment-schedule').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('payment.admin.installmentSchedule')
+    wrapper.unmount()
+  })
+
   it('shows CNY channel charge using the configured subscription rate and fee', async () => {
     const wrapper = mountDialog({
       paymentConfig: {

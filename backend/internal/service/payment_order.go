@@ -16,7 +16,6 @@ import (
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/paymentsession"
-	entuser "github.com/Wei-Shaw/sub2api/ent/user"
 	"github.com/Wei-Shaw/sub2api/internal/payment"
 	"github.com/Wei-Shaw/sub2api/internal/payment/provider"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
@@ -25,6 +24,11 @@ import (
 )
 
 // --- Order Creation ---
+
+var ErrSubscriptionPlatformAlreadyActive = infraerrors.Conflict(
+	"SUBSCRIPTION_PLATFORM_ALREADY_ACTIVE",
+	"an active subscription already exists for this platform",
+)
 
 func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest) (*CreateOrderResponse, error) {
 	if req.OrderType == payment.OrderTypeSubscription && req.RequestKey != "" {
@@ -56,6 +60,8 @@ func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest
 }
 
 func (s *PaymentService) createOrder(ctx context.Context, req CreateOrderRequest) (*CreateOrderResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, 40*time.Second)
+	defer cancel()
 	if req.OrderType == "" {
 		req.OrderType = payment.OrderTypeBalance
 	}
@@ -95,7 +101,9 @@ func (s *PaymentService) createOrder(ctx context.Context, req CreateOrderRequest
 		}
 	}
 	var installment *subscriptionInstallment
-	if plan != nil {
+	if plan != nil && req.PaymentSessionID > 0 {
+		// Existing payment sessions use the legacy installment flow. New
+		// subscription purchases are one-time full payments.
 		installment, err = s.prepareSubscriptionInstallment(ctx, req, plan, cfg, methodCurrency)
 		if err != nil {
 			return nil, err
@@ -105,8 +113,17 @@ func (s *PaymentService) createOrder(ctx context.Context, req CreateOrderRequest
 	limitAmount := req.Amount
 	bonusAmount := 0.0
 	if plan != nil {
-		orderAmount = math.Round(installment.BaseAmount*installment.Amount/installment.Target*1e8) / 1e8
-		limitAmount = installment.Amount
+		if installment != nil {
+			orderAmount = math.Round(installment.BaseAmount*installment.Amount/installment.Target*1e8) / 1e8
+			limitAmount = installment.Amount
+		} else {
+			// Amount is the entitlement/rebate base, not the gateway's fixed CNY price.
+			orderAmount = plan.Price
+			limitAmount = plan.Price
+			if plan.FixedPriceCny > 0 {
+				feeRate = 0
+			}
+		}
 	} else if req.OrderType == payment.OrderTypeBalance {
 		// 阈值按支付金额命中。赠金模式：到账 = 基数 + 赠送；折扣模式：到账 = 基数，实付基数按折扣减少。
 		quote := quoteRechargeBonus(cfg, req.Amount, methodCurrency)
@@ -114,13 +131,21 @@ func (s *PaymentService) createOrder(ctx context.Context, req CreateOrderRequest
 		bonusAmount = quote.Bonus
 		orderAmount = quote.Credited
 	}
-	payAmountStr, payAmount, err := calculateCreateOrderPayAmountForOrderType(limitAmount, feeRate, methodCurrency, req.OrderType, cfg.SubscriptionUSDToCNYRate)
+	var payAmountStr string
+	var payAmount float64
+	if plan != nil && installment == nil {
+		payAmountStr, payAmount, err = subscriptionOneTimePayAmount(plan, cfg, methodCurrency, req.ExpectedTotalCents)
+	} else if installment != nil {
+		payAmountStr = strconv.FormatFloat(limitAmount, 'f', 2, 64)
+		payAmount = limitAmount
+	} else {
+		payAmountStr, payAmount, err = calculateCreateOrderPayAmountForOrderType(limitAmount, feeRate, methodCurrency, req.OrderType, cfg.SubscriptionUSDToCNYRate)
+	}
 	if err != nil {
 		return nil, err
 	}
-	if installment != nil {
-		payAmountStr = strconv.FormatFloat(limitAmount, 'f', 2, 64)
-		payAmount = limitAmount
+	if plan != nil && installment == nil {
+		limitAmount = payAmount
 	}
 	sel, err := s.selectCreateOrderInstance(ctx, req, cfg, payAmount)
 	if err != nil {
@@ -136,7 +161,17 @@ func (s *PaymentService) createOrder(ctx context.Context, req CreateOrderRequest
 	if installment != nil && selectedCurrency != installment.Currency {
 		return nil, infraerrors.BadRequest("PAYMENT_SESSION_CURRENCY", "payment provider currency differs from the subscription payment")
 	}
-	if selectedCurrency != methodCurrency {
+	if plan != nil && installment == nil {
+		// Selection must not silently change the currency or authoritative quote.
+		if selectedCurrency != methodCurrency {
+			return nil, infraerrors.Conflict("QUOTE_CHANGED", "payment currency changed; refresh the subscription quote")
+		}
+		payAmountStr, payAmount, err = subscriptionOneTimePayAmount(plan, cfg, selectedCurrency, req.ExpectedTotalCents)
+		if err != nil {
+			return nil, err
+		}
+		limitAmount = payAmount
+	} else if selectedCurrency != methodCurrency {
 		payAmountStr, payAmount, err = calculateCreateOrderPayAmountForOrderType(limitAmount, feeRate, selectedCurrency, req.OrderType, cfg.SubscriptionUSDToCNYRate)
 		if err != nil {
 			return nil, err
@@ -162,7 +197,7 @@ func (s *PaymentService) createOrder(ctx context.Context, req CreateOrderRequest
 	}
 	resp, err := s.invokeProvider(ctx, order, req, cfg, limitAmount, payAmountStr, payAmount, plan, sel)
 	if err != nil {
-		update := s.entClient.PaymentOrder.UpdateOneID(order.ID)
+		update := s.entClient.PaymentOrder.Update().Where(paymentorder.IDEQ(order.ID), paymentorder.StatusEQ(OrderStatusPending), paymentorder.PaidAtIsNil(), paymentorder.ProviderClosedEQ(false))
 		if installment != nil {
 			update.SetStatus(OrderStatusPending).SetFailedReason("PROVIDER_CREATE_UNCERTAIN")
 		} else {
@@ -364,6 +399,11 @@ func (s *PaymentService) validateSubOrder(ctx context.Context, req CreateOrderRe
 	if !group.IsSubscriptionType() {
 		return nil, infraerrors.BadRequest("GROUP_TYPE_MISMATCH", "group is not a subscription type")
 	}
+	if req.PaymentSessionID == 0 {
+		if err := s.checkActiveSubscriptionPlatform(ctx, req.UserID, group.Platform); err != nil {
+			return nil, err
+		}
+	}
 	return plan, nil
 }
 
@@ -373,13 +413,59 @@ func (s *PaymentService) createOrderInTx(ctx context.Context, req CreateOrderReq
 		return nil, fmt.Errorf("begin transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	if installment != nil {
-		uq := tx.User.Query().Where(entuser.IDEQ(req.UserID))
-		if paymentAuditDialect(s.entClient) == dialect.Postgres {
-			uq.ForUpdate()
+	if req.OrderType == payment.OrderTypeSubscription {
+		if err := lockPaymentUser(ctx, tx.Client(), req.UserID); err != nil {
+			return nil, err
 		}
-		if _, err := uq.Only(ctx); err != nil {
-			return nil, fmt.Errorf("lock installment buyer: %w", err)
+		if req.PaymentSessionID == 0 {
+			// Old unfinished bills must be resolved explicitly before a fresh buy.
+			sessions, err := tx.PaymentSession.Query().Where(paymentsession.UserIDEQ(req.UserID), paymentsession.StatusIn("PENDING", "CANCELLING", "PAID", "ALLOCATION_FAILED")).All(ctx)
+			if err != nil {
+				return nil, err
+			}
+			for _, session := range sessions {
+				if session.SubscriptionGroupID == plan.GroupID || session.PlanID == plan.ID {
+					return nil, infraerrors.Conflict("PAYMENT_SESSION_EXISTS", "resume or cancel the existing subscription payment").WithMetadata(map[string]string{"session_id": strconv.FormatInt(session.ID, 10)})
+				}
+				legacyGroup, err := tx.Group.Get(ctx, session.SubscriptionGroupID)
+				if err != nil && !dbent.IsNotFound(err) {
+					return nil, err
+				}
+				purchaseGroup, err := tx.Group.Get(ctx, plan.GroupID)
+				if err != nil && !dbent.IsNotFound(err) {
+					return nil, err
+				}
+				if legacyGroup != nil && purchaseGroup != nil && legacyGroup.Platform == purchaseGroup.Platform {
+					return nil, infraerrors.Conflict("PAYMENT_SESSION_EXISTS", "resume or cancel the existing platform payment").WithMetadata(map[string]string{"session_id": strconv.FormatInt(session.ID, 10)})
+				}
+			}
+			if installment != nil {
+				return nil, infraerrors.BadRequest("INVALID_PAYMENT_SESSION", "new installment sessions are no longer supported")
+			}
+			txCtx := dbent.NewTxContext(ctx, tx)
+			current, err := tx.SubscriptionPlan.Get(ctx, plan.ID)
+			if err != nil || !current.ForSale {
+				return nil, infraerrors.NotFound("PLAN_NOT_AVAILABLE", "plan not found or not for sale")
+			}
+			g, err := s.groupRepo.GetByID(txCtx, current.GroupID)
+			if err != nil {
+				return nil, err
+			}
+			if err := s.checkActiveSubscriptionPlatform(txCtx, req.UserID, g.Platform); err != nil {
+				return nil, err
+			}
+			currency := payment.DefaultPaymentCurrency
+			if sel != nil {
+				currency = paymentProviderConfigCurrency(sel.ProviderKey, sel.Config)
+			}
+			_, currentPay, err := subscriptionOneTimePayAmount(current, cfg, currency, req.ExpectedTotalCents)
+			if err != nil {
+				return nil, err
+			}
+			if currentPay != payAmount || current.Price != orderAmount || current.GroupID != plan.GroupID {
+				return nil, infraerrors.Conflict("QUOTE_CHANGED", "the subscription changed; refresh the quote")
+			}
+			plan = current
 		}
 	}
 	if err := s.checkPendingLimit(ctx, tx, req.UserID, cfg.MaxPendingOrders); err != nil {
@@ -403,32 +489,8 @@ func (s *PaymentService) createOrderInTx(ctx context.Context, req CreateOrderReq
 	if installment != nil {
 		sessionID = installment.SessionID
 		installmentNumber = installment.Number
-		if sessionID == 0 {
-			existing, err := tx.PaymentSession.Query().Where(
-				paymentsession.UserIDEQ(req.UserID), paymentsession.PlanIDEQ(plan.ID),
-				paymentsession.StatusIn("PENDING", "PAID", "ALLOCATION_FAILED"),
-			).First(ctx)
-			if err == nil {
-				return nil, infraerrors.Conflict("PAYMENT_SESSION_EXISTS", "resume the existing subscription payment").WithMetadata(map[string]string{"session_id": strconv.FormatInt(existing.ID, 10)})
-			}
-			if !dbent.IsNotFound(err) {
-				return nil, fmt.Errorf("find existing payment session: %w", err)
-			}
-			session, createErr := tx.PaymentSession.Create().
-				SetUserID(req.UserID).
-				SetPlanID(plan.ID).
-				SetPlanName(plan.Name).SetInstallmentScheduleCents(plan.InstallmentScheduleCents).
-				SetSubscriptionGroupID(plan.GroupID).
-				SetSubscriptionDays(psComputeValidityDays(plan.ValidityDays, plan.ValidityUnit)).
-				SetTargetAmount(installment.Target).
-				SetBaseAmount(installment.BaseAmount).
-				SetCurrency(installment.Currency).
-				SetStatus("PENDING").
-				Save(ctx)
-			if createErr != nil {
-				return nil, fmt.Errorf("create payment session: %w", createErr)
-			}
-			sessionID = session.ID
+		if sessionID == 0 || sessionID != req.PaymentSessionID {
+			return nil, infraerrors.BadRequest("INVALID_PAYMENT_SESSION", "new installment sessions are no longer supported")
 		} else {
 			sq := tx.PaymentSession.Query().Where(paymentsession.IDEQ(sessionID), paymentsession.UserIDEQ(req.UserID))
 			if paymentAuditDialect(s.entClient) == dialect.Postgres {
@@ -495,6 +557,9 @@ func (s *PaymentService) createOrderInTx(ctx context.Context, req CreateOrderReq
 		session, err := tx.PaymentSession.Get(ctx, sessionID)
 		if err != nil {
 			return nil, err
+		}
+		if installment != nil {
+			b.SetFailedReason(paymentProviderCreateInProgress)
 		}
 		b.SetPaymentSessionID(sessionID).SetInstallmentNumber(installmentNumber).
 			SetSubscriptionGroupID(session.SubscriptionGroupID).SetSubscriptionDays(session.SubscriptionDays)
@@ -747,16 +812,46 @@ func (s *PaymentService) invokeProvider(ctx context.Context, order *dbent.Paymen
 		}
 		return nil, classifyCreatePaymentError(req, sel.ProviderKey, err)
 	}
+	if pr == nil {
+		return nil, infraerrors.ServiceUnavailable("PAYMENT_GATEWAY_ERROR", "empty provider response")
+	}
 	sanitizeCreatePaymentResponseDetails(pr)
-	_, err = s.entClient.PaymentOrder.UpdateOneID(order.ID).
-		SetNillablePaymentTradeNo(psNilIfEmpty(pr.TradeNo)).
-		SetNillablePayURL(psNilIfEmpty(pr.PayURL)).
-		SetNillableQrCode(psNilIfEmpty(pr.QRCode)).
-		SetNillableProviderInstanceID(psNilIfEmpty(sel.InstanceID)).
-		SetNillableProviderKey(psNilIfEmpty(sel.ProviderKey)).
-		Save(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("update order with payment details: %w", err)
+	if order.PaymentSessionID != nil {
+		// The create fence may have timed out while an upstream request was
+		// outstanding. Do not publish a fresh payable link on a closing bill.
+		tx, err := s.entClient.Tx(ctx)
+		if err != nil {
+			return nil, err
+		}
+		defer func() { _ = tx.Rollback() }()
+		if err := lockPaymentUser(ctx, tx.Client(), order.UserID); err != nil {
+			return nil, err
+		}
+		session, err := tx.PaymentSession.Get(ctx, *order.PaymentSessionID)
+		if err != nil {
+			return nil, err
+		}
+		if session.Status == paymentSessionCancelled || session.Status == paymentSessionCancelling {
+			return nil, paymentClosureUnknown(session.ID, order.ID, "create-after-cancel", nil)
+		}
+		if _, err := tx.PaymentOrder.UpdateOneID(order.ID).SetNillablePaymentTradeNo(psNilIfEmpty(pr.TradeNo)).SetNillablePayURL(psNilIfEmpty(pr.PayURL)).SetNillableQrCode(psNilIfEmpty(pr.QRCode)).ClearFailedReason().Save(ctx); err != nil {
+			return nil, err
+		}
+		if err := tx.Commit(); err != nil {
+			return nil, err
+		}
+	} else {
+		_, err = s.entClient.PaymentOrder.UpdateOneID(order.ID).
+			SetNillablePaymentTradeNo(psNilIfEmpty(pr.TradeNo)).
+			SetNillablePayURL(psNilIfEmpty(pr.PayURL)).
+			SetNillableQrCode(psNilIfEmpty(pr.QRCode)).
+			SetNillableProviderInstanceID(psNilIfEmpty(sel.InstanceID)).
+			SetNillableProviderKey(psNilIfEmpty(sel.ProviderKey)).
+			ClearFailedReason().
+			Save(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("update order with payment details: %w", err)
+		}
 	}
 	s.writeAuditLog(ctx, order.ID, "ORDER_CREATED", fmt.Sprintf("user:%d", req.UserID), map[string]any{
 		"paymentAmount":  req.Amount,

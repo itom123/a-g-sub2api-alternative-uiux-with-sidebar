@@ -1,6 +1,9 @@
 <template>
   <AppLayout>
     <div class="mx-auto max-w-4xl space-y-6">
+      <div class="flex justify-end">
+        <button type="button" data-testid="exit-checkout" class="btn btn-secondary" @click="goToDashboard">{{ t('payment.exitCheckout') }}</button>
+      </div>
       <PageLoading v-if="loading" />
       <template v-else>
         <div v-if="activeTab === 'subscription' && sessionsError" role="alert" class="card space-y-3 p-5">
@@ -28,8 +31,10 @@
             :order-type="paymentState.orderType"
             :currency="paymentState.currency || selectedCurrency"
             :out-trade-no="paymentState.outTradeNo"
+            :payment-session-id="paymentState.orderType === 'subscription' ? paymentSessionId || undefined : undefined"
             :mobile-alipay-deep-link="paymentState.alipayMobilePrecreateDeepLink"
             @done="onPaymentDone"
+            @exit="leaveSubscriptionCheckout"
             @success="onPaymentSuccess"
             @settled="onPaymentSettled"
           />
@@ -200,46 +205,49 @@
                   </div>
                 </div>
               </div>
-              <div class="card space-y-4 p-5" data-testid="subscription-payment-progress">
-                <h3 class="text-lg font-semibold">{{ t('purchase.installment.title') }}</h3>
-                <p class="text-sm text-gray-500">{{ t('purchase.installment.description') }}</p>
+              <div v-if="selectedSession" class="card space-y-4 p-5" data-testid="subscription-payment-progress">
+                <h3 class="text-lg font-semibold">{{ t('purchase.bill.title') }}</h3>
                 <dl class="grid grid-cols-3 gap-3 text-sm">
-                  <div><dt>{{ t('purchase.installment.total') }}</dt><dd class="mt-1 font-semibold">{{ formatSubscriptionAmount(selectedSession?.target_amount ?? (checkoutQuote ? checkoutQuote.total_cents / 100 : subTotalAmount)) }}</dd></div>
-                  <div><dt>{{ t('purchase.installment.paid') }}</dt><dd class="mt-1 font-semibold">{{ formatSubscriptionAmount(selectedSession?.paid_amount ?? 0) }}</dd></div>
+                  <div><dt>{{ t('purchase.installment.total') }}</dt><dd class="mt-1 font-semibold">{{ formatSubscriptionAmount(selectedSession.target_amount) }}</dd></div>
+                  <div><dt>{{ t('purchase.installment.paid') }}</dt><dd class="mt-1 font-semibold">{{ formatSubscriptionAmount(selectedSession.paid_amount) }}</dd></div>
                   <div><dt>{{ t('purchase.installment.remaining') }}</dt><dd class="mt-1 font-semibold">{{ formatSubscriptionAmount(subscriptionInstallmentRemaining) }}</dd></div>
                 </dl>
-                <p v-if="selectedSession?.status === 'FULFILLED'" role="status" class="font-medium text-green-700">{{ t('purchase.installment.allocated') }}</p>
-                <p v-else-if="['PAID', 'ALLOCATION_FAILED'].includes(selectedSession?.status || '')" role="status">{{ t('purchase.installment.awaitingAllocation') }}</p>
-                <template v-else>
-                  <p v-if="!sessionHasPendingOrder" class="text-2xl font-semibold tabular-nums">{{ t('purchase.bill.next', {amount: formatSubscriptionAmount(subscriptionInstallmentAmount)}) }}</p>
-                  <button v-if="!prescribedSchedule.length && !sessionHasPendingOrder" type="button" class="text-sm underline" @click="changeAmount = !changeAmount">{{ t('purchase.bill.changeAmount') }}</button>
-                  <label v-if="changeAmount" class="block text-sm" for="subscription-installment">{{ t('purchase.installment.current') }}</label>
-                  <input v-if="changeAmount && !prescribedSchedule.length" id="subscription-installment" v-model.number="installmentInput" class="input" type="number" step="0.01" :min="installmentMinimum" :max="Math.min(installmentCap, subscriptionInstallmentRemaining)" :placeholder="subscriptionInstallmentAmount.toFixed(2)" :disabled="sessionHasPendingOrder" />
-                  <p v-if="changeAmount" class="text-xs text-gray-500">{{ t('purchase.installment.amountHint', { min: formatSubscriptionAmount(installmentMinimum), max: formatSubscriptionAmount(installmentCap) }) }}</p>
-                  <div v-if="sessionHasPendingOrder" class="space-y-3">
-                    <p role="status" class="text-sm">{{ t(checkoutQuote?.pending_order?.checking ? 'purchase.bill.checking' : 'purchase.installment.pending') }}</p>
-                    <button v-if="checkoutQuote?.pending_order && !checkoutQuote.pending_order.checking" class="btn btn-primary w-full" @click="reopenPendingPayment">{{ t('purchase.bill.reopen') }}</button>
-                    <button class="btn btn-secondary w-full" :disabled="quoteLoading" @click="checkBillPayment">{{ t('purchase.bill.checkStatus') }}</button>
-                  </div>
-                </template>
-                <ol v-if="selectedSession?.orders?.length" class="divide-y divide-gray-200 text-sm dark:divide-dark-600">
+                <p v-if="selectedSession.status === 'CANCELLING'" role="status">{{ t('payment.cancellationChecking') }}</p>
+                <p v-else-if="selectedSession.status === 'CANCELLED'" role="status">{{ t('payment.qr.cancelled') }}</p>
+                <p v-else-if="selectedSession.status === 'FULFILLED'" role="status" class="font-medium text-green-700">{{ t('purchase.installment.allocated') }}</p>
+                <p v-else-if="['PAID', 'ALLOCATION_FAILED'].includes(selectedSession.status || '')" role="status">{{ t('purchase.installment.awaitingAllocation') }}</p>
+                <div v-if="sessionHasPendingOrder" class="space-y-3">
+                  <p role="status" class="text-sm">{{ t(checkoutQuote?.pending_order?.checking ? 'purchase.bill.checking' : 'purchase.installment.pending') }}</p>
+                  <button v-if="checkoutQuote?.pending_order && !checkoutQuote.pending_order.checking && selectedSession.status !== 'CANCELLING'" class="btn btn-primary w-full" @click="reopenPendingPayment">{{ t('purchase.bill.reopen') }}</button>
+                  <button class="btn btn-secondary w-full" :disabled="quoteLoading" @click="checkBillPayment">{{ t('purchase.bill.checkStatus') }}</button>
+                </div>
+                <button v-if="['PENDING', 'CANCELLING'].includes(selectedSession.status) && !selectedSession.paid_amount" type="button" data-testid="cancel-subscription-bill" class="btn btn-secondary w-full" :disabled="cancellingBill" @click="cancelPendingSubscription">{{ cancellingBill ? t('common.processing') : t('payment.qr.cancelOrder') }}</button>
+                <ol v-if="selectedSession.orders?.length" class="divide-y divide-gray-200 text-sm dark:divide-dark-600">
                   <li v-for="order in selectedSession.orders" :key="order.id" class="flex justify-between gap-4 py-2">
-                    <div><span>#{{ order.installment_number }} · {{ formatSubscriptionAmount(order.pay_amount) }}</span><p class="mt-1 text-xs text-gray-500">{{ order.out_trade_no }} · {{ new Date(order.paid_at || order.created_at || order.expires_at).toLocaleString() }}</p></div>
+                    <div><span>#{{ order.installment_number || order.id }} · {{ formatSubscriptionAmount(order.pay_amount) }}</span><p class="mt-1 text-xs text-gray-500">{{ order.out_trade_no }} · {{ new Date(order.paid_at || order.created_at || order.expires_at).toLocaleString() }}</p></div>
                     <span>{{ t('payment.status.' + order.status.toLowerCase()) }}</span>
                   </li>
                 </ol>
               </div>
+              <div v-else class="card space-y-4 p-5" data-testid="subscription-payment-progress">
+                <h3 class="text-lg font-semibold">{{ t('payment.confirmSubscription') }}</h3>
+                <p class="text-sm text-gray-500">{{ t('payment.oneTimeSubscription') }}</p>
+                <div class="flex items-baseline justify-between border-t border-gray-200 pt-3 dark:border-dark-600">
+                  <span class="font-medium text-gray-700 dark:text-gray-300">{{ t('payment.actualPay') }}</span>
+                  <span class="text-2xl font-bold text-primary-600 dark:text-primary-400">{{ formatSubscriptionAmount(subscriptionPaymentDue) }}</span>
+                </div>
+              </div>
               <p v-if="quoteError" role="alert" class="text-sm text-red-600">{{ quoteError }} <button class="underline" @click="refreshCheckoutQuote">{{ t('common.tryAgain') }}</button></p>
               <p v-if="selectedSession?.overpaid_amount" role="alert" class="text-sm text-amber-700">{{ t('purchase.bill.excess', {amount: formatSubscriptionAmount(selectedSession.overpaid_amount)}) }}</p>
-              <button v-if="selectedSession?.status === 'FULFILLED' && selectedPlan.for_sale !== false" class="btn btn-secondary w-full" @click="renewSelectedPlan">{{ t('purchase.bill.renew') }}</button>
-              <button v-if="!sessionHasPendingOrder && (!selectedSession || selectedSession.status === 'PENDING')" :class="['btn w-full py-3 text-base font-medium', paymentButtonClass]" :disabled="!canSubmitSubscription || submitting" @click="confirmSubscribe">
+              <p v-if="!selectedSession && hasPlatformSubscription(selectedPlan)" role="status" class="text-sm text-gray-500">{{ t('payment.platformSubscriptionActive') }}</p>
+              <button v-if="(!selectedSession || canContinueLegacyBill) && !sessionHasPendingOrder" :class="['btn w-full py-3 text-base font-medium', paymentButtonClass]" :disabled="!canSubmitSubscription || submitting" @click="confirmSubscribe">
                 <span v-if="submitting" class="flex items-center justify-center gap-2">
                   <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
                   {{ t('common.processing') }}
                 </span>
-                <span v-else>{{ sessionHasPendingOrder ? t('purchase.bill.checking') : t('purchase.bill.pay', {amount: formatSubscriptionAmount(subscriptionInstallmentAmount)}) }}</span>
+                <span v-else>{{ t('purchase.bill.pay', {amount: formatSubscriptionAmount(subscriptionPaymentDue)}) }}</span>
               </button>
-              <button v-if="checkout.plans.length > 1" class="btn btn-secondary w-full" @click="selectedPlan = null">{{ t('purchase.bill.back') }}</button>
+              <button v-if="selectedPlan" class="btn btn-secondary w-full" @click="leaveSubscriptionCheckout">{{ t('purchase.bill.back') }}</button>
             </template>
             <!-- Plan list -->
             <template v-else>
@@ -347,7 +355,7 @@ import { paymentAPI } from '@/api/payment'
 import { extractApiErrorMessage, extractI18nErrorMessage } from '@/utils/apiError'
 import { isMobileDevice } from '@/utils/device'
 import { hasPeakRate, formatPeakRateWindow, serverTimezoneLabel, type PeakRateFields } from '@/utils/peak-rate'
-import type { SubscriptionPlan, CheckoutInfoResponse, CreateOrderResult, OrderType, PaymentSessionSummary, SubscriptionCheckout } from '@/types/payment'
+import type { SubscriptionPlan, CheckoutInfoResponse, CreateOrderRequest, CreateOrderResult, OrderType, PaymentSessionSummary, SubscriptionCheckout } from '@/types/payment'
 import { formatRechargeBonusNumber, normalizeRechargeBonusMode, normalizeRechargeBonusTiers, quoteRechargeBonus } from '@/utils/rechargeBonus'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import AmountInput from '@/components/payment/AmountInput.vue'
@@ -373,6 +381,7 @@ import { planValiditySuffix as validitySuffixOf } from '@/components/payment/val
 import type { PaymentMethodOption } from '@/components/payment/PaymentMethodSelector.vue'
 import { buildPaymentErrorToastMessage, describePaymentScenarioError } from './paymentUx'
 import { hasWechatResumeQuery, parseWechatResumeRoute, stripWechatResumeQuery } from './paymentWechatResume'
+import { hasActivePlatformSubscription, isOpenSubscriptionBill, shouldRefreshSubscriptionBill } from './subscriptionCheckout'
 
 const i18n = useI18n()
 const { t } = i18n
@@ -409,56 +418,79 @@ const selectedMethod = ref('')
 const selectedPlan = ref<SubscriptionPlan | null>(null)
 const paymentSessionId = ref<number | null>(null)
 const paymentSessions = ref<PaymentSessionSummary[]>([])
-const installmentInput = ref<number | null>(null)
 const checkoutQuote = ref<SubscriptionCheckout | null>(null)
 const quoteLoading = ref(false)
 const sessionsLoaded = ref(false)
 const sessionsError = ref('')
 const quoteError = ref('')
-const changeAmount = ref(false)
 const historyPage = ref(1)
 const historyTotal = ref(0)
 const historyLoading = ref(false)
 let quoteRevision = 0
 let subscriptionRequest: { fingerprint: string; key: string } | null = null
-const prescribedSchedule = computed(() => selectedSession.value?.installment_schedule_cents || selectedPlan.value?.installment_schedule_cents || [])
 const selectedSession = computed(() => paymentSessions.value.find(s => s.id === paymentSessionId.value))
 const subscriptionInstallmentRemaining = computed(() => selectedSession.value
   ? Math.max(0, Math.round((selectedSession.value.target_amount - selectedSession.value.paid_amount) * 100) / 100)
   : (checkoutQuote.value ? checkoutQuote.value.total_cents / 100 : subTotalAmount.value))
 const subscriptionOnly = computed(() => route.path === '/subscription')
-const sessionHasPendingOrder = computed(() => !!checkoutQuote.value?.pending_order || (selectedSession.value?.orders?.some(o =>
-  (!o.paid_at && !o.provider_closed && !['COMPLETED', 'REFUNDED', 'PARTIALLY_REFUNDED'].includes(o.status)) || ['PAID', 'RECHARGING'].includes(o.status),
+// An uncertain gateway payment still blocks another charge, but never navigation.
+const sessionHasPendingOrder = computed(() => !!checkoutQuote.value?.pending_order || (selectedSession.value?.orders?.some(order =>
+  ['PAID', 'RECHARGING'].includes(order.status)
+  || (!order.paid_at && !order.provider_closed && !['COMPLETED', 'REFUNDED', 'PARTIALLY_REFUNDED'].includes(order.status))
 ) ?? false))
+const canContinueLegacyBill = computed(() => selectedSession.value?.status === 'PENDING' && selectedSession.value.paid_amount > 0)
 let sessionRefreshTimer: ReturnType<typeof setInterval> | undefined
-onUnmounted(() => { if (sessionRefreshTimer) clearInterval(sessionRefreshTimer) })
+let sessionRefreshInFlight = false
+let disposed = false
+let checkoutRevision = 0
+const cancellingBill = ref(false)
+
+function stopSessionRefresh() {
+  if (sessionRefreshTimer) clearInterval(sessionRefreshTimer)
+  sessionRefreshTimer = undefined
+}
+
+function updateSessionRefresh() {
+  const needsRefresh = selectedSession.value && shouldRefreshSubscriptionBill(selectedSession.value)
+  if (!needsRefresh) { stopSessionRefresh(); return }
+  if (!sessionRefreshTimer && !disposed) {
+    sessionRefreshTimer = setInterval(() => { void refreshPaymentSessions().catch(() => {}) }, 5000)
+  }
+}
+watch(selectedSession, updateSessionRefresh)
+onUnmounted(() => {
+  disposed = true
+  checkoutRevision++
+  quoteRevision++
+  stopSessionRefresh()
+})
 
 async function refreshPaymentSessions() {
-  const res = await paymentAPI.getMyPaymentSessions()
-  sessionsLoaded.value = true
-  sessionsError.value = ''
-  const known = new Map(paymentSessions.value.map(item => [item.id, item]))
-  for (const item of res.data) known.set(item.id, item)
-  paymentSessions.value = [...known.values()].sort((a, b) => b.id - a.id)
-  await refreshCheckoutQuote()
-  if (res.data.some(s => s.status !== 'FULFILLED') && !sessionRefreshTimer) {
-    sessionRefreshTimer = setInterval(() => { void refreshPaymentSessions().catch(() => {}) }, 5000)
-  } else if (res.data.every(s => s.status === 'FULFILLED') && sessionRefreshTimer) {
-    clearInterval(sessionRefreshTimer)
-    sessionRefreshTimer = undefined
-  }
+  if (sessionRefreshInFlight || disposed) return
+  sessionRefreshInFlight = true
+  try {
+    const res = await paymentAPI.getMyPaymentSessions()
+    if (disposed) return
+    sessionsLoaded.value = true
+    sessionsError.value = ''
+    const known = new Map(paymentSessions.value.map(item => [item.id, item]))
+    for (const item of res.data) known.set(item.id, item)
+    paymentSessions.value = [...known.values()].sort((a, b) => b.id - a.id)
+    await refreshCheckoutQuote()
+    updateSessionRefresh()
+  } finally { sessionRefreshInFlight = false }
 }
 async function retrySavedBills() {
   try {
     await refreshPaymentSessions()
-    const bill = paymentSessions.value.find(item => item.plan_id === selectedPlan.value?.id)
-    if (bill) openBill(bill)
+    const bill = paymentSessions.value.find(item => item.plan_id === selectedPlan.value?.id && isOpenSubscriptionBill(item))
+    if (bill && paymentSessionId.value) openBill(bill)
     await refreshCheckoutQuote()
   } catch { sessionsError.value = t('purchase.bill.loadFailed') }
 }
 async function refreshCheckoutQuote() {
   const revision = ++quoteRevision
-  if (!selectedPlan.value || !selectedMethod.value) { checkoutQuote.value = null; return }
+  if (!selectedPlan.value || !selectedMethod.value || disposed) { checkoutQuote.value = null; quoteLoading.value = false; return }
   quoteLoading.value = true
   quoteError.value = ''
   try {
@@ -482,20 +514,12 @@ async function loadHistory(more = false) {
   finally { historyLoading.value = false }
 }
 function openBill(session: PaymentSessionSummary) {
+  leaveSubscriptionCheckout()
   const plan = checkout.value.plans.find(item => item.id === session.plan_id)
   selectedPlan.value = plan || {id:session.plan_id,group_id:session.subscription_group_id,name:session.plan_name || t('purchase.bill.title'),description:'',price:0,fixed_price_cny:session.target_amount,validity_days:30,validity_unit:'days',features:[],for_sale:false,sort_order:0}
   paymentSessionId.value = session.id
-  installmentInput.value = null
-  changeAmount.value = false
   activeTab.value = 'subscription'
   resetPayment()
-}
-function renewSelectedPlan() {
-  paymentSessionId.value = null
-  installmentInput.value = null
-  changeAmount.value = false
-  subscriptionRequest = null
-  void refreshCheckoutQuote()
 }
 async function checkBillPayment() {
   if (!paymentSessionId.value || quoteLoading.value) return
@@ -511,8 +535,6 @@ function reopenPendingPayment() {
   paymentPhase.value = 'paying'
 }
 watch([() => selectedPlan.value?.id, paymentSessionId, selectedMethod, () => selectedSession.value?.paid_amount], () => {
-  installmentInput.value = null
-  changeAmount.value = false
   void refreshCheckoutQuote()
 })
 const previewImage = ref('')
@@ -583,8 +605,9 @@ function waitForWeixinJSBridge(timeoutMs = 4000): Promise<WeixinJSBridgeLike | n
   })
 }
 
-async function invokeWechatJsapiPayment(payload: Record<string, unknown>): Promise<Record<string, unknown>> {
+async function invokeWechatJsapiPayment(payload: Record<string, unknown>, revision: number): Promise<Record<string, unknown>> {
   const bridge = await waitForWeixinJSBridge()
+  if (disposed || revision !== checkoutRevision) return {}
   if (!bridge) {
     throw new Error('WECHAT_JSAPI_UNAVAILABLE')
   }
@@ -666,12 +689,9 @@ function buildWechatOAuthAuthorizeUrl(
 }
 
 function onPaymentDone() {
-  const wasSubscription = paymentState.value.orderType === 'subscription'
-  resetPayment()
-  if (!wasSubscription) selectedPlan.value = null
-  if (wasSubscription) {
-    subscriptionStore.fetchActiveSubscriptions(true).catch(() => {})
-  }
+  leaveSubscriptionCheckout()
+  void refreshPaymentSessions().catch(() => {})
+  subscriptionStore.fetchActiveSubscriptions(true).catch(() => {})
 }
 
 async function onPaymentSuccess() {
@@ -682,7 +702,6 @@ async function onPaymentSuccess() {
     subscriptionStore.fetchActiveSubscriptions(true).catch(() => {})
     if (paymentSessionId.value) {
       await refreshPaymentSessions()
-      installmentInput.value = null
       resetPayment()
       return
     }
@@ -886,6 +905,10 @@ const canSubmit = computed(() =>
     && selectedLimit.value?.available !== false
 )
 
+const subscriptionPaymentDue = computed(() => selectedSession.value
+  ? checkoutQuote.value?.next_amount ?? 0
+  : checkoutQuote.value ? checkoutQuote.value.total_cents / 100 : subTotalAmount.value)
+
 const subPaymentAmount = computed(() => {
   const price = selectedPlan.value?.price ?? 0
   return selectedPlan.value?.fixed_price_cny || subscriptionPaymentAmountForCurrency(price, selectedCurrency.value)
@@ -901,17 +924,6 @@ const subTotalAmount = computed(() => {
   return roundPaymentAmount(subPaymentAmount.value + subFeeAmount.value, selectedCurrency.value)
 })
 
-const installmentMinimum = computed(() => Math.max(checkout.value.global_min || 0, selectedLimit.value?.single_min || 0, 0.01))
-const installmentCap = computed(() => Math.min(1000, selectedLimit.value?.single_max || 1000, checkout.value.global_max || 1000))
-const subscriptionInstallmentAmount = computed(() => {
-  if (installmentInput.value != null && prescribedSchedule.value.length === 0) return installmentInput.value
-  if (checkoutQuote.value) return checkoutQuote.value.next_amount
-  const remaining = subscriptionInstallmentRemaining.value
-  const suggested = Math.min(installmentCap.value, Math.max(0, remaining))
-  const tail = Math.round((remaining - suggested) * 100) / 100
-  return tail > 0 && tail < installmentMinimum.value ? Math.round((remaining - installmentMinimum.value) * 100) / 100 : suggested
-})
-const installmentTail = computed(() => Math.round((subscriptionInstallmentRemaining.value - subscriptionInstallmentAmount.value) * 100) / 100)
 const subscriptionCurrency = computed(() => selectedSession.value?.currency || (selectedPlan.value?.fixed_price_cny ? 'CNY' : selectedCurrency.value))
 function formatSubscriptionAmount(value: number): string {
   return formatPaymentAmount(value, subscriptionCurrency.value, localeCode.value)
@@ -930,6 +942,9 @@ const subMethodOptions = computed<PaymentMethodOption[]>(() => {
   return enabledMethods.value.map((type) => {
     const ml = visibleMethods.value[type]
     const currency = normalizePaymentCurrency(ml?.currency)
+    const due = selectedSession.value
+      ? checkoutQuote.value?.next_amount ?? subscriptionInstallmentRemaining.value
+      : selectedPlan.value?.fixed_price_cny || subscriptionTotalAmountForCurrency(price, currency)
     return {
       type,
       display_name: ml?.display_name,
@@ -937,7 +952,7 @@ const subMethodOptions = computed<PaymentMethodOption[]>(() => {
       available: ml?.available !== false
         && (!selectedPlan.value?.fixed_price_cny || currency === 'CNY')
         && (!selectedSession.value || currency === selectedSession.value.currency)
-        && amountFitsMethod(Math.min(1000, ml?.single_max || 1000, subscriptionInstallmentRemaining.value || selectedPlan.value?.fixed_price_cny || subscriptionTotalAmountForCurrency(price, currency)), type),
+        && amountFitsMethod(due, type),
     }
   })
 })
@@ -945,17 +960,12 @@ const subMethodOptions = computed<PaymentMethodOption[]>(() => {
 const canSubmitSubscription = computed(() =>
   selectedPlan.value !== null
     && sessionsLoaded.value && !!checkoutQuote.value && !quoteLoading.value && !quoteError.value
-    && subscriptionInstallmentAmount.value > 0
-    && Number.isFinite(subscriptionInstallmentAmount.value)
-    && subscriptionInstallmentAmount.value >= installmentMinimum.value
-    && subscriptionInstallmentAmount.value <= installmentCap.value
-    && (installmentTail.value === 0 || installmentTail.value >= installmentMinimum.value)
-    && subscriptionInstallmentAmount.value <= subscriptionInstallmentRemaining.value
+    && (!selectedSession.value ? !hasPlatformSubscription(selectedPlan.value) : canContinueLegacyBill.value)
     && !sessionHasPendingOrder.value
-    && (!selectedSession.value || selectedSession.value.status === 'PENDING')
+    && subscriptionPaymentDue.value > 0
+    && Number.isFinite(subscriptionPaymentDue.value)
     && (!selectedPlan.value?.fixed_price_cny || selectedCurrency.value === 'CNY')
-    && (!selectedSession.value || selectedSession.value.currency === selectedCurrency.value)
-    && amountFitsMethod(subscriptionInstallmentAmount.value, selectedMethod.value)
+    && amountFitsMethod(subscriptionPaymentDue.value, selectedMethod.value)
     && selectedLimit.value?.available !== false
 )
 
@@ -1008,20 +1018,54 @@ function planPeakRateLabel(plan: SubscriptionPlan): string {
   return formatPeakRateWindow(plan, serverTimezoneLabel(appStore.cachedPublicSettings?.server_utc_offset))
 }
 
+async function cancelPendingSubscription() {
+  const sessionId = paymentSessionId.value
+  if (!sessionId || cancellingBill.value) return
+  const revision = checkoutRevision
+  cancellingBill.value = true
+  try {
+    await paymentAPI.cancelSubscriptionSession(sessionId)
+    paymentSessions.value = paymentSessions.value.map(bill => bill.id === sessionId ? { ...bill, status: 'CANCELLED' } : bill)
+    if (!disposed && revision === checkoutRevision) leaveSubscriptionCheckout()
+  } catch (error: unknown) {
+    if (!disposed && revision === checkoutRevision) appStore.showError(extractI18nErrorMessage(error, t, 'payment.errors', t('common.error')))
+  } finally { cancellingBill.value = false }
+}
+
+function leaveSubscriptionCheckout() {
+  checkoutRevision++
+  quoteRevision++
+  stopSessionRefresh()
+  resetPayment()
+  selectedPlan.value = null
+  paymentSessionId.value = null
+  checkoutQuote.value = null
+  quoteError.value = ''
+  quoteLoading.value = false
+  submitting.value = false
+  showRenewalModal.value = false
+}
+
+function goToDashboard() {
+  leaveSubscriptionCheckout()
+  void router.push('/dashboard')
+}
+
+function hasPlatformSubscription(plan: SubscriptionPlan | null): boolean {
+  return !!plan && hasActivePlatformSubscription(plan, activeSubscriptions.value)
+}
+
 function selectPlan(plan: SubscriptionPlan) {
+  if (hasPlatformSubscription(plan)) { appStore.showInfo(t('payment.platformSubscriptionActive')); return }
+  leaveSubscriptionCheckout()
   selectedPlan.value = plan
-  paymentSessionId.value = paymentSessions.value.find(s => s.plan_id === plan.id && s.status !== 'FULFILLED')?.id || null
-  installmentInput.value = null
+  paymentSessionId.value = paymentSessions.value.find(s => s.plan_id === plan.id && isOpenSubscriptionBill(s))?.id || null
   errorMessage.value = ''
 }
 
 function selectPlanFromModal(plan: SubscriptionPlan) {
-  showRenewalModal.value = false
-  renewGroupId.value = null
-  selectedPlan.value = plan
-  paymentSessionId.value = paymentSessions.value.find(s => s.plan_id === plan.id && s.status !== 'FULFILLED')?.id || null
-  installmentInput.value = null
-  errorMessage.value = ''
+  closeRenewalModal()
+  selectPlan(plan)
 }
 
 function closeRenewalModal() {
@@ -1036,10 +1080,12 @@ async function handleSubmitRecharge() {
 
 async function confirmSubscribe() {
   if (!selectedPlan.value || !canSubmitSubscription.value || submitting.value) return
-  await createOrder(subscriptionInstallmentAmount.value, 'subscription', selectedPlan.value.id)
+  await createOrder(subscriptionPaymentDue.value, 'subscription', selectedPlan.value.id)
 }
 
 async function createOrder(orderAmount: number, orderType: OrderType, planId?: number, options: CreateOrderOptions = {}) {
+  const revision = checkoutRevision
+  let originalRequest: CreateOrderRequest | undefined
   submitting.value = true
   errorMessage.value = ''
   errorHintMessage.value = ''
@@ -1050,7 +1096,7 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
       paymentType: requestType,
       orderType,
       planId,
-      paymentSessionId: orderType === 'subscription' ? (paymentSessionId.value || undefined) : undefined,
+      paymentSessionId: orderType === 'subscription' && canContinueLegacyBill.value ? paymentSessionId.value || undefined : undefined,
       origin: typeof window !== 'undefined' ? window.location.origin : '',
       isMobile: isMobileDevice(),
       isWechatBrowser: typeof window !== 'undefined' && /MicroMessenger/i.test(window.navigator.userAgent),
@@ -1071,11 +1117,14 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
       if (!subscriptionRequest || subscriptionRequest.fingerprint !== fingerprint) subscriptionRequest = {fingerprint, key: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`}
       payload.request_key = subscriptionRequest.key
     }
+    originalRequest = { ...payload }
     const result = await paymentStore.createOrder(payload) as CreateOrderResult & { resume_token?: string }
+    if (disposed || revision !== checkoutRevision) return
     if (orderType === 'subscription') subscriptionRequest = null
     if (orderType === 'subscription' && result.payment_session_id) {
       paymentSessionId.value = result.payment_session_id
       await refreshPaymentSessions().catch(() => {})
+      if (disposed || revision !== checkoutRevision) return
     }
     const openWindow = (url: string) => {
       const win = window.open(url, 'paymentPopup', getPaymentPopupFeatures())
@@ -1154,7 +1203,8 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
     }
     if (decision.kind === 'wechat_jsapi' && decision.jsapi) {
       try {
-        const jsapiResult = await invokeWechatJsapiPayment(decision.jsapi as Record<string, unknown>)
+        const jsapiResult = await invokeWechatJsapiPayment(decision.jsapi as Record<string, unknown>, revision)
+        if (disposed || revision !== checkoutRevision) return
         const errMsg = String(jsapiResult.err_msg || '').toLowerCase()
         if (errMsg.includes('cancel')) {
           appStore.showInfo(t('payment.qr.cancelled'))
@@ -1169,6 +1219,8 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
               planId,
               paymentType: visibleMethod,
               attempted: options.mobileQrFallbackAttempted === true,
+              originalRequest,
+              revision,
             },
           )
           if (!fallbackApplied) {
@@ -1180,6 +1232,7 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
           await redirectToPaymentResult(resultState)
         }
       } catch (err: unknown) {
+        if (disposed || revision !== checkoutRevision) return
         resetPayment()
         const fallbackApplied = await attemptMobileQrFallback(err, {
           orderAmount,
@@ -1187,6 +1240,8 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
           planId,
           paymentType: visibleMethod,
           attempted: options.mobileQrFallbackAttempted === true,
+          originalRequest,
+          revision,
         })
         if (!fallbackApplied) {
           throw err
@@ -1202,14 +1257,19 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
       openWindow(decision.paymentState.payUrl)
     }
   } catch (err: unknown) {
+    if (disposed || revision !== checkoutRevision) return
     const apiErr = err as Record<string, unknown>
     if (orderType === 'subscription') {
       await refreshPaymentSessions().catch(() => { sessionsError.value = t('purchase.bill.loadFailed') })
-      if (selectedPlan.value) paymentSessionId.value = paymentSessions.value.find(s => s.plan_id === selectedPlan.value?.id && s.status !== 'FULFILLED')?.id || null
+      if (disposed || revision !== checkoutRevision) return
+      if (selectedPlan.value) paymentSessionId.value = paymentSessions.value.find(s => s.plan_id === selectedPlan.value?.id && isOpenSubscriptionBill(s))?.id || null
     }
     if (apiErr.reason === 'TOO_MANY_PENDING') {
       const metadata = apiErr.metadata as Record<string, unknown> | undefined
       errorMessage.value = t('payment.errors.tooManyPending', { max: metadata?.max || '' })
+      errorHintMessage.value = ''
+    } else if (apiErr.reason === 'SUBSCRIPTION_PLATFORM_ALREADY_ACTIVE') {
+      errorMessage.value = t('payment.platformSubscriptionActive')
       errorHintMessage.value = ''
     } else if (apiErr.reason === 'CANCEL_RATE_LIMITED') {
       errorMessage.value = t('payment.errors.cancelRateLimited')
@@ -1220,6 +1280,8 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
       planId,
       paymentType: requestType,
       attempted: options.mobileQrFallbackAttempted === true,
+      originalRequest,
+      revision,
     })) {
       return
     } else {
@@ -1237,7 +1299,7 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
     }
     appStore.showError(buildPaymentErrorToastMessage(errorMessage.value, errorHintMessage.value))
   } finally {
-    submitting.value = false
+    if (revision === checkoutRevision) submitting.value = false
   }
 }
 
@@ -1247,6 +1309,8 @@ interface MobileQrFallbackContext {
   planId?: number
   paymentType: string
   attempted: boolean
+  originalRequest?: CreateOrderRequest
+  revision: number
 }
 
 function shouldFallbackToDesktopQr(err: unknown, paymentMethod: string, attempted: boolean): boolean {
@@ -1283,10 +1347,11 @@ function shouldFallbackToDesktopQr(err: unknown, paymentMethod: string, attempte
 }
 
 async function attemptMobileQrFallback(err: unknown, context: MobileQrFallbackContext): Promise<boolean> {
-  if (!shouldFallbackToDesktopQr(err, context.paymentType, context.attempted)) {
+  if (disposed || context.revision !== checkoutRevision || !shouldFallbackToDesktopQr(err, context.paymentType, context.attempted)) {
     return false
   }
 
+  const revision = context.revision
   try {
     const visibleMethod = normalizeVisibleMethod(context.paymentType) || context.paymentType
     const payload = buildCreateOrderPayload({
@@ -1297,8 +1362,17 @@ async function attemptMobileQrFallback(err: unknown, context: MobileQrFallbackCo
       origin: typeof window !== 'undefined' ? window.location.origin : '',
       isMobile: false,
       isWechatBrowser: false,
+      paymentSessionId: context.originalRequest?.payment_session_id,
     })
+    if (context.orderType === 'subscription') {
+      if (!context.originalRequest?.request_key || context.originalRequest.expected_total_cents == null) return false
+      payload.expected_total_cents = context.originalRequest.expected_total_cents
+      // A desktop launch is a distinct attempt, anchored to the original quote
+      // and bill, not an unrelated purchase or a replay of a JSAPI response.
+      payload.request_key = `${context.originalRequest.request_key}:qr`
+    }
     const result = await paymentStore.createOrder(payload) as CreateOrderResult & { resume_token?: string }
+    if (disposed || revision !== checkoutRevision) return false
     const stripeMethod = visibleMethod === 'wxpay' ? 'wechat_pay' : 'alipay'
     const stripeRouteUrl = result.client_secret
       ? router.resolve({
@@ -1388,28 +1462,26 @@ async function resumeWechatPaymentFromQuery() {
 }
 
 onMounted(async () => {
+  const revision = checkoutRevision
   try {
     const res = await paymentAPI.getCheckoutInfo()
+    if (disposed || revision !== checkoutRevision) return
     checkout.value = res.data
     try {
       await refreshPaymentSessions()
-      const resumable = paymentSessions.value.find((session) => session.status !== 'FULFILLED')
-      if (resumable) {
-        const plan = checkout.value.plans.find((item) => item.id === resumable.plan_id)
-        if (plan) {
-          activeTab.value = 'subscription'
-          selectedPlan.value = plan
-          paymentSessionId.value = resumable.id
-        }
-      }
     } catch {
       sessionsError.value = t('purchase.bill.loadFailed')
     }
+    if (disposed || revision !== checkoutRevision) return
     if (subscriptionOnly.value && !selectedPlan.value && checkout.value.plans.length === 1 && user.value?.role !== 'admin') {
       selectedPlan.value = checkout.value.plans[0]!
-      paymentSessionId.value = paymentSessions.value.find(item => item.plan_id === selectedPlan.value?.id)?.id || null
+      paymentSessionId.value = paymentSessions.value.find(item => item.plan_id === selectedPlan.value?.id && isOpenSubscriptionBill(item))?.id || null
     }
-    if (subscriptionEnabled.value) await loadHistory()
+    if (subscriptionEnabled.value) {
+      await loadHistory()
+      await subscriptionStore.fetchActiveSubscriptions(true).catch(() => {})
+    }
+    if (disposed || revision !== checkoutRevision) return
     if (enabledMethods.value.length) {
       const order: readonly string[] = METHOD_ORDER
       const sorted = [...enabledMethods.value].sort((a, b) => {
@@ -1445,7 +1517,9 @@ onMounted(async () => {
       }
     }
     await refreshCheckoutQuote()
+    if (disposed || revision !== checkoutRevision) return
     await resumeWechatPaymentFromQuery()
+    if (disposed || revision !== checkoutRevision) return
     // balance_disabled → the tabs watcher above moves activeTab to the subscription tab (when enabled).
     // Handle renewal navigation: ?tab=subscription&group=123 (ignored when subscriptions are disabled)
     if (route.query.tab === 'subscription' && subscriptionEnabled.value) {
@@ -1454,7 +1528,7 @@ onMounted(async () => {
         const groupId = Number(route.query.group)
         const groupPlans = checkout.value.plans.filter(p => p.group_id === groupId)
         if (groupPlans.length === 1) {
-          selectedPlan.value = groupPlans[0]
+          selectPlan(groupPlans[0])
         } else if (groupPlans.length > 1) {
           renewGroupId.value = groupId
           showRenewalModal.value = true

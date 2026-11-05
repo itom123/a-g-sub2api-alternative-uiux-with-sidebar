@@ -1,6 +1,6 @@
 <template>
-  <div class="flex w-full flex-wrap items-end gap-2 sm:w-auto" data-testid="date-presets">
-    <label class="sr-only" for="account-range-preset">{{ t('accountInsights.range.label') }}</label>
+  <div class="account-date-control flex w-full flex-wrap items-end gap-2 sm:w-auto" data-testid="date-presets">
+    <label class="basis-full text-xs leading-5 text-gray-500" for="account-range-preset">{{ t('accountInsights.range.label') }}</label>
     <select id="account-range-preset" class="input min-w-32" :value="range.preset" @change="selectPreset(($event.target as HTMLSelectElement).value as DashboardRange['preset'])">
       <option value="today">{{ t('accountInsights.range.today') }}</option>
       <option value="7d">{{ t('accountInsights.range.sevenDays') }}</option>
@@ -14,7 +14,7 @@
       <label class="text-xs text-gray-500">{{ t('accountInsights.range.start') }}<input class="input ml-1" type="date" :value="range.startDate" @change="updateDate('startDate', ($event.target as HTMLInputElement).value)" /></label>
       <label class="text-xs text-gray-500">{{ t('accountInsights.range.end') }}<input class="input ml-1" type="date" :value="range.endDate" @change="updateDate('endDate', ($event.target as HTMLInputElement).value)" /></label>
     </template>
-    <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('accountInsights.range.localTimezone', { timezone: range.timezone }) }}</span>
+    <span class="basis-full text-xs leading-5 text-gray-500 dark:text-gray-400">{{ t('accountInsights.range.localTimezone', { timezone: range.timezone }) }}</span>
     <p v-if="invalid" class="basis-full text-xs text-amber-700 dark:text-amber-300" role="alert">{{ t('accountInsights.range.invalid') }}</p>
   </div>
 </template>

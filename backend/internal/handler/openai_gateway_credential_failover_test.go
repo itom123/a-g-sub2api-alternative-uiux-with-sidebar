@@ -119,12 +119,21 @@ func TestOpenAICapacityFailoverExhaustionPreservesMessageAsServerError(t *testin
 	})
 
 	t.Run("anthropic_compat", func(t *testing.T) {
+		// Anthropic clients get the Anthropic overload contract: 529 overloaded_error.
 		recorder := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(recorder)
 		(&OpenAIGatewayHandler{}).handleAnthropicFailoverExhausted(c, failoverErr, false)
-		require.Equal(t, http.StatusServiceUnavailable, recorder.Code)
-		require.Equal(t, "api_error", gjson.Get(recorder.Body.String(), "error.type").String())
+		require.Equal(t, 529, recorder.Code)
+		require.Equal(t, "overloaded_error", gjson.Get(recorder.Body.String(), "error.type").String())
 		require.Equal(t, message, gjson.Get(recorder.Body.String(), "error.message").String())
+	})
+
+	t.Run("anthropic_compat_stream_started", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+		(&OpenAIGatewayHandler{}).handleAnthropicFailoverExhausted(c, failoverErr, true)
+		require.Contains(t, recorder.Body.String(), "event: error\ndata: ")
+		require.Contains(t, recorder.Body.String(), `"type":"overloaded_error"`)
 	})
 }
 

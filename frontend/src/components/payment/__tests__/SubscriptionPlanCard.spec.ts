@@ -52,6 +52,17 @@ const mountPlanCard = (groupPlatform: string, overrides: Partial<SubscriptionPla
   });
 
 describe("SubscriptionPlanCard", () => {
+  it('disables purchase for an active subscription on the same platform, not just the same group', async () => {
+    const wrapper = mountPlanCard('openai')
+    await wrapper.setProps({ activeSubscriptions: [{ id: 9, group_id: 99, group: { platform: 'openai' }, status: 'active', expires_at: '2099-01-01T00:00:00Z' }] })
+    expect(wrapper.get('button').attributes('disabled')).toBeDefined()
+    await wrapper.get('button').trigger('click')
+    expect(wrapper.emitted('select')).toBeUndefined()
+    await wrapper.setProps({ activeSubscriptions: [] })
+    expect(wrapper.get('button').attributes('disabled')).toBeUndefined()
+    wrapper.unmount()
+  })
+
   it("does not show Antigravity model scopes for OpenAI plans", () => {
     const text = mountPlanCard("openai").text();
 

@@ -660,8 +660,9 @@ func (s *OpenAIGatewayService) handleAnthropicBufferedStreamingResponse(
 			writeAnthropicError(c, status, errType, errMsg)
 			return nil, fmt.Errorf("upstream response failed (passthrough): %s", errMsg)
 		}
-		writeAnthropicError(c, http.StatusBadGateway, "api_error", message)
-		return nil, fmt.Errorf("upstream response failed: %s", message)
+		errStatus, errType, errMsg := anthropicCompatFailedEventResponse(payload, message)
+		writeAnthropicError(c, errStatus, errType, errMsg)
+		return nil, fmt.Errorf("upstream response failed: %s", errMsg)
 	}
 	if strings.TrimSpace(finalResponse.Status) == "completed" {
 		logOpenAISuccessMissingUsage(c.Request.Context(), c, account, resp, &usage, "response.completed", false)
@@ -1009,7 +1010,14 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 	var firstTokenMs *int
 	firstChunk := true
 	clientDisconnected := false
+	// clientOutputStarted: a semantic Anthropic event reached the client, so
+	// switching accounts would splice two model streams. headersCommitted: only
+	// keepalive pings were written; failover is still possible, but any error
+	// must now be an SSE event because the 200 status is already sent.
 	clientOutputStarted := false
+	headersCommitted := false
+	// Events are held while they are only message_start (see emitEvents).
+	var heldEvents []apicompat.AnthropicStreamEvent
 	var streamFailoverErr error
 	var streamNonFailoverErr error
 	terminalEventType := ""
@@ -1059,6 +1067,53 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 			out.SearchCount = searchCount
 		}
 		return out
+	}
+
+	// emitEvents writes converted Anthropic events, holding them while they are
+	// only message_start. response.created arrives before the model produces
+	// anything; upstream capacity shedding often fails the response right after
+	// it. Holding message_start keeps that failure retryable on another account
+	// instead of surfacing as an error after an empty message.
+	emitEvents := func(events []apicompat.AnthropicStreamEvent) {
+		if len(events) == 0 || clientDisconnected {
+			return
+		}
+		if !clientOutputStarted {
+			heldEvents = append(heldEvents, events...)
+			semantic := false
+			for _, evt := range events {
+				if evt.Type != "message_start" {
+					semantic = true
+					break
+				}
+			}
+			if !semantic {
+				return
+			}
+			events, heldEvents = heldEvents, nil
+		}
+		for _, evt := range events {
+			sse, err := apicompat.ResponsesAnthropicEventToSSE(evt)
+			if err != nil {
+				logger.L().Warn("openai messages stream: failed to marshal event",
+					zap.Error(err),
+					zap.String("request_id", requestID),
+				)
+				continue
+			}
+			writeStreamHeaders()
+			if _, err := fmt.Fprint(c.Writer, sse); err != nil {
+				clientDisconnected = true
+				logger.L().Info("openai messages stream: client disconnected, continuing to drain upstream for billing",
+					zap.String("request_id", requestID),
+				)
+				break
+			}
+			clientOutputStarted = true
+		}
+		if !clientDisconnected {
+			c.Writer.Flush()
+		}
 	}
 
 	// processDataLine handles a single "data: ..." SSE line from upstream.
@@ -1139,7 +1194,7 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 					return true
 				}
 				message = s.recordOpenAIStreamUpstreamError(c, account, false, requestID, "http_error", payloadBytes, message)
-				errStatus, errType, errMsg := http.StatusBadGateway, "api_error", message
+				errStatus, errType, errMsg := anthropicCompatFailedEventResponse(payloadBytes, message)
 				// 统一走语义状态推断 + body 归一化（与 /v1/responses 路径一致），
 				// 使按错误码配置的透传规则可命中。
 				if status, et, em, matched := applyOpenAIStreamFailedErrorPassthroughRule(
@@ -1152,7 +1207,7 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 					MarkResponseCommitted(c)
 				}
 				if !clientDisconnected {
-					if !clientOutputStarted {
+					if !clientOutputStarted && !headersCommitted {
 						writeAnthropicError(c, errStatus, errType, errMsg)
 						clientOutputStarted = true
 					} else {
@@ -1168,31 +1223,7 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 		}
 
 		// Convert to Anthropic events
-		events := apicompat.ResponsesEventToAnthropicEvents(&event, state)
-		if !clientDisconnected {
-			for _, evt := range events {
-				sse, err := apicompat.ResponsesAnthropicEventToSSE(evt)
-				if err != nil {
-					logger.L().Warn("openai messages stream: failed to marshal event",
-						zap.Error(err),
-						zap.String("request_id", requestID),
-					)
-					continue
-				}
-				writeStreamHeaders()
-				if _, err := fmt.Fprint(c.Writer, sse); err != nil {
-					clientDisconnected = true
-					logger.L().Info("openai messages stream: client disconnected, continuing to drain upstream for billing",
-						zap.String("request_id", requestID),
-					)
-					break
-				}
-				clientOutputStarted = true
-			}
-		}
-		if len(events) > 0 && !clientDisconnected {
-			c.Writer.Flush()
-		}
+		emitEvents(apicompat.ResponsesEventToAnthropicEvents(&event, state))
 		return isTerminalEvent
 	}
 
@@ -1204,26 +1235,7 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 		if streamNonFailoverErr != nil {
 			return resultWithUsage(), streamNonFailoverErr
 		}
-		if finalEvents := apicompat.FinalizeResponsesAnthropicStream(state); len(finalEvents) > 0 && !clientDisconnected {
-			for _, evt := range finalEvents {
-				sse, err := apicompat.ResponsesAnthropicEventToSSE(evt)
-				if err != nil {
-					continue
-				}
-				writeStreamHeaders()
-				if _, err := fmt.Fprint(c.Writer, sse); err != nil {
-					clientDisconnected = true
-					logger.L().Info("openai messages stream: client disconnected during final flush",
-						zap.String("request_id", requestID),
-					)
-					break
-				}
-				clientOutputStarted = true
-			}
-			if !clientDisconnected {
-				c.Writer.Flush()
-			}
-		}
+		emitEvents(apicompat.FinalizeResponsesAnthropicStream(state))
 		logOpenAISuccessMissingUsage(c.Request.Context(), c, account, resp, &usage, terminalEventType, clientDisconnected)
 		return resultWithUsage(), nil
 	}
@@ -1388,9 +1400,13 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 			if time.Since(lastDataAt) < keepaliveInterval {
 				continue
 			}
-			// Send Anthropic-format ping event
+			// Send Anthropic-format ping event. Pings are not semantic output:
+			// their bytes are recorded as keepalive so the handler may still fail
+			// over to another account (OpenAICompactKeepaliveAdjustedWrittenSize).
 			writeStreamHeaders()
-			if _, err := fmt.Fprint(c.Writer, "event: ping\ndata: {\"type\":\"ping\"}\n\n"); err != nil {
+			n, err := fmt.Fprint(c.Writer, "event: ping\ndata: {\"type\":\"ping\"}\n\n")
+			recordOpenAIStreamKeepaliveBytes(c, n)
+			if err != nil {
 				// Client disconnected
 				logger.L().Info("openai messages stream: client disconnected during keepalive",
 					zap.String("request_id", requestID),
@@ -1398,7 +1414,7 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 				clientDisconnected = true
 				continue
 			}
-			clientOutputStarted = true
+			headersCommitted = true
 			c.Writer.Flush()
 		}
 	}
@@ -1413,6 +1429,43 @@ func writeAnthropicError(c *gin.Context, statusCode int, errType, message string
 			"message": message,
 		},
 	})
+}
+
+// anthropicOverloadedStatus is the status the Anthropic API uses for
+// overloaded_error; Anthropic clients retry it with backoff.
+const anthropicOverloadedStatus = 529
+
+// anthropicCompatFailedEventResponse maps an upstream failed response that is
+// relayed to an Anthropic client and matched no passthrough rule.
+//   - Input larger than the context window becomes the Anthropic 400 "prompt is
+//     too long": retrying the same request can never succeed, and a 502 made
+//     clients retry it in a loop instead of compacting.
+//   - Upstream capacity shedding becomes overloaded_error.
+//
+// Everything else keeps the generic 502.
+func anthropicCompatFailedEventResponse(payload []byte, message string) (int, string, string) {
+	switch {
+	case isOpenAIContextWindowError(message, payload):
+		return http.StatusBadRequest, "invalid_request_error", anthropicPromptTooLongMessage(message)
+	case isOpenAIRequestScopedCapacityShed(message, payload):
+		return anthropicOverloadedStatus, "overloaded_error", message
+	default:
+		return http.StatusBadGateway, "api_error", message
+	}
+}
+
+// anthropicPromptTooLongMessage words a context-window failure the way the
+// Anthropic API does ("prompt is too long: ..."), keeping the upstream detail.
+func anthropicPromptTooLongMessage(message string) string {
+	message = strings.TrimSpace(message)
+	switch {
+	case message == "":
+		return "prompt is too long"
+	case strings.HasPrefix(strings.ToLower(message), "prompt is too long"):
+		return message
+	default:
+		return "prompt is too long: " + message
+	}
 }
 
 // buildAnthropicStreamErrorSSE builds one Anthropic SSE `error` event so a
