@@ -1,5 +1,7 @@
 import type { Page } from '@playwright/test'
 import type { UserSubscription } from '../src/types'
+import type { OpsDashboardSnapshotV2Response, OpsLatencyHistogramResponse } from '../src/api/admin/ops'
+import type { PromptAuditConfig, PromptAuditRuntime } from '../src/features/prompt-audit/types'
 
 export const user = {
   id: 42, username: 'Account fixture', email: 'account@example.invalid', role: 'user',
@@ -211,12 +213,47 @@ export const subscriptionFixtures: UserSubscription[] = [
     group: { ...secondGroup, name: 'Research subscription', subscription_type: 'subscription', daily_limit_usd: null, weekly_limit_usd: 0, monthly_limit_usd: null } as UserSubscription['group'],
   },
 ]
-const keys = [
+export const keys = [
   { id: 1, user_id: user.id, name: 'Example key', key: 'secret-must-not-render', status: 'active', quota: 100, quota_used: 20, group_id: 1, group, last_used_at: '2026-11-01T11:30:00Z', created_at: user.created_at, updated_at: user.updated_at },
   { id: 2, user_id: user.id, name: 'Second key', key: 'secret-two', status: 'active', quota: 100, quota_used: 10, group_id: 2, group: secondGroup, last_used_at: '2026-11-01T12:00:00Z', created_at: user.created_at, updated_at: user.updated_at },
 ]
 const errors = [{ id: 10, created_at: '2026-11-01T10:00:00Z', model: 'fixture-model,with-comma', inbound_endpoint: '/v1/chat/completions', status_code: 429, category: 'rate_limit', platform: 'openai', message: 'Rate limit example', key_name: 'Example key', error_body: 'upstream body', upstream_status: 429 }]
 const quota = { platform_quotas: [{ platform: 'openai', daily_limit_usd: 10, daily_usage_usd: 8.5, weekly_limit_usd: 50, weekly_usage_usd: 20, monthly_limit_usd: null, monthly_usage_usd: 0, daily_window_resets_at: '2026-11-02T00:00:00Z' }] }
+
+const opsSnapshot: OpsDashboardSnapshotV2Response = {
+  generated_at: '2026-11-01T12:00:00Z',
+  overview: {
+    start_time: '2026-11-01T11:00:00Z', end_time: '2026-11-01T12:00:00Z', platform: '',
+    success_count: 3, error_count_total: 0, business_limited_count: 0, error_count_sla: 0,
+    request_count_total: 3, request_count_sla: 3, token_consumed: 600, sla: 1,
+    error_rate: 0, upstream_error_rate: 0, upstream_error_count_excl_429_529: 0,
+    upstream_429_count: 0, upstream_529_count: 0,
+    qps: { current: .1, peak: .2, avg: .1 }, tps: { current: 20, peak: 40, avg: 20 },
+    duration: { p50_ms: 200, p95_ms: 400, avg_ms: 250 },
+    ttft: { p50_ms: 50, p95_ms: 100, avg_ms: 60 },
+  },
+  throughput_trend: { bucket: '1m', points: [{ bucket_start: '2026-11-01T11:59:00Z', request_count: 3, token_consumed: 600, qps: .1, tps: 20 }] },
+  error_trend: { bucket: '1m', points: [{ bucket_start: '2026-11-01T11:59:00Z', error_count_total: 0, business_limited_count: 0, error_count_sla: 0, upstream_error_count_excl_429_529: 0, upstream_429_count: 0, upstream_529_count: 0 }] },
+}
+const opsLatency: OpsLatencyHistogramResponse = {
+  start_time: opsSnapshot.overview.start_time, end_time: opsSnapshot.overview.end_time,
+  platform: '', total_requests: 3, buckets: [{ range: '0-100ms', count: 1 }, { range: '100-500ms', count: 2 }],
+}
+const promptAuditConfig: PromptAuditConfig = {
+  enabled: true, blocking_enabled: false, blocking_latest_turn_only: false, store_pass_events: false,
+  effective_mode: 'async_audit', strategy: 'priority', worker_count: 1, queue_capacity: 100,
+  scanners: ['jailbreak'], all_groups: true, group_ids: [],
+  endpoints: [{ id: 'fixture-guard', name: 'Fixture guard', protocol: 'openai_compatible', base_url: 'https://guard.example.invalid', model: 'fixture-guard', timeout_ms: 3000, input_limit: 4000, enabled: true, has_token: true, token_status: 'configured' }],
+  config_version: 1, updated_at: '2026-11-01T12:00:00Z', updated_by: user.id, change_summary: '{}',
+}
+const promptAuditRuntime: PromptAuditRuntime = {
+  process_status: 'running', effective_mode: 'async_audit', expected_config_version: 1, active_config_version: 1,
+  worker_total: 1, worker_active: 0, queue_capacity: 100,
+  queue: { staging: 0, queued: 0, processing: 0, retry: 0, done: 5, failed: 0, active: 0 },
+  processed_total: 5, failed_total: 0, enqueued_total: 5, dropped_total: 0,
+  database_status: 'ok', redis_status: 'ok', endpoints: {},
+  guard_metrics: { total: 5, allowed: 5, flagged: 0, blocked: 0, unavailable: 0, invalid: 0, timeouts: 0, failovers: 0, bulkhead_full: 0, record_failed: 0 },
+}
 
 export function keyActivityFixture() {
   const keyRows = keys.map(key => {
@@ -265,6 +302,14 @@ export function response(path: string): unknown {
   if (path === '/openclaw/lifecycle') return { can_create: true, self_service_enabled: true, hub_name: 'Claw Hub I' }
   if (/\/openclaw\/(instances|catalog|access-requests)$/.test(path)) return empty
   if (path === '/admin/openclaw/summary') return { total: 0, running: 0, pending: 0, failed: 0 }
+  if (path === '/admin/ops/dashboard/snapshot-v2') return opsSnapshot
+  if (path === '/admin/ops/dashboard/overview') return opsSnapshot.overview
+  if (path === '/admin/ops/dashboard/throughput-trend') return opsSnapshot.throughput_trend
+  if (path === '/admin/ops/dashboard/error-trend') return opsSnapshot.error_trend
+  if (path === '/admin/ops/dashboard/latency-histogram') return opsLatency
+  if (path === '/admin/ops/dashboard/error-distribution') return { total: 0, items: [] }
+  if (path === '/admin/prompt-audit/config') return promptAuditConfig
+  if (path === '/admin/prompt-audit/runtime') return promptAuditRuntime
   if (path.includes('/dashboard/') || path.startsWith('/usage/')) return { ...stats, stats, trend, models, groups, ranking: [], items: usageRows, ...rangeStats, stats_updated_at: '2026-11-01T09:00:00Z', start_date: '2026-01-01', end_date: '2026-11-01', granularity: 'day' }
   if (path === '/payment/checkout-info') return { methods: {}, global_min: 0, global_max: 0, subscription_allowed: true, plans: [], balance_disabled: false, balance_recharge_multiplier: 1, subscription_usd_to_cny_rate: 0, recharge_fee_rate: 0, recharge_bonus_tiers: [], recharge_bonus_mode: 'bonus', recharge_bonus_notice: '', help_text: '', help_image_url: '', stripe_publishable_key: '', alipay_force_qrcode: false, alipay_mobile_precreate_deep_link: false }
   if (path === '/payment/access') return { allowed: true }
@@ -290,18 +335,16 @@ export async function prepare(page: Page, theme: 'light' | 'dark', authenticated
   await page.addInitScript(({ theme, authenticated, user, settings, locale }) => {
     // Init scripts can run while the document is still an about:blank-like shell.
     // Never dereference the DOM or storage until the relevant host is available.
-    const applyTheme = () => {
-      if (typeof document === 'undefined') return
-      const root = document.documentElement
-      if (!root) return
-      root.classList.toggle('dark', theme === 'dark')
-    }
     const applyStorage = () => {
       if (typeof window === 'undefined') return
       try {
         const storage = window.localStorage
         if (!storage) return
-        storage.setItem('theme', theme)
+        // Seed once per test context so reloads exercise the app's persisted or system theme.
+        if (!window.sessionStorage.getItem('portal_fixture_theme_seeded')) {
+          storage.setItem('theme', theme)
+          window.sessionStorage.setItem('portal_fixture_theme_seeded', 'true')
+        }
         storage.setItem('sub2api_locale', locale)
         storage.setItem(`admin_guide_${user.id}_admin_v4_interactive`, 'true')
         storage.setItem(`user_guide_${user.id}_user_v4_interactive`, 'true')
@@ -317,11 +360,9 @@ export async function prepare(page: Page, theme: 'light' | 'dark', authenticated
         // same-origin navigation seeds it in prepare() below.
       }
     }
-    applyTheme()
     applyStorage()
     if (typeof document !== 'undefined') {
       document.addEventListener('DOMContentLoaded', () => {
-        applyTheme()
         applyStorage()
       }, { once: true })
     }
@@ -357,6 +398,7 @@ export async function prepare(page: Page, theme: 'light' | 'dark', authenticated
   await page.goto('/login', { waitUntil: 'domcontentloaded' })
   await page.evaluate(({ theme, authenticated, user }) => {
     localStorage.setItem('theme', theme)
+    sessionStorage.setItem('portal_fixture_theme_seeded', 'true')
     const root = document.documentElement
     if (root) root.classList.toggle('dark', theme === 'dark')
     if (authenticated) {

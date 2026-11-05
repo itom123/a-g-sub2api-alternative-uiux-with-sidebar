@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { reactive, nextTick } from 'vue'
 import CustomPageView from '../CustomPageView.vue'
+import PageLoading from '@/components/common/PageLoading.vue'
 
 const route = reactive({ params: { id: 'old' } })
 const fetchPage = vi.fn()
@@ -74,7 +75,7 @@ describe('custom Markdown page request ordering', () => {
     await nextTick()
     old.resolve(response('# Old page'))
     await flushPromises()
-    expect(wrapper.find('.animate-spin').exists()).toBe(true)
+    expect(wrapper.findComponent(PageLoading).exists()).toBe(true)
     expect(wrapper.find('.markdown-page-content').exists()).toBe(false)
     current.resolve(response('# New page'))
     await flushPromises()

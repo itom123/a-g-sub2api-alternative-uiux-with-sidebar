@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { readFileSync } from 'node:fs'
-import { prepare } from './fixtures'
+import { prepare, profile } from './fixtures'
 import { audit } from './audit'
 
 // Discover component routes so newly added portal pages automatically join the audit.
@@ -32,7 +32,7 @@ for (const theme of ['light', 'dark'] as const) {
       await prepare(page, theme)
       await page.goto('/career-concierge', { waitUntil: 'networkidle' })
       await expect(page.getByRole('heading', { name: 'Personalised job advice' })).toBeVisible()
-      await expect(page.locator('.form-grid input').first()).toHaveValue('Theme verification')
+      await expect(page.locator('.form-grid input').first()).toHaveValue(profile.display_name)
       await expect(page.getByRole('button', { name: 'Add schedule', exact: true })).toBeDisabled()
       const field = page.getByRole('textbox', { name: 'Cron expression' })
       expect((await field.boundingBox())!.width).toBeGreaterThan(100)

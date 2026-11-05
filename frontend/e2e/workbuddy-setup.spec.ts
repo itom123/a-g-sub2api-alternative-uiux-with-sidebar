@@ -1,15 +1,17 @@
 import { test, expect } from '@playwright/test'
-import { prepare, settings } from './fixtures'
+import { keys, prepare, settings } from './fixtures'
+
+const selectedKey = keys[0]!
 
 test('setup guide shows exact IDs and model-specific settings without import actions', async ({ page }, info) => {
   await prepare(page, 'light')
   await page.route('**/v1/models*', route => {
-    expect(route.request().headers().authorization).toBe('Bearer example-key-for-theme-verification')
+    expect(route.request().headers().authorization).toBe(`Bearer ${selectedKey.key}`)
     const catalog = new URL(route.request().url()).searchParams.has('client_version')
     return route.fulfill({ json: catalog ? { models: [{ slug: 'gpt-6-astra', input_modalities: ['text', 'image'], supports_parallel_tool_calls: true, supported_reasoning_levels: [{ effort: 'low' }, { effort: 'high' }, { effort: 'max' }] }] } : { data: [{ id: 'gpt-6-astra' }, { id: 'unreported-model' }] } })
   })
   await page.goto('/keys', { waitUntil: 'domcontentloaded' })
-  await page.getByRole('button', { name: 'WorkBuddy Setup', exact: true }).click()
+  await page.locator('tr, .data-card').filter({ has: page.getByText(selectedKey.name, { exact: true }) }).getByRole('button', { name: 'WorkBuddy Setup', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: 'WorkBuddy Setup' })
   await expect(dialog.getByRole('combobox', { name: 'Model ID' })).toHaveValue('gpt-6-astra')
   await expect(dialog.locator('dl')).toContainText('Low, High, Max')
@@ -30,7 +32,7 @@ test('setup guide reports discovery failure and allows exact manual ID', async (
   await prepare(page, 'light')
   await page.route('**/v1/models*', route => route.fulfill({ status: 503, json: {} }))
   await page.goto('/keys', { waitUntil: 'domcontentloaded' })
-  await page.getByRole('button', { name: 'WorkBuddy Setup', exact: true }).click()
+  await page.locator('tr, .data-card').filter({ has: page.getByText(selectedKey.name, { exact: true }) }).getByRole('button', { name: 'WorkBuddy Setup', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: 'WorkBuddy Setup' })
   await expect(dialog.getByRole('alert')).toContainText('Model discovery is unavailable')
   await dialog.getByRole('textbox', { name: 'Model ID' }).fill('exact-custom-id')
@@ -74,7 +76,7 @@ test('uses only the selected group catalog when gateway discovery fails', async 
     { id: 2, models: [{ name: 'wrong-group-model' }] }
   ] } } }))
   await page.goto('/keys', { waitUntil: 'domcontentloaded' })
-  await page.getByRole('button', { name: 'WorkBuddy Setup', exact: true }).click()
+  await page.locator('tr, .data-card').filter({ has: page.getByText(selectedKey.name, { exact: true }) }).getByRole('button', { name: 'WorkBuddy Setup', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: 'WorkBuddy Setup' })
   await expect(dialog.getByRole('combobox', { name: 'Model ID' })).toHaveValue('group-specific-model')
   await expect(dialog).toContainText('Showing the selected group’s model catalog')
