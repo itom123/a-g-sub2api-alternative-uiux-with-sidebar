@@ -106,4 +106,3 @@ func TestOfficialClaudeFastCachePricesAndHaikuBoundary(t *testing.T) {
 	require.InDelta(t, base.CacheReadCost*5, long.CacheReadCost, 1e-12)
 	require.InDelta(t, base.CacheCreationCost*5, long.CacheCreationCost, 1e-12)
 }
-

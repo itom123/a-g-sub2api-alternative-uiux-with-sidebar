@@ -50,7 +50,7 @@ func TestOpenClawDashboardReturnsRefreshedInstance(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer db.Close()
+			defer func() { _ = db.Close() }()
 			instance := statusInstance()
 			expectStatusDashboardReads(mock, instance)
 			port, latency := 19104, 8
@@ -88,7 +88,7 @@ func TestOpenClawDashboardExplicitOfflineObservation(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer db.Close()
+			defer func() { _ = db.Close() }()
 			instance := statusInstance()
 			instance.Status = "running"
 			expectStatusDashboardReads(mock, instance)
@@ -123,7 +123,7 @@ func TestOpenClawDashboardUnavailableNeverWritesTelemetry(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer db.Close()
+			defer func() { _ = db.Close() }()
 			instance := statusInstance()
 			instance.Status = "running"
 			expectStatusDashboardReads(mock, instance)
@@ -148,7 +148,7 @@ func TestOpenClawDashboardPreservesLifecycleWork(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer db.Close()
+			defer func() { _ = db.Close() }()
 			instance := statusInstance()
 			instance.Status = state
 			switch state {
@@ -184,7 +184,7 @@ func TestOpenClawDashboardConcurrentLifecycleChangeWins(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer db.Close()
+			defer func() { _ = db.Close() }()
 			instance := statusInstance()
 			instance.Status = "running"
 			expectStatusDashboardReads(mock, instance)
@@ -221,7 +221,7 @@ func TestOpenClawDashboardTelemetryWriteFailureIsUnavailable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	instance := statusInstance()
 	expectStatusDashboardReads(mock, instance)
 	mock.ExpectQuery(`UPDATE openclaw_instances`).WillReturnError(errors.New("database unavailable"))
