@@ -64,8 +64,8 @@
                   :title="group.group_name || String(group.group_id)"
                 >
                   <span class="inline-flex items-center gap-1">
-                    <svg v-if="enableBreakdown && group.group_id > 0 && expandedKey === `group-${group.group_id}`" class="h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="square" stroke-linejoin="miter" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                    <svg v-else-if="enableBreakdown && group.group_id > 0" class="h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="square" stroke-linejoin="miter" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                    <Icon v-if="enableBreakdown && group.group_id > 0 && expandedKey === `group-${group.group_id}`" name="chevronDown" size="xs" class="shrink-0" :stroke-width="2" />
+                    <Icon v-else-if="enableBreakdown && group.group_id > 0" name="chevronRight" size="xs" class="shrink-0" :stroke-width="2" />
                     {{ group.group_name || t('admin.dashboard.noGroup') }}
                   </span>
                 </td>
@@ -107,6 +107,7 @@
 </template>
 
 <script setup lang="ts">
+import Icon from '@/components/icons/Icon.vue'
 import { cnyCost } from '@/utils/currency'
 
 import { computed, ref } from 'vue'

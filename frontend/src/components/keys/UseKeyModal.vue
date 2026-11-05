@@ -8,9 +8,7 @@
     <div class="space-y-4">
       <!-- No Group Assigned Warning -->
       <div v-if="!platform" class="flex items-start gap-3 p-4 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
-        <svg class="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
-          <path stroke-linecap="square" stroke-linejoin="miter" fill="none" stroke="currentColor" stroke-width="1.5" d="M12 2L23 22H1ZM12 9V15M12 18V20" />
-        </svg>
+        <Icon name="exclamationTriangle" size="md" class="text-yellow-500 flex-shrink-0 mt-0.5" />
         <div>
           <p class="text-sm font-medium text-yellow-800 dark:text-yellow-200">
             {{ t('keys.useKeyModal.noGroupTitle') }}
@@ -161,12 +159,8 @@
                     ? 'bg-green-500/20 text-green-400'
                     : 'bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white'"
                 >
-                  <svg v-if="copiedIndex === index" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                    <path stroke-linecap="square" stroke-linejoin="miter" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
-                    <path stroke-linecap="square" stroke-linejoin="miter" fill="none" stroke="currentColor" stroke-width="1.5" d="M8 5H3V22H21V5H16M8 2H16V8H8Z" />
-                  </svg>
+                  <Icon name="check" size="compact" v-if="copiedIndex === index" :stroke-width="2" />
+                  <Icon name="clipboard" size="compact" v-else />
                   {{ copiedIndex === index ? t('keys.useKeyModal.copied') : t('keys.useKeyModal.copy') }}
                 </button>
               </div>

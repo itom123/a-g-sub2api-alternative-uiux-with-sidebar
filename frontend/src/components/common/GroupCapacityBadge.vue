@@ -8,9 +8,7 @@
           capacityClass(concurrencyUsed, concurrencyMax)
         ]"
       >
-        <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="square" stroke-linejoin="miter" d="M3 3H10V10H3ZM14 3H21V10H14ZM3 14H10V21H3ZM14 14H21V21H14Z" />
-        </svg>
+        <Icon name="grid" size="2xs" :stroke-width="2" />
         <span class="font-mono">{{ concurrencyUsed }}</span>
         <span class="text-gray-400 dark:text-gray-500">/</span>
         <span class="font-mono">{{ concurrencyMax }}</span>
@@ -25,9 +23,7 @@
           capacityClass(sessionsUsed, sessionsMax)
         ]"
       >
-        <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="square" stroke-linejoin="miter" fill="none" stroke="currentColor" stroke-width="1.5" d="M9 2H15V8H9ZM3 6H6V11H3ZM18 6H21V11H18ZM7 22V14L10 11H14L17 14V22ZM7 14H2V22H22V14H17" />
-        </svg>
+        <Icon name="users" size="2xs" :stroke-width="2" />
         <span class="font-mono">{{ sessionsUsed }}</span>
         <span class="text-gray-400 dark:text-gray-500">/</span>
         <span class="font-mono">{{ sessionsMax }}</span>
@@ -42,9 +38,7 @@
           capacityClass(rpmUsed, rpmMax)
         ]"
       >
-        <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-          <path stroke-linecap="square" stroke-linejoin="miter" fill="none" stroke="currentColor" stroke-width="1.5" d="M3 3H21V21H3ZM12 6V12H17" />
-        </svg>
+        <Icon name="clock" size="2xs" />
         <span class="font-mono">{{ rpmUsed }}</span>
         <span class="text-gray-400 dark:text-gray-500">/</span>
         <span class="font-mono">{{ rpmMax }}</span>
@@ -54,6 +48,7 @@
 </template>
 
 <script setup lang="ts">
+import Icon from '@/components/icons/Icon.vue'
 interface Props {
   concurrencyUsed: number
   concurrencyMax: number

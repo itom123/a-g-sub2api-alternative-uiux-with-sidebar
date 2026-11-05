@@ -130,19 +130,7 @@
                 t('admin.accounts.stats.avgDailyRequests')
               }}</span>
               <div class="rounded-lg bg-purple-100 p-1.5 dark:bg-purple-900/30">
-                <svg
-                  class="h-4 w-4 text-purple-600 dark:text-purple-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path stroke-width="1.5"
-                    stroke-linecap="square"
-                    stroke-linejoin="miter"
-
-                    fill="none" stroke="currentColor" d="M3 4H21V17H3ZM7 12L10 9L13 12L17 8M12 17V21M8 23L12 19L16 23"
-                  />
-                </svg>
+                <Icon name="presentation" size="sm" class="text-purple-600 dark:text-purple-400" />
               </div>
             </div>
             <p class="text-2xl font-bold text-gray-900 dark:text-white">

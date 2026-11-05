@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Icon from '@/components/icons/Icon.vue'
 import { ref, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import QuotaDimensionRow from './QuotaDimensionRow.vue'
@@ -135,9 +136,7 @@ const dailyFixedHint = computed(() =>
       <!-- Header: toggle + collapse -->
       <div class="flex items-center justify-between p-4" :class="{ 'pb-0': localEnabled && !collapsed }">
         <div class="flex items-center gap-2 flex-1 cursor-pointer" @click="localEnabled && (collapsed = !collapsed)">
-          <svg v-if="localEnabled" class="h-4 w-4 text-gray-400 transition-transform" :class="{ '-rotate-90': collapsed }" viewBox="0 0 24 24" fill="currentColor">
-            <path fill-rule="evenodd" fill="none" stroke="currentColor" stroke-width="1.5" d="M5 8L12 15L19 8" clip-rule="evenodd" />
-          </svg>
+          <Icon name="chevronDown" size="sm" v-if="localEnabled" class="text-gray-400 transition-transform" :class="{ '-rotate-90': collapsed }" />
           <div>
             <label class="input-label mb-0 cursor-pointer">{{ t('admin.accounts.quotaLimitToggle') }}</label>
             <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">

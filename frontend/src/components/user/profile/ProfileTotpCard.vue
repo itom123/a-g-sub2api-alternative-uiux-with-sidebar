@@ -17,9 +17,7 @@
       <!-- Feature disabled globally -->
       <div v-else-if="status && !status.feature_enabled" class="flex items-center gap-4 py-4">
         <div class="flex-shrink-0 rounded-full bg-gray-100 p-3 dark:bg-dark-700">
-          <svg class="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-            <path stroke-linecap="square" stroke-linejoin="miter" fill="none" stroke="currentColor" stroke-width="1.5" d="M12 2L23 22H1ZM12 9V15M12 18V20" />
-          </svg>
+          <Icon name="exclamationTriangle" size="lg" class="text-gray-400" />
         </div>
         <div>
           <p class="font-medium text-gray-700 dark:text-gray-300">
@@ -35,9 +33,7 @@
       <div v-else-if="status?.enabled" class="flex items-center justify-between">
         <div class="flex items-center gap-4">
           <div class="flex-shrink-0 rounded-full bg-green-100 p-3 dark:bg-green-900/30">
-            <svg class="h-6 w-6 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-              <path stroke-linecap="square" stroke-linejoin="miter" d="M12 2L22 6V15L12 22L2 15V6ZM7 12L11 16L17 8" />
-            </svg>
+            <Icon name="shield" size="lg" class="text-green-600 dark:text-green-400" />
           </div>
           <div>
             <p class="font-medium text-gray-900 dark:text-white">
@@ -61,9 +57,7 @@
       <div v-else class="flex items-center justify-between">
         <div class="flex items-center gap-4">
           <div class="flex-shrink-0 rounded-full bg-gray-100 p-3 dark:bg-dark-700">
-            <svg class="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-              <path stroke-linecap="square" stroke-linejoin="miter" d="M12 2L22 6V15L12 22L2 15V6ZM7 12L11 16L17 8" />
-            </svg>
+            <Icon name="shield" size="lg" class="text-gray-400" />
           </div>
           <div>
             <p class="font-medium text-gray-700 dark:text-gray-300">
@@ -101,6 +95,7 @@
 </template>
 
 <script setup lang="ts">
+import Icon from '@/components/icons/Icon.vue'
 import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { totpAPI } from '@/api'

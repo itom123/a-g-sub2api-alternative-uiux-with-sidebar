@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Icon from '@/components/icons/Icon.vue'
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useClipboard } from '@/composables/useClipboard'
@@ -116,12 +117,8 @@ onBeforeUnmount(() => {
           :aria-label="tooltipHint(item.endpoint)"
           @click="copy(item.endpoint)"
         >
-          <svg v-if="copiedEndpoint === item.endpoint" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
-            <path stroke-linecap="square" stroke-linejoin="miter" d="M5 13l4 4L19 7" />
-          </svg>
-          <svg v-else class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="square" stroke-linejoin="miter" d="M8 8H22V22H8ZM5 16H2V2H16V5" />
-          </svg>
+          <Icon name="check" size="xs" v-if="copiedEndpoint === item.endpoint" :stroke-width="2.2" />
+          <Icon name="copy" size="xs" v-else :stroke-width="2" />
         </button>
 
         <a
@@ -131,9 +128,7 @@ onBeforeUnmount(() => {
           class="rounded p-0.5 text-gray-400 transition-colors hover:text-amber-500 dark:text-gray-500 dark:hover:text-amber-400"
           :title="t('keys.endpoints.speedTest')"
         >
-          <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="square" stroke-linejoin="miter" d="M13 2L3 14H11V22L21 10H13Z" />
-          </svg>
+          <Icon name="bolt" size="xs" :stroke-width="2" />
         </a>
       </div>
     </div>

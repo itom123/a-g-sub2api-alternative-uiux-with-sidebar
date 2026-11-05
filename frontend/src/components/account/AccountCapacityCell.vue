@@ -2,30 +2,22 @@
   <div class="flex flex-col gap-0.5">
     <!-- 并发槽位 -->
     <CapacityBadge :color-class="concurrencyClass" :current="currentConcurrency" :max="account.concurrency">
-      <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-        <path stroke-linecap="square" stroke-linejoin="miter" d="M3 3H10V10H3ZM14 3H21V10H14ZM3 14H10V21H3ZM14 14H21V21H14Z" />
-      </svg>
+      <Icon name="grid" size="2xs" :stroke-width="2" />
     </CapacityBadge>
 
     <!-- 5h窗口费用限制 -->
     <CapacityBadge v-if="showWindowCost" :color-class="windowCostClass" :tooltip="windowCostTooltip" :current="'¥' + formatCost(currentWindowCost)" :max="'¥' + formatCost(account.window_cost_limit)">
-      <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-        <path stroke-linecap="square" stroke-linejoin="miter" d="M19 5H5V12H19V19H5M12 1V23" />
-      </svg>
+      <Icon name="dollar" size="2xs" :stroke-width="2" />
     </CapacityBadge>
 
     <!-- 会话数量限制 -->
     <CapacityBadge v-if="showSessionLimit" :color-class="sessionLimitClass" :tooltip="sessionLimitTooltip" :current="activeSessions" :max="account.max_sessions!">
-      <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-        <path stroke-linecap="square" stroke-linejoin="miter" fill="none" stroke="currentColor" stroke-width="1.5" d="M9 2H15V8H9ZM3 6H6V11H3ZM18 6H21V11H18ZM7 22V14L10 11H14L17 14V22ZM7 14H2V22H22V14H17" />
-      </svg>
+      <Icon name="users" size="2xs" :stroke-width="2" />
     </CapacityBadge>
 
     <!-- RPM 限制 -->
     <CapacityBadge v-if="showRpmLimit" :color-class="rpmClass" :tooltip="rpmTooltip" :current="currentRPM" :max="account.base_rpm!" :suffix="rpmStrategyTag">
-      <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-        <path stroke-linecap="square" stroke-linejoin="miter" fill="none" stroke="currentColor" stroke-width="1.5" d="M3 3H21V21H3ZM12 6V12H17" />
-      </svg>
+      <Icon name="clock" size="2xs" />
     </CapacityBadge>
 
     <!-- API Key 账号配额限制 -->
@@ -36,6 +28,7 @@
 </template>
 
 <script setup lang="ts">
+import Icon from '@/components/icons/Icon.vue'
 import { cnyNumber } from '@/utils/currency'
 
 import { computed } from 'vue'

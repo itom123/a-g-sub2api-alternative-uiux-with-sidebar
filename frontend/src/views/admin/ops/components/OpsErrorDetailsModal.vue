@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Icon from '@/components/icons/Icon.vue'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
@@ -224,14 +225,7 @@ watch(
           <div class="col-span-2 compact-select">
             <div class="relative group">
               <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                <svg
-                  class="h-3.5 w-3.5 text-gray-400 transition-colors group-focus-within:text-blue-500"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter" fill="none" stroke="currentColor" d="M3 3H15V15H3ZM15 15L22 22" />
-                </svg>
+                <Icon name="search" size="compact" class="text-gray-400 transition-colors group-focus-within:text-blue-500" />
               </div>
               <input
                 v-model="q"

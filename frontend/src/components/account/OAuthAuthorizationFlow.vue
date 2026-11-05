@@ -551,19 +551,7 @@
                   class="text-blue-500 hover:text-blue-600"
                   @click="showHelpDialog = !showHelpDialog"
                 >
-                  <svg
-                    class="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    stroke-width="1.5"
-                  >
-                    <path
-                      stroke-linecap="square"
-                      stroke-linejoin="miter"
-                      fill="none" stroke="currentColor" stroke-width="1.5" d="M3 3H21V21H3ZM8 7H16V11L12 13V15M12 17V19"
-                    />
-                  </svg>
+                  <Icon name="questionCircle" size="sm" />
                 </button>
               </label>
               <textarea
@@ -684,9 +672,7 @@
                       rel="noopener noreferrer"
                       class="inline-flex items-center gap-1 text-xs font-normal text-blue-500 hover:text-blue-600 dark:text-blue-400"
                     >
-                      <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                        <path stroke-linecap="square" stroke-linejoin="miter" fill="none" stroke="currentColor" stroke-width="1.5" d="M3 3H21V21H3ZM8 7H16V11L12 13V15M12 17V19" />
-                      </svg>
+                      <Icon name="questionCircle" size="xs" />
                       {{ t('admin.accounts.oauth.gemini.howToGetProjectId') }}
                     </a>
                   </label>
@@ -744,20 +730,7 @@
                       title="Copy URL"
                       @click="handleCopyUrl"
                     >
-                      <svg
-                        v-if="!copied"
-                        class="h-4 w-4"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        stroke-width="1.5"
-                      >
-                        <path
-                          stroke-linecap="square"
-                          stroke-linejoin="miter"
-                          fill="none" stroke="currentColor" stroke-width="1.5" d="M8 5H3V22H21V5H16M8 2H16V8H8Z"
-                        />
-                      </svg>
+                      <Icon name="clipboard" size="sm" v-if="!copied" />
                       <Icon
                         v-else
                         name="check"

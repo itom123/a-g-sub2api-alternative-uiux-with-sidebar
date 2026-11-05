@@ -279,11 +279,15 @@ const LinkIcon = { render: () => h(Icon, { name: 'link' }) }
 const BatchImageIcon = { render: () => h(Icon, { name: 'camera' }) }
 const ChartIcon = { render: () => h(Icon, { name: 'chartBar' }) }
 const OpsIcon = { render: () => h(Icon, { name: 'navOps' }) }
+const UsageIcon = { render: () => h(Icon, { name: 'navUsage' }) }
+const GroupsIcon = { render: () => h(Icon, { name: 'navGroups' }) }
+const ModelStatusIcon = { render: () => h(Icon, { name: 'navModelStatus' }) }
+const AuditLogIcon = { render: () => h(Icon, { name: 'auditLog' }) }
+const TenantsIcon = { render: () => h(Icon, { name: 'navTenants' }) }
+const RouteIcon = { render: () => h(Icon, { name: 'railway' }) }
 const GiftIcon = { render: () => h(Icon, { name: 'gift' }) }
 const UserIcon = { render: () => h(Icon, { name: 'user' }) }
 const UsersIcon = { render: () => h(Icon, { name: 'users' }) }
-const FolderIcon = { render: () => h(Icon, { name: 'folder' }) }
-const ChannelIcon = { render: () => h(Icon, { name: 'swap' }) }
 const CreditCardIcon = { render: () => h(Icon, { name: 'creditCard' }) }
 const RechargeSubscriptionIcon = { render: () => h(Icon, { name: 'creditCard' }) }
 const GlobeIcon = { render: () => h(Icon, { name: 'globe' }) }
@@ -298,12 +302,10 @@ const MoonIcon = { render: () => h(Icon, { name: 'moon' }) }
 const ChevronDoubleLeftIcon = { render: () => h(Icon, { name: 'doubleLeft' }) }
 const OrderIcon = { render: () => h(Icon, { name: 'document' }) }
 const OrderListIcon = { render: () => h(Icon, { name: 'clipboard' }) }
-const SignalIcon = { render: () => h(Icon, { name: 'signal' }) }
 const ShieldIcon = { render: () => h(Icon, { name: 'shield' }) }
 const PriceTagIcon = { render: () => h(Icon, { name: 'priceTag' }) }
 const ChevronDownIcon = { render: () => h(Icon, { name: 'chevronDown' }) }
 const ConsultantIcon = { render: () => h(Icon, { name: 'consultant' }) }
-const LighthouseIcon = { render: () => h(Icon, { name: 'lighthouse' }) }
 
 
 // Public-settings flags go through the registry in utils/featureFlags.ts,
@@ -349,9 +351,9 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
     { path: '/connections', label: t('nav.openclawWorkspace'), icon: LinkIcon },
     { path: '/career-concierge', label: 'Career advice', icon: ConsultantIcon },
     { path: '/batch-image', label: t('nav.batchImage'), icon: BatchImageIcon, hideInSimpleMode: true, featureFlag: flagBatchImageAccess },
-    { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
-    { path: '/available-channels', label: t('nav.availableChannels'), icon: ChannelIcon, hideInSimpleMode: true, featureFlag: flagAvailableChannels },
-    { path: '/monitor', label: t('nav.channelStatus'), icon: SignalIcon, featureFlag: flagChannelMonitor },
+    { path: '/usage', label: t('nav.usage'), icon: UsageIcon, hideInSimpleMode: true },
+    { path: '/available-channels', label: t('nav.availableChannels'), icon: RouteIcon, hideInSimpleMode: true, featureFlag: flagAvailableChannels },
+    { path: '/monitor', label: t('nav.channelStatus'), icon: ModelStatusIcon, featureFlag: flagChannelMonitor },
     { path: '/subscription', label: t('nav.subscribe'), icon: CreditCardIcon, hideInSimpleMode: true, featureFlag: flagSubscription },
     { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true, featureFlag: flagSubscription },
     { path: '/purchase', label: purchaseNavLabel.value, icon: RechargeSubscriptionIcon, hideInSimpleMode: true, featureFlag: flagPayment },
@@ -404,19 +406,19 @@ const customMenuItemsForAdmin = computed(() => {
 const adminNavItems = computed((): NavItem[] => {
   const baseItems: NavItem[] = [
     { path: '/admin/dashboard', label: t('nav.dashboard'), icon: DashboardIcon },
-    { path: '/admin/openclaw', label: t('nav.openclawFleet'), icon: LighthouseIcon },
+    { path: '/admin/openclaw', label: t('nav.openclawFleet'), icon: TenantsIcon },
     { path: '/admin/ops', label: t('nav.ops'), icon: OpsIcon, featureFlag: flagOpsMonitoring },
     { path: '/admin/users', label: t('nav.users'), icon: UsersIcon, hideInSimpleMode: true },
-    { path: '/admin/groups', label: t('nav.groups'), icon: FolderIcon },
+    { path: '/admin/groups', label: t('nav.groups'), icon: GroupsIcon },
     {
       path: '/admin/channels',
       label: t('nav.channelManagement'),
-      icon: ChannelIcon,
+      icon: RouteIcon,
       hideInSimpleMode: true,
       expandOnly: true,
       children: [
         { path: '/admin/channels/pricing', label: t('nav.channelPricing'), icon: PriceTagIcon },
-        { path: '/admin/channels/monitor', label: t('nav.channelMonitor'), icon: SignalIcon, featureFlag: flagChannelMonitor },
+        { path: '/admin/channels/monitor', label: t('nav.channelMonitor'), icon: ModelStatusIcon, featureFlag: flagChannelMonitor },
       ],
     },
     // 「仅充值」站点连管理端的「订阅管理」入口也一并收起（路由本身不拦截）。
@@ -465,8 +467,8 @@ const adminNavItems = computed((): NavItem[] => {
         { path: '/admin/orders/plans', label: t('nav.paymentPlans'), icon: CreditCardIcon },
       ],
     },
-    { path: '/admin/usage', label: t('nav.usage'), icon: ChartIcon },
-    { path: '/admin/audit-logs', label: t('nav.auditLogs'), icon: ShieldIcon, hideInSimpleMode: true }
+    { path: '/admin/usage', label: t('nav.usage'), icon: UsageIcon },
+    { path: '/admin/audit-logs', label: t('nav.auditLogs'), icon: AuditLogIcon, hideInSimpleMode: true }
   ]
 
   const visible = applyFeatureFlags(baseItems)

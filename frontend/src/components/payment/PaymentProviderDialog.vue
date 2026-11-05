@@ -188,10 +188,8 @@
                 @click="visibleFields[field.key] = !visibleFields[field.key]"
                 class="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
               >
-                <svg v-if="visibleFields[field.key]" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter" fill="none" stroke="currentColor" d="M3 3L21 21M7 6L2 12L8 19H16M11 5H16L22 12L19 16M9 10V15H14" /></svg>
-                <svg v-else class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path fill="none" stroke="currentColor" stroke-width="1.5" d="M2 12L8 5H16L22 12L16 19H8ZM9 9H15V15H9Z" />
-                </svg>
+                <Icon name="eyeOff" size="sm" v-if="visibleFields[field.key]" />
+                <Icon name="eye" size="sm" v-else />
               </button>
             </div>
             <Select
@@ -251,7 +249,7 @@
           <h4 class="text-sm font-semibold text-gray-900 dark:text-white">
             {{ t('admin.settings.payment.limitsTitle') }}
           </h4>
-          <svg :class="['h-4 w-4 text-gray-400 transition-transform', limitsExpanded && 'rotate-180']" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="square" stroke-linejoin="miter" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+          <Icon name="chevronDown" size="sm" :class="['text-gray-400 transition-transform', limitsExpanded && 'rotate-180']" :stroke-width="2" />
         </button>
         <div v-show="limitsExpanded" class="mt-3 space-y-3">
           <div
@@ -322,6 +320,7 @@
 </template>
 
 <script setup lang="ts">
+import Icon from '@/components/icons/Icon.vue'
 import { reactive, computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'

@@ -385,9 +385,7 @@ const empty = computed(() => events.value.length === 0 && !loading.value)
           :disabled="loading"
           @click="loadFirstPage"
         >
-          <svg class="h-3.5 w-3.5" :class="{ 'animate-spin': loading }" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter" fill="none" stroke="currentColor" d="M21 3V9H15M3 21V15H9M3 10L6 4H15L21 9M21 14L18 20H9L3 15" />
-          </svg>
+          <Icon name="refresh" size="compact" :class="{ 'animate-spin': loading }" />
           {{ t('common.refresh') }}
         </button>
       </div>

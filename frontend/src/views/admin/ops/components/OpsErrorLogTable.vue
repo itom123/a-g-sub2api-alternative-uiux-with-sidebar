@@ -158,7 +158,7 @@
             :title="t('admin.ops.errorLog.details')"
             @click.stop="emit('openErrorDetail', row.id)"
           >
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="square" stroke-linejoin="miter" stroke-width="2" d="M4 2H14L20 8V22H4ZM14 2V8H20M8 12H16M8 17H16" /></svg>
+            <Icon name="document" size="sm" :stroke-width="2" />
           </button>
         </template>
 
@@ -180,6 +180,7 @@
 </template>
 
 <script setup lang="ts">
+import Icon from '@/components/icons/Icon.vue'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import DataTable from '@/components/common/DataTable.vue'

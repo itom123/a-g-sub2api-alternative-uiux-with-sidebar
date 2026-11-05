@@ -94,9 +94,7 @@
                 class="btn btn-secondary px-2 md:px-3"
                 :title="t('admin.users.columnSettings')"
               >
-                <svg class="h-4 w-4 md:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
-                  <path stroke-linecap="square" stroke-linejoin="miter" fill="none" stroke="currentColor" stroke-width="1.5" d="M3 3H10V10H3ZM14 3H21V10H14ZM3 14H10V21H3ZM14 14H21V21H14Z" />
-                </svg>
+                <Icon name="grid" size="sm" class="md:mr-1.5" />
                 <span class="hidden md:inline">{{ t('admin.users.columnSettings') }}</span>
               </button>
               <div

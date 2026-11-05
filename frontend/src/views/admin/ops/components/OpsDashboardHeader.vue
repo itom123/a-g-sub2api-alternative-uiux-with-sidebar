@@ -953,14 +953,7 @@ function handleToolbarRefresh() {
           :title="t('common.refresh')"
           @click="handleToolbarRefresh"
         >
-          <svg class="h-4 w-4" :class="{ 'animate-spin': loading }" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-width="1.5"
-              stroke-linecap="square"
-              stroke-linejoin="miter"
-
-              fill="none" stroke="currentColor" d="M21 3V9H15M3 21V15H9M3 10L6 4H15L21 9M21 14L18 20H9L3 15"
-            />
-          </svg>
+          <Icon name="refresh" size="sm" :class="{ 'animate-spin': loading }" />
         </button>
 
         <div v-if="!props.fullscreen" class="mx-1 hidden h-4 w-[1px] bg-gray-200 dark:bg-dark-700 sm:block"></div>
@@ -973,9 +966,7 @@ function handleToolbarRefresh() {
           :title="t('admin.ops.alertRules.title')"
           @click="emit('openAlertRules')"
         >
-          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="square" stroke-linejoin="miter" stroke-width="2" d="M3 18L6 14V6L10 3H14L18 6V14L21 18ZM9 21H15" />
-          </svg>
+          <Icon name="bell" size="sm" :stroke-width="2" />
           <span class="hidden sm:inline">{{ t('admin.ops.alertRules.manage') }}</span>
         </button>
 
@@ -987,9 +978,7 @@ function handleToolbarRefresh() {
           :title="t('admin.ops.settings.title')"
           @click="emit('openSettings')"
         >
-          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path fill="none" stroke="currentColor" stroke-width="1.5" d="M9 2H15V5L18 6L21 5L23 11L21 13V16L18 19L15 18V22H9V18L6 19L3 16V13L1 11L3 5L6 6L9 5ZM9 9H15V15H9Z" />
-          </svg>
+          <Icon name="cog" size="sm" />
           <span class="hidden sm:inline">{{ t('common.settings') }}</span>
         </button>
 
@@ -1001,9 +990,7 @@ function handleToolbarRefresh() {
           :title="t('admin.ops.fullscreen.enter')"
           @click="emit('enterFullscreen')"
         >
-          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="square" stroke-linejoin="miter" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-          </svg>
+          <Icon name="expand" size="sm" :stroke-width="2" />
         </button>
       </div>
     </div>
@@ -1158,27 +1145,9 @@ function handleToolbarRefresh() {
                 <div class="space-y-3">
                   <div v-for="(item, idx) in diagnosisReport" :key="idx" class="flex gap-3">
                     <div class="mt-0.5 shrink-0">
-                      <svg v-if="item.type === 'critical'" class="h-4 w-4 text-red-500" fill="currentColor" viewBox="0 0 24 24">
-                        <path
-                          fill-rule="evenodd"
-                          fill="none" stroke="currentColor" stroke-width="1.5" d="M3 3H21V21H3ZM8 8L16 16M8 16L16 8"
-                          clip-rule="evenodd"
-                        />
-                      </svg>
-                      <svg v-else-if="item.type === 'warning'" class="h-4 w-4 text-yellow-500" fill="currentColor" viewBox="0 0 24 24">
-                        <path
-                          fill-rule="evenodd"
-                          fill="none" stroke="currentColor" stroke-width="1.5" d="M12 2L23 22H1ZM12 9V15M12 18V20"
-                          clip-rule="evenodd"
-                        />
-                      </svg>
-                      <svg v-else class="h-4 w-4 text-blue-500" fill="currentColor" viewBox="0 0 24 24">
-                        <path
-                          fill-rule="evenodd"
-                          fill="none" stroke="currentColor" stroke-width="1.5" d="M3 3H21V21H3ZM12 6V8M10 11H12V18M9 18H15"
-                          clip-rule="evenodd"
-                        />
-                      </svg>
+                      <Icon name="xCircle" size="sm" v-if="item.type === 'critical'" class="text-red-500" />
+                      <Icon name="exclamationTriangle" size="sm" v-else-if="item.type === 'warning'" class="text-yellow-500" />
+                      <Icon name="infoCircle" size="sm" v-else class="text-blue-500" />
                     </div>
                     <div class="flex-1">
                       <div class="text-xs font-semibold text-gray-900 dark:text-white">{{ item.message }}</div>

@@ -16,8 +16,8 @@
           <div class="relative flex-1">
             <input v-model="form.password" type="text" class="input pr-10" :placeholder="t('admin.users.enterNewPassword')" />
             <button v-if="form.password" type="button" @click="copyPassword" class="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1 transition-colors hover:bg-gray-100 dark:hover:bg-dark-700" :class="passwordCopied ? 'text-green-500' : 'text-gray-400'">
-              <svg v-if="passwordCopied" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="square" stroke-linejoin="miter" d="M5 13l4 4L19 7" /></svg>
-              <svg v-else class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="square" stroke-linejoin="miter" fill="none" stroke="currentColor" stroke-width="1.5" d="M8 5H3V22H21V5H16M8 2H16V8H8Z" /></svg>
+              <Icon name="check" size="sm" v-if="passwordCopied" :stroke-width="2" />
+              <Icon name="clipboard" size="sm" v-else />
             </button>
           </div>
           <button type="button" @click="generatePassword" class="btn btn-secondary px-3">

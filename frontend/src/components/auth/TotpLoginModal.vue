@@ -7,9 +7,7 @@
         <!-- Header -->
         <div class="mb-6 text-center">
           <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary-100 dark:bg-primary-900/30">
-            <svg class="h-6 w-6 text-primary-600 dark:text-primary-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-              <path stroke-linecap="square" stroke-linejoin="miter" d="M12 2L22 6V15L12 22L2 15V6ZM7 12L11 16L17 8" />
-            </svg>
+            <Icon name="shield" size="lg" class="text-primary-600 dark:text-primary-400" />
           </div>
           <h3 class="mt-4 text-xl font-semibold text-gray-900 dark:text-white">
             {{ t('profile.totp.loginTitle') }}
@@ -75,6 +73,7 @@
 </template>
 
 <script setup lang="ts">
+import Icon from '@/components/icons/Icon.vue'
 import { ref, watch, nextTick, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores'

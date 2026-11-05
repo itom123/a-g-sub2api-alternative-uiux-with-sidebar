@@ -21,21 +21,12 @@
           class="h-full w-full object-contain"
         />
         <!-- Empty placeholder -->
-        <svg
+<Icon
           v-else
+          name="photo"
+          :size="props.size === 'sm' ? 'md' : 'xl'"
           class="text-gray-400 dark:text-dark-500"
-          :class="placeholderSizeClass"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path stroke-width="1.5"
-            stroke-linecap="square"
-            stroke-linejoin="miter"
-
-            fill="none" stroke="currentColor" d="M3 3H21V21H3ZM3 16L9 10L14 15L18 11L21 14M15 6H17V8H15Z"
-          />
-        </svg>
+        />
       </div>
     </div>
 
@@ -118,8 +109,6 @@ const sanitizedValue = computed(() =>
 
 const previewSizeClass = computed(() => props.size === 'sm' ? 'h-14 w-14' : 'h-20 w-20')
 const innerSizeClass = computed(() => props.size === 'sm' ? 'h-7 w-7' : 'h-12 w-12')
-const placeholderSizeClass = computed(() => props.size === 'sm' ? 'h-5 w-5' : 'h-8 w-8')
-
 function handleUpload(event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]

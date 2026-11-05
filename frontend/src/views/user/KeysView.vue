@@ -63,9 +63,7 @@
               class="btn btn-secondary px-2 md:px-3"
               :title="t('keys.columnSettings')"
             >
-              <svg class="h-4 w-4 md:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
-                <path stroke-linecap="square" stroke-linejoin="miter" fill="none" stroke="currentColor" stroke-width="1.5" d="M3 3H10V10H3ZM14 3H21V10H14ZM3 14H10V21H3ZM14 14H21V21H14Z" />
-              </svg>
+              <Icon name="grid" size="sm" class="md:mr-1.5" />
               <span class="hidden md:inline">{{ t('keys.columnSettings') }}</span>
             </button>
             <div
@@ -179,19 +177,7 @@
                   t('keys.noGroup')
                 }}</span>
                 <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('keys.selectGroup') }}</span>
-                <svg
-                  class="h-3.5 w-3.5 text-gray-400 opacity-60 transition-opacity group-hover/dropdown:opacity-100"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  stroke-width="2"
-                >
-                  <path
-                    stroke-linecap="square"
-                    stroke-linejoin="miter"
-                    d="M7 8L12 3L17 8M7 16L12 21L17 16"
-                  />
-                </svg>
+                <Icon name="sort" size="compact" class="text-gray-400 opacity-60 transition-opacity group-hover/dropdown:opacity-100" :stroke-width="2" />
               </button>
             </div>
           </template>
@@ -1158,9 +1144,7 @@
         <!-- Search box -->
         <div class="border-b border-gray-100 p-2 dark:border-dark-700">
           <div class="relative">
-            <svg class="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-              <path stroke-linecap="square" stroke-linejoin="miter" fill="none" stroke="currentColor" stroke-width="1.5" d="M3 3H15V15H3ZM15 15L22 22" />
-            </svg>
+            <Icon name="search" size="sm" class="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" :stroke-width="2" />
             <input
               v-model="groupSearchQuery"
               type="text"

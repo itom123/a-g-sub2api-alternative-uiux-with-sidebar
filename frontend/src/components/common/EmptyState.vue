@@ -6,20 +6,7 @@
     >
       <slot name="icon">
         <component v-if="icon" :is="icon" class="empty-state-icon h-10 w-10" aria-hidden="true" />
-        <svg
-          v-else
-          class="empty-state-icon h-10 w-10"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-          stroke-width="1.5"
-        >
-          <path
-            stroke-linecap="square"
-            stroke-linejoin="miter"
-            d="M2 3H22V21H2ZM2 13H8L10 16H14L16 13H22"
-          />
-        </svg>
+        <Icon name="inbox" size="2xl" v-else class="empty-state-icon" />
       </slot>
     </div>
 

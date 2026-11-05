@@ -101,14 +101,7 @@
                 :title="copiedCode === value ? t('admin.redeem.copied') : t('keys.copyToClipboard')"
               >
                 <Icon v-if="copiedCode !== value" name="copy" size="sm" :stroke-width="2" />
-                <svg v-else class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    stroke-linecap="square"
-                    stroke-linejoin="miter"
-                    stroke-width="2"
-                    d="M5 13l4 4L19 7"
-                  />
-                </svg>
+                <Icon name="check" size="sm" v-else :stroke-width="2" />
               </button>
             </div>
           </template>
@@ -188,14 +181,7 @@
                 @click="handleDelete(row)"
                 class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
               >
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-width="1.5"
-                    stroke-linecap="square"
-                    stroke-linejoin="miter"
-
-                    fill="none" stroke="currentColor" d="M3 6H21M6 6V21H18V6M9 6V3H15V6M10 10V17M14 10V17"
-                  />
-                </svg>
+                <Icon name="trash" size="sm" />
                 <span class="text-xs">{{ t('common.delete') }}</span>
               </button>
               <span v-else class="text-gray-400 dark:text-dark-500">-</span>
@@ -537,19 +523,7 @@
               <div
                 class="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30"
               >
-                <svg
-                  class="h-5 w-5 text-green-600 dark:text-green-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="square"
-                    stroke-linejoin="miter"
-                    stroke-width="2"
-                    d="M5 13l4 4L19 7"
-                  />
-                </svg>
+                <Icon name="check" size="md" class="text-green-600 dark:text-green-400" :stroke-width="2" />
               </div>
               <div>
                 <h2 class="text-base font-semibold text-gray-900 dark:text-white">
@@ -590,14 +564,7 @@
               ]"
             >
               <Icon v-if="!copiedAll" name="copy" size="sm" :stroke-width="2" />
-              <svg v-else class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  stroke-linecap="square"
-                  stroke-linejoin="miter"
-                  stroke-width="2"
-                  d="M5 13l4 4L19 7"
-                />
-              </svg>
+              <Icon name="check" size="sm" v-else :stroke-width="2" />
               {{ copiedAll ? t('admin.redeem.copied') : t('admin.redeem.copyAll') }}
             </button>
             <button @click="downloadGeneratedCodes" class="btn btn-primary flex items-center gap-2">

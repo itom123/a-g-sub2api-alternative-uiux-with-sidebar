@@ -18,9 +18,7 @@
       data-testid="account-priority-decrement"
       @click="step(-1)"
     >
-      <svg class="h-3 w-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" shape-rendering="crispEdges" aria-hidden="true">
-        <path d="M2 6h8" />
-      </svg>
+      <Icon name="minus" size="xs" :stroke-width="2" aria-hidden="true" />
     </button>
 
     <input
@@ -66,14 +64,13 @@
       data-testid="account-priority-increment"
       @click="step(1)"
     >
-      <svg class="h-3 w-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" shape-rendering="crispEdges" aria-hidden="true">
-        <path d="M2 6h8M6 2v8" />
-      </svg>
+      <Icon name="plus" size="xs" :stroke-width="2" aria-hidden="true" />
     </button>
   </div>
 </template>
 
 <script setup lang="ts">
+import Icon from '@/components/icons/Icon.vue'
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { update as updateAccount } from '@/api/admin/accounts'
