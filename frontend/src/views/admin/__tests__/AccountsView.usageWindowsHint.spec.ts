@@ -179,7 +179,7 @@ describe('admin AccountsView usage windows hint', () => {
 
     const hint = wrapper.find('[data-test="usage-windows-hint"]')
     expect(hint.exists()).toBe(true)
-    expect(hint.text()).toBe('admin.accounts.usageWindowsHint')
+    expect(hint.text()).toBe('admin.accounts.columns.usageWindows: admin.accounts.usageWindowsHint')
   })
 
   it('keeps Ollama Cloud in the single usage column and ignores legacy column preferences', async () => {
@@ -193,6 +193,14 @@ describe('admin AccountsView usage windows hint', () => {
   })
 
   it('renders the upstream billing trust warning next to the declared-rate column', async () => {
+    listAccounts.mockResolvedValueOnce({
+      items: [{
+        id: 7, name: 'api-key-account', platform: 'openai', type: 'apikey',
+        status: 'active', schedulable: true,
+        created_at: '2026-07-13T00:00:00Z', updated_at: '2026-07-13T00:00:00Z'
+      }],
+      total: 1, page: 1, page_size: 20, pages: 1
+    })
     const wrapper = mountView()
     await flushPromises()
 
@@ -200,7 +208,7 @@ describe('admin AccountsView usage windows hint', () => {
     expect(header.exists()).toBe(true)
     expect(header.text()).toContain('admin.accounts.columns.upstreamBillingRate')
     expect(wrapper.findAll('[data-test="usage-windows-hint"]').some(node =>
-      node.text() === 'admin.accounts.upstreamBilling.trustWarning'
+      node.text() === 'admin.accounts.columns.upstreamBillingRate: admin.accounts.upstreamBilling.trustWarning'
     )).toBe(true)
     const columns = wrapper.getComponent(DataTableStub).props('columns') as Array<{ key: string; sortable: boolean }>
     expect(columns.find(column => column.key === 'upstream_billing_rate')?.sortable).toBe(true)

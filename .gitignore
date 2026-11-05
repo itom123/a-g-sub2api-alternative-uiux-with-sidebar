@@ -119,6 +119,11 @@ backend/.installed
 tests
 !deploy/tests/
 !deploy/tests/**
+!deploy/production/tests/
+!deploy/production/tests/**
+__pycache__/
+*.py[cod]
+.fake-test-*/
 CLAUDE.md
 .claude
 scripts

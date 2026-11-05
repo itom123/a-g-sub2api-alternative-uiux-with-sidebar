@@ -1,0 +1,139 @@
+name: Production package
+
+on:
+  workflow_run:
+    workflows: [CI, Fork guard, Security Scan]
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Build and verify without publishing a production package
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: production-package-${{ github.event.workflow_run.head_sha || github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.head_repository.full_name == github.repository &&
+       github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.gate.outputs.sha }}
+      ready: ${{ steps.gate.outputs.ready }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Check production gates or select a build-only dry run
+        id: gate
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          SOURCE_REPOSITORY: ${{ github.repository }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        run: |
+          python - <<'PY'
+          import json, os, sys
+          sys.path.insert(0, 'deploy/production')
+          from github_api import GitHub, require_sha
+          sha = require_sha(os.environ['SOURCE_SHA'])
+          client = GitHub(os.environ['SOURCE_REPOSITORY'])
+          if os.environ['DRY_RUN'] == 'true':
+              result = {'sha': sha, 'ready': True, 'reason': 'manual_dry_run_build_only', 'checks': []}
+              ready = True
+          else:
+              result = client.gate(sha)
+              ready = client.main_sha() == sha and result['ready']
+          print(json.dumps(result, sort_keys=True))
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('sha=' + sha + '\nready=' + str(ready).lower() + '\n')
+          PY
+
+  build:
+    needs: gate
+    if: needs.gate.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.gate.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          check-latest: false
+          cache: true
+          cache-dependency-path: backend/go.sum
+      - name: Build one source SHA for darwin arm64
+        env:
+          SOURCE_SHA: ${{ needs.gate.outputs.sha }}
+          SOURCE_REPOSITORY: ${{ github.repository }}
+        run: >-
+          python deploy/production/package_release.py build
+          --sha "$SOURCE_SHA" --repository "$SOURCE_REPOSITORY"
+          --output "$RUNNER_TEMP/production-package"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: production-package-${{ needs.gate.outputs.sha }}
+          path: |
+            ${{ runner.temp }}/production-package/*.tar.gz
+            ${{ runner.temp }}/production-package/deployment.json
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    needs: [gate, build]
+    if: github.event_name != 'workflow_dispatch' || inputs.dry_run != true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.gate.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: production-package-${{ needs.gate.outputs.sha }}
+          path: ${{ runner.temp }}/production-package
+      - name: Verify and publish existing package
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ needs.gate.outputs.sha }}
+          SOURCE_REPOSITORY: ${{ github.repository }}
+        run: >-
+          python deploy/production/publish_release.py
+          --sha "$SOURCE_SHA" --repository "$SOURCE_REPOSITORY"
+          --package "$RUNNER_TEMP/production-package"

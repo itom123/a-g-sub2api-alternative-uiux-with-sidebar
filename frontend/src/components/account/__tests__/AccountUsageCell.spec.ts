@@ -1774,7 +1774,7 @@ describe('AccountUsageCell', () => {
 
     await flushPromises()
 
-    expect(wrapper.text()).toContain('A $0.42')
+    expect(wrapper.text()).toContain('A ¥0.42')
     expect(wrapper.findAll('usage-progress-bar-stub')).toHaveLength(0)
     expect(getUsage).not.toHaveBeenCalled()
   })
