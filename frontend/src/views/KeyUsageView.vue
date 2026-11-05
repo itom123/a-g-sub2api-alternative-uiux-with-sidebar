@@ -179,13 +179,13 @@
               <div class="flex justify-center">
                 <div class="relative">
                   <svg class="w-44 h-44" viewBox="0 0 160 160">
-                    <circle cx="80" cy="80" r="68" fill="none" :stroke="ringTrackColor" stroke-width="10" opacity="0.2"/>
-                    <circle cx="80" cy="80" r="68"
+                    <path :d="RING_PATH" fill="none" :stroke="ringTrackColor" stroke-width="10" stroke-linejoin="miter" opacity="0.2"/>
+                    <path :d="RING_PATH"
                       class="progress-ring"
                       fill="none"
                       :stroke="`url(#ring-grad-${i})`"
-                      stroke-width="10" stroke-linecap="round"
-                      :stroke-dasharray="CIRCUMFERENCE.toFixed(2)"
+                      stroke-width="10" stroke-linecap="butt" stroke-linejoin="miter"
+                      :stroke-dasharray="RING_PERIMETER"
                       :stroke-dashoffset="getRingOffset(ring)"
                     />
                     <defs>
@@ -507,7 +507,10 @@ function setDailyUsageDays(days: 7 | 30 | 90) {
 
 // ==================== Ring Animation ====================
 
-const CIRCUMFERENCE = 2 * Math.PI * 68
+// Right-angle A.G. frame: starts at 12 o'clock and fills clockwise.
+const RING_INSET = 12
+const RING_PATH = `M80 ${RING_INSET}H${160 - RING_INSET}V${160 - RING_INSET}H${RING_INSET}V${RING_INSET}Z`
+const RING_PERIMETER = 4 * (160 - 2 * RING_INSET)
 const RING_GRADIENTS = Array.from({ length: 4 }, () => ({ from: 'var(--ag-ink)', to: 'var(--ag-ink)' }))
 
 const ringAnimated = ref(false)
@@ -525,9 +528,9 @@ interface RingItem {
 }
 
 function getRingOffset(ring: RingItem): number {
-  if (!ringAnimated.value) return CIRCUMFERENCE
+  if (!ringAnimated.value) return RING_PERIMETER
   if (ring.isBalance) return 0
-  return CIRCUMFERENCE - (Math.min(ring.pct, 100) / 100) * CIRCUMFERENCE
+  return RING_PERIMETER - (Math.min(ring.pct, 100) / 100) * RING_PERIMETER
 }
 
 function triggerRingAnimation(items: RingItem[]) {
@@ -928,8 +931,6 @@ onUnmounted(() => {
 /* Ring animation */
 .progress-ring {
   transition: stroke-dashoffset 1.2s cubic-bezier(0.4, 0, 0.2, 1);
-  transform: rotate(-90deg);
-  transform-origin: 50% 50%;
 }
 
 /* Skeleton loading */

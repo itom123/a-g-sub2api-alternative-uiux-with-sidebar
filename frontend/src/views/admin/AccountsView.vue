@@ -26,8 +26,12 @@
                   "
                   class="btn btn-secondary px-2 md:px-3"
                   :title="t('admin.accounts.autoRefresh')"
+                  :aria-label="t('admin.accounts.autoRefresh')"
+                  :aria-expanded="showAutoRefreshDropdown"
+                  data-testid="account-auto-refresh-toggle"
                 >
-                  <Icon name="refresh" size="sm" :class="[autoRefreshEnabled ? 'animate-spin' : '']" />
+                  <Icon name="clock" size="sm" />
+                  <span v-if="autoRefreshEnabled" class="tabular-nums md:hidden">{{ autoRefreshCountdown }}s</span>
                   <span class="hidden md:inline">
                     {{
                       autoRefreshEnabled
