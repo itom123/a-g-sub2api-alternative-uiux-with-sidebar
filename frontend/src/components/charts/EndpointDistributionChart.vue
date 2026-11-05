@@ -100,8 +100,8 @@
               >
                 <td class="max-w-[180px] truncate py-1.5 font-medium" :class="enableBreakdown ? 'text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300' : 'text-gray-900 dark:text-white'" :title="item.endpoint">
                   <span class="inline-flex items-center gap-1">
-                    <svg v-if="enableBreakdown && expandedKey === item.endpoint" class="h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="square" stroke-linejoin="miter" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                    <svg v-else-if="enableBreakdown" class="h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="square" stroke-linejoin="miter" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                    <Icon name="chevronDown" size="xs" v-if="enableBreakdown && expandedKey === item.endpoint" class="shrink-0" :stroke-width="2" />
+                    <Icon name="chevronRight" size="xs" v-else-if="enableBreakdown" class="shrink-0" :stroke-width="2" />
                     {{ item.endpoint }}
                   </span>
                 </td>
@@ -136,6 +136,7 @@
 </template>
 
 <script setup lang="ts">
+import Icon from '@/components/icons/Icon.vue'
 import { cnyCost } from '@/utils/currency'
 
 import { computed, ref } from 'vue'

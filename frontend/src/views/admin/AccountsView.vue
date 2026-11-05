@@ -440,15 +440,15 @@
           <template #cell-actions="{ row }">
             <div class="ag-account-actions">
               <button type="button" :title="t('common.edit')" :aria-label="t('common.edit')" @click="handleEdit(row)" class="ag-account-action">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="square" stroke-linejoin="miter" d="M14 5L18 1L23 6L9 20L3 21L4 15ZM14 5L19 10M11 3H2V22H21V13" /></svg>
+                <Icon name="edit" size="sm" />
                 <span class="ag-account-action-label">{{ t('common.edit') }}</span>
               </button>
               <button type="button" :title="t('common.delete')" :aria-label="t('common.delete')" @click="handleDelete(row)" class="ag-account-action">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="square" stroke-linejoin="miter" d="M3 6H21M6 6V21H18V6M9 6V3H15V6M10 10V17M14 10V17" /></svg>
+                <Icon name="trash" size="sm" />
                 <span class="ag-account-action-label">{{ t('common.delete') }}</span>
               </button>
               <button type="button" :title="t('common.more')" :aria-label="t('common.more')" @click="openMenu(row, $event)" class="ag-account-action">
-                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="square" stroke-linejoin="miter" d="M3 11H5V13H3ZM11 11H13V13H11ZM19 11H21V13H19Z" /></svg>
+                <Icon name="more" size="sm" />
                 <span class="ag-account-action-label">{{ t('common.more') }}</span>
               </button>
             </div>

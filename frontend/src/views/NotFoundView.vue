@@ -23,19 +23,7 @@
             <div
               class="flex h-24 w-24 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-500 to-primary-600 shadow-lg shadow-primary-500/30"
             >
-              <svg
-                class="h-12 w-12 text-white"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                stroke-width="1.5"
-              >
-                <path
-                  stroke-linecap="square"
-                  stroke-linejoin="miter"
-                  fill="none" stroke="currentColor" stroke-width="1.5" d="M12 2L23 22H1ZM12 9V15M12 18V20"
-                />
-              </svg>
+              <Icon name="exclamationTriangle" size="3xl" class="text-white" />
             </div>
           </div>
         </div>

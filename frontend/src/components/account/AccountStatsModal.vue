@@ -53,19 +53,7 @@
                 t('admin.accounts.stats.totalCost')
               }}</span>
               <div class="rounded-lg bg-emerald-100 p-1.5 dark:bg-emerald-900/30">
-                <svg
-                  class="h-4 w-4 text-emerald-600 dark:text-emerald-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path stroke-width="1.5"
-                    stroke-linecap="square"
-                    stroke-linejoin="miter"
-
-                    fill="none" stroke="currentColor" d="M19 5H5V12H19V19H5M12 1V23"
-                  />
-                </svg>
+                <Icon name="dollar" size="sm" class="text-emerald-600 dark:text-emerald-400" />
               </div>
             </div>
             <p class="text-2xl font-bold text-gray-900 dark:text-white">
@@ -143,19 +131,7 @@
                 t('admin.accounts.stats.avgDailyRequests')
               }}</span>
               <div class="rounded-lg bg-purple-100 p-1.5 dark:bg-purple-900/30">
-                <svg
-                  class="h-4 w-4 text-purple-600 dark:text-purple-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path stroke-width="1.5"
-                    stroke-linecap="square"
-                    stroke-linejoin="miter"
-
-                    fill="none" stroke="currentColor" d="M3 4H21V17H3ZM7 12L10 9L13 12L17 8M12 17V21M8 23L12 19L16 23"
-                  />
-                </svg>
+                <Icon name="presentation" size="sm" class="text-purple-600 dark:text-purple-400" />
               </div>
             </div>
             <p class="text-2xl font-bold text-gray-900 dark:text-white">
@@ -173,19 +149,7 @@
           <div class="card p-4">
             <div class="mb-3 flex items-center gap-2">
               <div class="rounded-lg bg-cyan-100 p-1.5 dark:bg-cyan-900/30">
-                <svg
-                  class="h-4 w-4 text-cyan-600 dark:text-cyan-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path stroke-width="1.5"
-                    stroke-linecap="square"
-                    stroke-linejoin="miter"
-
-                    fill="none" stroke="currentColor" d="M3 3H21V21H3ZM12 6V12H17"
-                  />
-                </svg>
+                <Icon name="clock" size="sm" class="text-cyan-600 dark:text-cyan-400" />
               </div>
               <span class="text-sm font-semibold text-gray-900 dark:text-white">{{
                 t('admin.accounts.stats.todayOverview')

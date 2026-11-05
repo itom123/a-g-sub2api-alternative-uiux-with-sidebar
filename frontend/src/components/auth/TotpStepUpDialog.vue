@@ -6,9 +6,7 @@
       <div class="relative w-full max-w-md transform rounded-xl bg-white p-6 shadow-xl transition-all dark:bg-dark-800">
         <div class="mb-6 text-center">
           <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary-100 dark:bg-primary-900/30">
-            <svg class="h-6 w-6 text-primary-600 dark:text-primary-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-              <path stroke-linecap="square" stroke-linejoin="miter" d="M7 10V3H17V10M4 10H20V22H4ZM12 14V18" />
-            </svg>
+            <Icon name="lock" size="lg" class="text-primary-600 dark:text-primary-400" />
           </div>
           <h3 class="mt-4 text-xl font-semibold text-gray-900 dark:text-white">
             {{ t('stepUp.title') }}
@@ -67,6 +65,7 @@
 </template>
 
 <script setup lang="ts">
+import Icon from '@/components/icons/Icon.vue'
 import { ref, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores'

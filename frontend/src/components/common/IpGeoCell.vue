@@ -13,14 +13,7 @@
     v-else-if="entry.status === 'loading'"
     class="mt-0.5 flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500"
   >
-    <svg class="h-3 w-3 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path stroke-width="1.5"
-        stroke-linecap="square"
-        stroke-linejoin="miter"
-
-        fill="none" stroke="currentColor" d="M21 3V9H15M3 21V15H9M3 10L6 4H15L21 9M21 14L18 20H9L3 15"
-      />
-    </svg>
+    <Icon name="refresh" size="xs" class="animate-spin" />
     {{ t('usage.ipGeo.fetching') }}
   </div>
 

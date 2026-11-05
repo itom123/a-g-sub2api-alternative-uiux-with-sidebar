@@ -18,19 +18,7 @@
           <span>/</span>
           <span class="group relative inline-flex cursor-help items-center gap-0.5" tabindex="0">
             <span>{{ cacheLabel() }}: {{ formatTokens(stats?.total_cache_tokens || 0) }}</span>
-            <svg
-              class="h-3.5 w-3.5 text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path stroke-width="1.5"
-                stroke-linecap="square"
-                stroke-linejoin="miter"
-
-                fill="none" stroke="currentColor" d="M3 3H21V21H3ZM12 6V8M10 11H12V18M9 18H15"
-              />
-            </svg>
+            <Icon name="infoCircle" size="compact" class="text-gray-400" />
             <span
               class="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-56 -translate-x-1/2 rounded-lg border border-gray-200 bg-white p-3 text-left text-xs text-gray-700 shadow-lg group-hover:block group-focus:block dark:border-dark-600 dark:bg-dark-800 dark:text-dark-200"
             >
@@ -79,6 +67,7 @@
 </template>
 
 <script setup lang="ts">
+import Icon from '@/components/icons/Icon.vue'
 import { cnyNumber } from '@/utils/currency'
 import { formatUsageDuration, formatUsageTokens } from '@/utils/usageDisplay'
 

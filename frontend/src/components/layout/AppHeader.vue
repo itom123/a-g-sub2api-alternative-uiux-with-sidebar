@@ -67,19 +67,7 @@
           class="ag-header-cash group relative flex min-w-0 flex-col items-start px-1.5 py-1 sm:flex-row sm:items-center sm:gap-2 sm:px-3 sm:py-1.5"
           data-testid="header-cash-balance"
         >
-          <svg
-            class="hidden h-4 w-4 shrink-0 sm:block"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            stroke-width="1.5"
-          >
-            <path
-              stroke-linecap="square"
-              stroke-linejoin="miter"
-              fill="none" stroke="currentColor" stroke-width="1.5" d="M2 4H22V20H2ZM2 9H22M6 15H12"
-            />
-          </svg>
+          <Icon name="creditCard" size="sm" class="hidden shrink-0 sm:block" />
           <span class="text-[10px] sm:text-xs">{{ t('subscriptionProgress.cashBalance') }}</span>
           <span class="ag-header-cash-value text-xs font-semibold tabular-nums sm:text-sm">
             {{ formatHeaderMoney(availableBalance) }}
@@ -209,19 +197,7 @@
                 class="border-t border-gray-100 px-4 py-2.5 dark:border-dark-700"
               >
                 <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                  <svg
-                    class="h-3.5 w-3.5 flex-shrink-0"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    stroke-width="1.5"
-                  >
-                    <path
-                      stroke-linecap="square"
-                      stroke-linejoin="miter"
-                      fill="none" stroke="currentColor" stroke-width="1.5" d="M3 3H21V17H9L3 22ZM7 8H17M7 12H14"
-                    />
-                  </svg>
+                  <Icon name="chat" size="compact" class="flex-shrink-0" />
                   <span>{{ t('common.contactSupport') }}:</span>
                   <span class="font-medium text-gray-700 dark:text-gray-300">{{
                     contactInfo
@@ -231,11 +207,7 @@
 
               <div v-if="showOnboardingButton" class="border-t border-gray-100 py-1 dark:border-dark-700">
                 <button @click="handleReplayGuide" class="dropdown-item w-full">
-                  <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
-                    <path
-                      fill="none" stroke="currentColor" stroke-width="1.5" d="M3 3H21V21H3ZM8 7H16V11L12 13V15M12 17V19"
-                    />
-                  </svg>
+                  <Icon name="questionCircle" size="sm" />
                   {{ $t('onboarding.restartTour') }}
                 </button>
               </div>
@@ -245,19 +217,7 @@
                   @click="handleLogout"
                   class="dropdown-item w-full text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
                 >
-                  <svg
-                    class="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    stroke-width="1.5"
-                  >
-                    <path
-                      stroke-linecap="square"
-                      stroke-linejoin="miter"
-                      fill="none" stroke="currentColor" stroke-width="1.5" d="M14 3H22V21H14M2 12H17M10 5L17 12L10 19"
-                    />
-                  </svg>
+                  <Icon name="login" size="sm" />
                   {{ t('nav.logout') }}
                 </button>
               </div>

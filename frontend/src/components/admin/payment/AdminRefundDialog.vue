@@ -12,9 +12,7 @@
         class="rounded-lg border border-violet-200 bg-violet-50 p-3 dark:border-violet-800 dark:bg-violet-900/20"
       >
         <div class="flex items-center gap-2 text-sm font-medium text-violet-700 dark:text-violet-300">
-          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter" fill="none" stroke="currentColor" d="M3 3H21V21H3ZM12 6V8M10 11H12V18M9 18H15" />
-          </svg>
+          <Icon name="infoCircle" size="sm" />
           {{ t('payment.admin.refundRequestInfo') }}
         </div>
         <div v-if="order?.refund_requested_at" class="mt-2 flex justify-between text-sm">
@@ -164,6 +162,7 @@
 </template>
 
 <script setup lang="ts">
+import Icon from '@/components/icons/Icon.vue'
 import { formatCny, toCny } from '@/utils/currency'
 import CurrencyInput from '@/components/common/CurrencyInput.vue'
 import { reactive, computed, watch } from 'vue'

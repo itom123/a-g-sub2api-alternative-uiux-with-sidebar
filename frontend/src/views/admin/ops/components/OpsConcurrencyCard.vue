@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Icon from '@/components/icons/Icon.vue'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { opsAPI, type OpsAccountAvailabilityStatsResponse, type OpsConcurrencyStatsResponse, type OpsUserConcurrencyStatsResponse } from '@/api/admin/ops'
@@ -345,9 +346,7 @@ watch(
     <!-- 头部 -->
     <div class="mb-4 flex shrink-0 items-center justify-between gap-3">
       <h3 class="flex items-center gap-2 text-sm font-bold text-gray-900 dark:text-white">
-        <svg class="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="square" stroke-linejoin="miter" stroke-width="2" d="M13 2L3 14H11V22L21 10H13Z" />
-        </svg>
+        <Icon name="bolt" size="sm" class="text-blue-500" :stroke-width="2" />
         {{ t('admin.ops.concurrency.title') }}
       </h3>
       <div class="flex items-center gap-2">
@@ -360,9 +359,7 @@ watch(
           :title="showByUser ? t('admin.ops.concurrency.switchToPlatform') : t('admin.ops.concurrency.switchToUser')"
           @click="showByUser = !showByUser"
         >
-          <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter" fill="none" stroke="currentColor" d="M9 3H15V9H9ZM4 21V15L9 12H15L20 15V21Z" />
-          </svg>
+          <Icon name="user" size="compact" />
         </button>
         <!-- 刷新按钮 -->
         <button
@@ -371,9 +368,7 @@ watch(
           :title="t('common.refresh')"
           @click="loadData"
         >
-          <svg class="h-3 w-3" :class="{ 'animate-spin': loading }" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter" fill="none" stroke="currentColor" d="M21 3V9H15M3 21V15H9M3 10L6 4H15L21 9M21 14L18 20H9L3 15" />
-          </svg>
+          <Icon name="refresh" size="xs" :class="{ 'animate-spin': loading }" />
         </button>
       </div>
     </div>
@@ -473,14 +468,7 @@ watch(
           <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px]">
             <!-- 账号统计 -->
             <div class="flex items-center gap-1">
-              <svg class="h-3 w-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path
-                  stroke-linecap="square"
-                  stroke-linejoin="miter"
-                  stroke-width="2"
-                  d="M9 2H15V8H9ZM3 6H6V11H3ZM18 6H21V11H18ZM7 22V14L10 11H14L17 14V22ZM7 14H2V22H22V14H17"
-                />
-              </svg>
+              <Icon name="users" size="xs" class="text-gray-400" :stroke-width="2" />
               <span class="text-gray-600 dark:text-gray-300">
                 <span class="font-bold text-green-600 dark:text-green-400">{{ row.available_accounts }}</span
                 >/{{ row.total_accounts }}
@@ -536,41 +524,28 @@ watch(
                 v-if="row.is_available"
                 class="inline-flex items-center gap-1 rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400"
               >
-                <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="square" stroke-linejoin="miter" stroke-width="2" d="M5 13l4 4L19 7" />
-                </svg>
+                <Icon name="check" size="xs" :stroke-width="2" />
                 {{ t('admin.ops.accountAvailability.available') }}
               </span>
               <span
                 v-else-if="row.is_rate_limited"
                 class="inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
               >
-                <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter" fill="none" stroke="currentColor" d="M3 3H21V21H3ZM12 6V12H17" />
-                </svg>
+                <Icon name="clock" size="xs" />
                 {{ formatDuration(row.rate_limit_remaining_sec || 0) }}
               </span>
               <span
                 v-else-if="row.is_overloaded"
                 class="inline-flex items-center gap-1 rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400"
               >
-                <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path
-                    stroke-linecap="square"
-                    stroke-linejoin="miter"
-                    stroke-width="2"
-                    d="M12 2L23 22H1ZM12 9V15M12 18V20"
-                  />
-                </svg>
+                <Icon name="exclamationTriangle" size="xs" :stroke-width="2" />
                 {{ formatDuration(row.overload_remaining_sec || 0) }}
               </span>
               <span
                 v-else-if="row.has_error"
                 class="inline-flex items-center gap-1 rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400"
               >
-                <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="square" stroke-linejoin="miter" stroke-width="2" d="M5 5L19 19M5 19L19 5" />
-                </svg>
+                <Icon name="x" size="xs" :stroke-width="2" />
                 {{ t('admin.ops.accountAvailability.accountError') }}
               </span>
               <span

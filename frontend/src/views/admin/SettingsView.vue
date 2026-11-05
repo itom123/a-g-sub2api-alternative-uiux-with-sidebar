@@ -685,19 +685,7 @@
                         "
                         class="btn btn-ghost btn-xs text-red-500 hover:text-red-700"
                       >
-                        <svg
-                          class="h-4 w-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            stroke-linecap="square"
-                            stroke-linejoin="miter"
-                            stroke-width="2"
-                            d="M5 5L19 19M5 19L19 5"
-                          />
-                        </svg>
+                        <Icon name="x" size="sm" :stroke-width="2" />
                       </button>
                     </div>
                     <button
@@ -892,19 +880,7 @@
                         @click="rule.model_whitelist!.splice(index, 1)"
                         class="shrink-0 rounded p-1 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
                       >
-                        <svg
-                          class="h-4 w-4"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          stroke-width="2"
-                        >
-                          <path
-                            stroke-linecap="square"
-                            stroke-linejoin="miter"
-                            d="M5 5L19 19M5 19L19 5"
-                          />
-                        </svg>
+                        <Icon name="x" size="sm" :stroke-width="2" />
                       </button>
                     </div>
                     <!-- Add pattern button -->
@@ -916,19 +892,7 @@
                       "
                       class="mb-2 inline-flex items-center gap-1 text-xs text-primary-600 transition-colors hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
                     >
-                      <svg
-                        class="h-3.5 w-3.5"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        stroke-width="2"
-                      >
-                        <path
-                          stroke-linecap="square"
-                          stroke-linejoin="miter"
-                          d="M12 4v16m8-8H4"
-                        />
-                      </svg>
+                      <Icon name="plus" size="compact" :stroke-width="2" />
                       {{ t("admin.settings.betaPolicy.addModelPattern") }}
                     </button>
                     <!-- Common pattern chips -->
@@ -1070,19 +1034,7 @@
                     class="rounded p-1 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
                     :title="t('admin.settings.openaiFastPolicy.removeRule')"
                   >
-                    <svg
-                      class="h-4 w-4"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      stroke-width="2"
-                    >
-                      <path
-                        stroke-linecap="square"
-                        stroke-linejoin="miter"
-                        d="M5 5L19 19M5 19L19 5"
-                      />
-                    </svg>
+                    <Icon name="x" size="sm" :stroke-width="2" />
                   </button>
                 </div>
 
@@ -1270,19 +1222,7 @@
                       "
                       class="shrink-0 rounded p-1 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
                     >
-                      <svg
-                        class="h-4 w-4"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        stroke-width="2"
-                      >
-                        <path
-                          stroke-linecap="square"
-                          stroke-linejoin="miter"
-                          d="M5 5L19 19M5 19L19 5"
-                        />
-                      </svg>
+                      <Icon name="x" size="sm" :stroke-width="2" />
                     </button>
                   </div>
                   <button
@@ -1290,19 +1230,7 @@
                     @click="addOpenAIFastPolicyModelPattern(rule)"
                     class="mb-2 inline-flex items-center gap-1 text-xs text-primary-600 transition-colors hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
                   >
-                    <svg
-                      class="h-3.5 w-3.5"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      stroke-width="2"
-                    >
-                      <path
-                        stroke-linecap="square"
-                        stroke-linejoin="miter"
-                        d="M12 4v16m8-8H4"
-                      />
-                    </svg>
+                    <Icon name="plus" size="compact" :stroke-width="2" />
                     {{ t("admin.settings.openaiFastPolicy.addModelPattern") }}
                   </button>
                 </div>
@@ -1355,19 +1283,7 @@
                   @click="addOpenAIFastPolicyRule"
                   class="btn btn-secondary btn-sm inline-flex items-center gap-1"
                 >
-                  <svg
-                    class="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    stroke-width="2"
-                  >
-                    <path
-                      stroke-linecap="square"
-                      stroke-linejoin="miter"
-                      d="M12 4v16m8-8H4"
-                    />
-                  </svg>
+                  <Icon name="plus" size="sm" :stroke-width="2" />
                   {{ t("admin.settings.openaiFastPolicy.addRule") }}
                 </button>
                 <p class="mt-2 text-xs text-gray-400 dark:text-gray-500">
@@ -5949,20 +5865,7 @@
                     @click="toggleProviderExpand(pIdx)"
                   >
                     <div class="flex items-center gap-3">
-                      <svg
-                        class="h-4 w-4 text-gray-400 transition-transform"
-                        :class="{ 'rotate-90': expandedProviders[pIdx] }"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          stroke-linecap="square"
-                          stroke-linejoin="miter"
-                          stroke-width="2"
-                          d="M9 5l7 7-7 7"
-                        />
-                      </svg>
+                      <Icon name="chevronRight" size="sm" class="text-gray-400 transition-transform" :class="{ 'rotate-90': expandedProviders[pIdx] }" :stroke-width="2" />
                       <Select
                         v-model="provider.type"
                         :options="[
@@ -6053,29 +5956,8 @@
                             "
                             @click="apiKeyVisible[pIdx] = !apiKeyVisible[pIdx]"
                           >
-                            <svg
-                              v-if="!apiKeyVisible[pIdx]"
-                              class="h-4 w-4"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                            >
-                              <path fill="none" stroke="currentColor" stroke-width="1.5" d="M2 12L8 5H16L22 12L16 19H8ZM9 9H15V15H9Z" />
-                            </svg>
-                            <svg
-                              v-else
-                              class="h-4 w-4"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                            >
-                              <path stroke-width="1.5"
-                                stroke-linecap="square"
-                                stroke-linejoin="miter"
-
-                                fill="none" stroke="currentColor" d="M3 3L21 21M7 6L2 12L8 19H16M11 5H16L22 12L19 16M9 10V15H14"
-                              />
-                            </svg>
+                            <Icon name="eye" size="sm" v-if="!apiKeyVisible[pIdx]" />
+                            <Icon name="eyeOff" size="sm" v-else />
                           </button>
                           <button
                             type="button"
@@ -6090,19 +5972,7 @@
                             :disabled="!provider.api_key"
                             @click="copyApiKey(pIdx)"
                           >
-                            <svg
-                              class="h-4 w-4"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                            >
-                              <path
-                                stroke-linecap="square"
-                                stroke-linejoin="miter"
-                                stroke-width="2"
-                                d="M8 8H22V22H8ZM5 16H2V2H16V5"
-                              />
-                            </svg>
+                            <Icon name="copy" size="sm" :stroke-width="2" />
                           </button>
                         </div>
                       </div>
@@ -6507,19 +6377,7 @@
                         class="rounded p-1 text-red-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
                         @click="removeEndpoint(index)"
                       >
-                        <svg
-                          class="h-4 w-4"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          stroke-width="2"
-                        >
-                          <path
-                            stroke-linecap="square"
-                            stroke-linejoin="miter"
-                            fill="none" stroke="currentColor" stroke-width="1.5" d="M3 6H21M6 6V21H18V6M9 6V3H15V6M10 10V17M14 10V17"
-                          />
-                        </svg>
+                        <Icon name="trash" size="sm" :stroke-width="2" />
                       </button>
                     </div>
                     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -6589,19 +6447,7 @@
                   class="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 px-4 py-2.5 text-sm text-gray-500 transition-colors hover:border-primary-400 hover:text-primary-600 dark:border-dark-600 dark:text-gray-400 dark:hover:border-primary-500 dark:hover:text-primary-400"
                   @click="addEndpoint"
                 >
-                  <svg
-                    class="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    stroke-width="2"
-                  >
-                    <path
-                      stroke-linecap="square"
-                      stroke-linejoin="miter"
-                      d="M12 4v16m8-8H4"
-                    />
-                  </svg>
+                  <Icon name="plus" size="sm" :stroke-width="2" />
                   {{ t("admin.settings.site.customEndpoints.add") }}
                 </button>
               </div>
@@ -6747,19 +6593,7 @@
                       :title="t('admin.settings.customMenu.moveUp')"
                       @click="moveMenuItem(index, -1)"
                     >
-                      <svg
-                        class="h-4 w-4"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        stroke-width="2"
-                      >
-                        <path
-                          stroke-linecap="square"
-                          stroke-linejoin="miter"
-                          d="M5 15L12 8L19 15"
-                        />
-                      </svg>
+                      <Icon name="chevronUp" size="sm" :stroke-width="2" />
                     </button>
                     <!-- Move down -->
                     <button
@@ -6769,19 +6603,7 @@
                       :title="t('admin.settings.customMenu.moveDown')"
                       @click="moveMenuItem(index, 1)"
                     >
-                      <svg
-                        class="h-4 w-4"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        stroke-width="2"
-                      >
-                        <path
-                          stroke-linecap="square"
-                          stroke-linejoin="miter"
-                          d="M19 9l-7 7-7-7"
-                        />
-                      </svg>
+                      <Icon name="chevronDown" size="sm" :stroke-width="2" />
                     </button>
                     <!-- Delete -->
                     <button
@@ -6790,19 +6612,7 @@
                       :title="t('admin.settings.customMenu.remove')"
                       @click="removeMenuItem(index)"
                     >
-                      <svg
-                        class="h-4 w-4"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        stroke-width="2"
-                      >
-                        <path
-                          stroke-linecap="square"
-                          stroke-linejoin="miter"
-                          fill="none" stroke="currentColor" stroke-width="1.5" d="M3 6H21M6 6V21H18V6M9 6V3H15V6M10 10V17M14 10V17"
-                        />
-                      </svg>
+                      <Icon name="trash" size="sm" :stroke-width="2" />
                     </button>
                   </div>
                 </div>
@@ -6895,19 +6705,7 @@
                 class="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 py-3 text-sm text-gray-500 transition-colors hover:border-primary-400 hover:text-primary-600 dark:border-dark-600 dark:text-gray-400 dark:hover:border-primary-500 dark:hover:text-primary-400"
                 @click="addMenuItem"
               >
-                <svg
-                  class="h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path
-                    stroke-linecap="square"
-                    stroke-linejoin="miter"
-                    d="M12 4v16m8-8H4"
-                  />
-                </svg>
+                <Icon name="plus" size="sm" :stroke-width="2" />
                 {{ t("admin.settings.customMenu.add") }}
               </button>
             </div>
@@ -7888,19 +7686,7 @@
                   rel="noopener noreferrer"
                   class="ml-2 inline-flex items-center text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
                 >
-                  <svg
-                    class="mr-0.5 h-3.5 w-3.5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="square"
-                      stroke-linejoin="miter"
-                      stroke-width="2"
-                      d="M10 4H3V21H20V14M14 2H22V10M22 2L10 14"
-                    />
-                  </svg>
+                  <Icon name="externalLink" size="compact" class="mr-0.5" :stroke-width="2" />
                   {{ t("admin.settings.payment.configGuide") }}
                 </a>
               </p>
@@ -8322,19 +8108,7 @@
                       class="ml-1 text-primary-500 hover:text-primary-600 dark:text-primary-400 dark:hover:text-primary-300"
                     >
                       {{ t("admin.settings.payment.findProvider") }}
-                      <svg
-                        class="mb-0.5 ml-0.5 inline h-3 w-3"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="square"
-                          stroke-linejoin="miter"
-                          stroke-width="2"
-                          d="M10 4H3V21H20V14M14 2H22V10M22 2L10 14"
-                        />
-                      </svg>
+                      <Icon name="externalLink" size="xs" class="mb-0.5 ml-0.5 inline" :stroke-width="2" />
                     </a>
                   </p>
                 </div>

@@ -98,17 +98,13 @@
                       <!-- Pulse ring -->
                       <span class="absolute inline-flex h-full w-full animate-ping rounded-xl bg-blue-400 opacity-75"></span>
                       <!-- Icon -->
-                      <svg class="relative z-10 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                        <path stroke-linecap="square" stroke-linejoin="miter" fill="none" stroke="currentColor" stroke-width="1.5" d="M3 3H21V21H3ZM12 6V8M10 11H12V18M9 18H15" />
-                      </svg>
+                      <Icon name="infoCircle" size="md" class="relative z-10" :stroke-width="2.5" />
                     </div>
                     <div
                       v-else
                       class="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 text-gray-400 dark:bg-dark-700 dark:text-gray-600"
                     >
-                      <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="square" stroke-linejoin="miter" fill="none" stroke="currentColor" stroke-width="1.5" d="M3 3H21V21H3ZM7 12L11 16L18 7" />
-                      </svg>
+                      <Icon name="checkCircle" size="md" :stroke-width="2" />
                     </div>
                   </div>
 
@@ -137,15 +133,7 @@
 
                     <!-- Arrow -->
                     <div class="flex-shrink-0">
-                      <svg
-                        class="h-5 w-5 text-gray-400 transition-transform group-hover:translate-x-1 dark:text-gray-600"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        stroke-width="2"
-                      >
-                        <path stroke-linecap="square" stroke-linejoin="miter" d="M9 5l7 7-7 7" />
-                      </svg>
+                      <Icon name="chevronRight" size="md" class="text-gray-400 transition-transform group-hover:translate-x-1 dark:text-gray-600" :stroke-width="2" />
                     </div>
                   </div>
 
@@ -164,9 +152,7 @@
                     <Icon name="inbox" size="xl" class="text-gray-400 dark:text-gray-500" />
                   </div>
                   <div class="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full bg-green-500 text-white">
-                    <svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
-                      <path fill-rule="evenodd" fill="none" stroke="currentColor" stroke-width="1.5" d="M4 12L10 18L21 5" clip-rule="evenodd" />
-                    </svg>
+                    <Icon name="check" size="compact" />
                   </div>
                 </div>
                 <p class="text-sm font-medium text-gray-900 dark:text-white">{{ t('announcements.empty') }}</p>
@@ -202,9 +188,7 @@
                   <!-- Icon and Category -->
                   <div class="mb-3 flex items-center gap-2">
                     <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/30">
-                      <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="square" stroke-linejoin="miter" fill="none" stroke="currentColor" stroke-width="1.5" d="M3 3H21V21H3ZM12 6V8M10 11H12V18M9 18H15" />
-                      </svg>
+                      <Icon name="infoCircle" size="md" :stroke-width="2" />
                     </div>
                     <div class="flex items-center gap-2">
                       <span class="rounded-lg bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
@@ -231,15 +215,11 @@
                   <!-- Meta Info -->
                   <div class="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
                     <div class="flex items-center gap-1.5">
-                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="square" stroke-linejoin="miter" fill="none" stroke="currentColor" stroke-width="1.5" d="M3 3H21V21H3ZM12 6V12H17" />
-                      </svg>
+                      <Icon name="clock" size="sm" :stroke-width="2" />
                       <time>{{ formatRelativeWithDateTime(selectedAnnouncement.created_at) }}</time>
                     </div>
                     <div class="flex items-center gap-1.5">
-                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path fill="none" stroke="currentColor" stroke-width="1.5" d="M2 12L8 5H16L22 12L16 19H8ZM9 9H15V15H9Z" />
-                      </svg>
+                      <Icon name="eye" size="sm" :stroke-width="2" />
                       <span>{{ selectedAnnouncement.read_at ? t('announcements.read') : t('announcements.unread') }}</span>
                     </div>
                   </div>
@@ -276,9 +256,7 @@
             <div class="border-t border-gray-100 bg-gray-50/50 px-8 py-5 dark:border-dark-700 dark:bg-dark-900/30">
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="square" stroke-linejoin="miter" fill="none" stroke="currentColor" stroke-width="1.5" d="M3 3H21V21H3ZM12 6V8M10 11H12V18M9 18H15" />
-                  </svg>
+                  <Icon name="infoCircle" size="sm" :stroke-width="2" />
                   <span>{{ selectedAnnouncement.read_at ? t('announcements.readStatus') : t('announcements.markReadHint') }}</span>
                 </div>
                 <div class="flex items-center gap-3">
@@ -294,9 +272,7 @@
                     class="rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2.5 text-sm font-medium text-white shadow-lg shadow-blue-500/30 transition-all hover:shadow-xl hover:scale-105"
                   >
                     <span class="flex items-center gap-2">
-                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="square" stroke-linejoin="miter" d="M5 13l4 4L19 7" />
-                      </svg>
+                      <Icon name="check" size="sm" :stroke-width="2" />
                       {{ t('announcements.markRead') }}
                     </span>
                   </button>

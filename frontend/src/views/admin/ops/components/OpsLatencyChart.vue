@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Icon from '@/components/icons/Icon.vue'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Chart as ChartJS, BarElement, CategoryScale, Legend, LinearScale, Tooltip } from 'chart.js'
@@ -77,14 +78,7 @@ const options = computed(() => {
   <div class="flex h-full flex-col rounded-3xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5 dark:bg-dark-800 dark:ring-dark-700">
     <div class="mb-4 flex items-center justify-between">
       <h3 class="flex items-center gap-2 text-sm font-bold text-gray-900 dark:text-white">
-        <svg class="h-4 w-4 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-width="1.5"
-            stroke-linecap="square"
-            stroke-linejoin="miter"
-
-            fill="none" stroke="currentColor" d="M3 3H21V21H3ZM12 6V12H17"
-          />
-        </svg>
+        <Icon name="clock" size="sm" class="text-purple-500" />
         {{ t('admin.ops.latencyHistogram') }}
         <HelpTooltip :content="t('admin.ops.tooltips.latencyHistogram')" />
       </h3>

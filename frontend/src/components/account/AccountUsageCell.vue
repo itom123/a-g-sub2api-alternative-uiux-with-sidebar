@@ -108,20 +108,7 @@
                 :disabled="activeQueryLoading"
                 @click="loadActiveUsage"
               >
-                <svg
-                  class="h-2.5 w-2.5"
-                  :class="{ 'animate-spin': activeQueryLoading }"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path stroke-width="1.5"
-                    stroke-linecap="square"
-                    stroke-linejoin="miter"
-
-                    fill="none" stroke="currentColor" d="M21 3V9H15M3 21V15H9M3 10L6 4H15L21 9M21 14L18 20H9L3 15"
-                  />
-                </svg>
+                <Icon name="refresh" size="2xs" :class="{ 'animate-spin': activeQueryLoading }" />
                 {{ t('admin.accounts.usageWindow.activeQuery') }}
               </button>
             </template>
@@ -169,20 +156,7 @@
                   :disabled="activeQueryLoading"
                   @click="loadActiveUsage"
                 >
-                  <svg
-                    class="h-2.5 w-2.5"
-                    :class="{ 'animate-spin': activeQueryLoading }"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path stroke-width="1.5"
-                      stroke-linecap="square"
-                      stroke-linejoin="miter"
-
-                      fill="none" stroke="currentColor" d="M21 3V9H15M3 21V15H9M3 10L6 4H15L21 9M21 14L18 20H9L3 15"
-                    />
-                  </svg>
+                  <Icon name="refresh" size="2xs" :class="{ 'animate-spin': activeQueryLoading }" />
                   {{ t('admin.accounts.usageWindow.activeQuery') }}
                 </button>
               </template>
@@ -230,17 +204,7 @@
           v-if="hasIneligibleTiers"
           class="group relative cursor-help"
         >
-          <svg
-            class="h-3.5 w-3.5 text-red-500"
-            fill="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              fill-rule="evenodd"
-              fill="none" stroke="currentColor" stroke-width="1.5" d="M3 3H21V21H3ZM12 7V13M12 16V18"
-              clip-rule="evenodd"
-            />
-          </svg>
+          <Icon name="exclamationCircle" size="compact" class="text-red-500" />
           <span
             class="pointer-events-none absolute left-0 top-full z-50 mt-1 w-80 whitespace-normal break-words rounded bg-gray-900 px-3 py-2 text-xs leading-relaxed text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 dark:bg-gray-700"
           >
@@ -513,17 +477,7 @@
           v-if="showGeminiQuotaPolicy"
           class="group relative cursor-help"
         >
-          <svg
-            class="h-3.5 w-3.5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
-            fill="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              fill-rule="evenodd"
-              fill="none" stroke="currentColor" stroke-width="1.5" d="M3 3H21V21H3ZM8 7H16V11L12 13V15M12 17V19"
-              clip-rule="evenodd"
-            />
-          </svg>
+          <Icon name="questionCircle" size="compact" class="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300" />
           <span
             class="pointer-events-none absolute left-0 top-full z-50 mt-1 w-80 whitespace-normal break-words rounded bg-gray-900 px-3 py-2 text-xs leading-relaxed text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 dark:bg-gray-700"
           >
@@ -724,6 +678,7 @@
 </template>
 
 <script setup lang="ts">
+import Icon from '@/components/icons/Icon.vue'
 import { cnyNumber } from '@/utils/currency'
 
 import { ref, computed, onMounted, onBeforeUnmount, onUnmounted, watch } from 'vue'

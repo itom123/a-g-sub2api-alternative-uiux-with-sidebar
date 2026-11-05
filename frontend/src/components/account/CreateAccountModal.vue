@@ -95,19 +95,7 @@
                 : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
             ]"
           >
-            <svg
-              class="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              stroke-width="1.5"
-            >
-              <path
-                stroke-linecap="square"
-                stroke-linejoin="miter"
-                d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"
-              />
-            </svg>
+            <Icon name="bolt" size="sm" />
             OpenAI
           </button>
           <button class="ag-choice" :aria-pressed="form.platform === 'gemini'"
@@ -120,19 +108,7 @@
                 : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
             ]"
           >
-            <svg
-              class="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              stroke-width="1.5"
-            >
-              <path
-                stroke-linecap="square"
-                stroke-linejoin="miter"
-                d="M12 2l1.5 6.5L20 10l-6.5 1.5L12 18l-1.5-6.5L4 10l6.5-1.5L12 2z"
-              />
-            </svg>
+            <Icon name="sparkles" size="sm" />
             Gemini
           </button>
           <button class="ag-choice" :aria-pressed="form.platform === 'antigravity'"
@@ -731,9 +707,7 @@
             @click="showGeminiHelpDialog = true"
             class="flex items-center gap-1 rounded px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20"
           >
-            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="square" stroke-linejoin="miter" fill="none" stroke="currentColor" stroke-width="1.5" d="M3 3H21V21H3ZM8 7H16V11L12 13V15M12 17V19" />
-            </svg>
+            <Icon name="questionCircle" size="sm" :stroke-width="2" />
             {{ t('admin.accounts.gemini.helpButton') }}
           </button>
         </div>
@@ -786,19 +760,7 @@
                   : 'bg-gray-100 text-gray-500 dark:bg-dark-600 dark:text-gray-400'
               ]"
             >
-              <svg
-                class="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                stroke-width="1.5"
-              >
-                <path
-                  stroke-linecap="square"
-                  stroke-linejoin="miter"
-                  fill="none" stroke="currentColor" stroke-width="1.5" d="M13 2H22V11H15L6 21H2V17L13 6ZM17 5H19V7H17Z"
-                />
-              </svg>
+              <Icon name="key" size="sm" />
             </div>
             <div>
               <span class="block text-sm font-medium text-gray-900 dark:text-white">
@@ -975,15 +937,7 @@
               @click="showAdvancedOAuth = !showAdvancedOAuth"
               class="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
             >
-              <svg
-                :class="['h-4 w-4 transition-transform', showAdvancedOAuth ? 'rotate-90' : '']"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <path stroke-linecap="square" stroke-linejoin="miter" d="M9 5l7 7-7 7" />
-              </svg>
+              <Icon name="chevronRight" size="sm" :class="['transition-transform', showAdvancedOAuth ? 'rotate-90' : '']" :stroke-width="2" />
               <span>
                 {{
                   showAdvancedOAuth
@@ -1016,19 +970,7 @@
                     : 'bg-gray-100 text-gray-500 dark:bg-dark-600 dark:text-gray-400'
                 ]"
               >
-                <svg
-                  class="h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  stroke-width="1.5"
-                >
-                  <path
-                    stroke-linecap="square"
-                    stroke-linejoin="miter"
-                    fill="none" stroke="currentColor" stroke-width="1.5" d="M9 3L11 9L17 11L11 13L9 19L7 13L1 11L7 9ZM19 1V7M16 4H22M19 17V23M16 20H22"
-                  />
-                </svg>
+                <Icon name="sparkles" size="sm" />
               </div>
               <div class="min-w-0">
                 <span class="block text-sm font-medium text-gray-900 dark:text-white">
@@ -1412,9 +1354,7 @@
                   ]"
                   :placeholder="t('admin.accounts.requestModel')"
                 />
-                <svg class="h-4 w-4 flex-shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="square" stroke-linejoin="miter" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                </svg>
+                <Icon name="arrowRight" size="sm" class="flex-shrink-0 text-gray-400" :stroke-width="2" />
                 <input
                   v-model="mapping.to"
                   type="text"
@@ -1429,14 +1369,7 @@
                   @click="removeAntigravityModelMapping(index)"
                   class="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
                 >
-                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-width="1.5"
-                      stroke-linecap="square"
-                      stroke-linejoin="miter"
-
-                      fill="none" stroke="currentColor" d="M3 6H21M6 6V21H18V6M9 6V3H15V6M10 10V17M14 10V17"
-                    />
-                  </svg>
+                  <Icon name="trash" size="sm" />
                 </button>
               </div>
               <!-- 校验错误提示 -->
@@ -1454,9 +1387,7 @@
             @click="addAntigravityModelMapping"
             class="mb-3 w-full rounded-lg border-2 border-dashed border-gray-300 px-4 py-2 text-gray-600 transition-colors hover:border-gray-400 hover:text-gray-700 dark:border-dark-500 dark:text-gray-400 dark:hover:border-dark-400 dark:hover:text-gray-300"
           >
-            <svg class="mr-1 inline h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="square" stroke-linejoin="miter" stroke-width="2" d="M12 4v16m8-8H4" />
-            </svg>
+            <Icon name="plus" size="sm" class="mr-1 inline" :stroke-width="2" />
             {{ t('admin.accounts.addMapping') }}
           </button>
 
@@ -1617,19 +1548,7 @@
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-dark-600 dark:text-gray-400 dark:hover:bg-dark-500'
                 ]"
               >
-                <svg
-                  class="mr-1.5 inline h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path stroke-width="1.5"
-                    stroke-linecap="square"
-                    stroke-linejoin="miter"
-
-                    fill="none" stroke="currentColor" d="M3 3H21V21H3ZM7 12L11 16L18 7"
-                  />
-                </svg>
+                <Icon name="checkCircle" size="sm" class="mr-1.5 inline" />
                 {{ t('admin.accounts.modelWhitelist') }}
               </button>
               <button class="ag-choice" :aria-pressed="modelRestrictionMode === 'mapping'"
@@ -1642,19 +1561,7 @@
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-dark-600 dark:text-gray-400 dark:hover:bg-dark-500'
                 ]"
               >
-                <svg
-                  class="mr-1.5 inline h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    stroke-linecap="square"
-                    stroke-linejoin="miter"
-                    stroke-width="2"
-                    d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                  />
-                </svg>
+                <Icon name="swap" size="sm" class="mr-1.5 inline" :stroke-width="2" />
                 {{ t('admin.accounts.modelMapping') }}
               </button>
             </div>
@@ -1680,19 +1587,7 @@
             <div v-else>
               <div class="mb-3 rounded-lg bg-purple-50 p-3 dark:bg-purple-900/20">
                 <p class="text-xs text-purple-700 dark:text-purple-400">
-                  <svg
-                    class="mr-1 inline h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path stroke-width="1.5"
-                      stroke-linecap="square"
-                      stroke-linejoin="miter"
-
-                      fill="none" stroke="currentColor" d="M3 3H21V21H3ZM12 6V8M10 11H12V18M9 18H15"
-                    />
-                  </svg>
+                  <Icon name="infoCircle" size="sm" class="mr-1 inline" />
                   {{ t('admin.accounts.mapRequestModels') }}
                 </p>
               </div>
@@ -1710,19 +1605,7 @@
                   class="input flex-1"
                   :placeholder="t('admin.accounts.requestModel')"
                 />
-                <svg
-                  class="h-4 w-4 flex-shrink-0 text-gray-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    stroke-linecap="square"
-                    stroke-linejoin="miter"
-                    stroke-width="2"
-                    d="M14 5l7 7m0 0l-7 7m7-7H3"
-                  />
-                </svg>
+                <Icon name="arrowRight" size="sm" class="flex-shrink-0 text-gray-400" :stroke-width="2" />
                 <input
                   v-model="mapping.to"
                   type="text"
@@ -1734,14 +1617,7 @@
                   @click="removeModelMapping(index)"
                   class="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
                 >
-                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-width="1.5"
-                      stroke-linecap="square"
-                      stroke-linejoin="miter"
-
-                      fill="none" stroke="currentColor" d="M3 6H21M6 6V21H18V6M9 6V3H15V6M10 10V17M14 10V17"
-                    />
-                  </svg>
+                  <Icon name="trash" size="sm" />
                 </button>
               </div>
             </div>
@@ -1751,19 +1627,7 @@
               @click="addModelMapping"
               class="mb-3 w-full rounded-lg border-2 border-dashed border-gray-300 px-4 py-2 text-gray-600 transition-colors hover:border-gray-400 hover:text-gray-700 dark:border-dark-500 dark:text-gray-400 dark:hover:border-dark-400 dark:hover:text-gray-300"
             >
-              <svg
-                class="mr-1 inline h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="square"
-                  stroke-linejoin="miter"
-                  stroke-width="2"
-                  d="M12 4v16m8-8H4"
-                />
-              </svg>
+              <Icon name="plus" size="sm" class="mr-1 inline" :stroke-width="2" />
               {{ t('admin.accounts.addMapping') }}
             </button>
 
@@ -1953,14 +1817,7 @@
                 @keyup.enter="addCustomErrorCode"
               />
               <button type="button" @click="addCustomErrorCode" class="btn btn-secondary px-3">
-                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path
-                    stroke-linecap="square"
-                    stroke-linejoin="miter"
-                    stroke-width="2"
-                    d="M12 4v16m8-8H4"
-                  />
-                </svg>
+                <Icon name="plus" size="sm" :stroke-width="2" />
               </button>
             </div>
 
@@ -2568,19 +2425,7 @@
                   class="input flex-1"
                   :placeholder="t('admin.accounts.requestModel')"
                 />
-                <svg
-                  class="h-4 w-4 flex-shrink-0 text-gray-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    stroke-linecap="square"
-                    stroke-linejoin="miter"
-                    stroke-width="2"
-                    d="M14 5l7 7m0 0l-7 7m7-7H3"
-                  />
-                </svg>
+                <Icon name="arrowRight" size="sm" class="flex-shrink-0 text-gray-400" :stroke-width="2" />
                 <input
                   v-model="mapping.to"
                   type="text"
@@ -2592,14 +2437,7 @@
                   @click="removeModelMapping(index)"
                   class="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
                 >
-                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-width="1.5"
-                      stroke-linecap="square"
-                      stroke-linejoin="miter"
-
-                      fill="none" stroke="currentColor" d="M3 6H21M6 6V21H18V6M9 6V3H15V6M10 10V17M14 10V17"
-                    />
-                  </svg>
+                  <Icon name="trash" size="sm" />
                 </button>
               </div>
             </div>
@@ -2699,9 +2537,7 @@
                     @click="moveTempUnschedRule(index, 1)"
                     class="rounded p-1 text-gray-400 transition-colors hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:text-gray-200"
                   >
-                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="square" stroke-linejoin="miter" stroke-width="2" d="M19 9l-7 7-7-7" />
-                    </svg>
+                    <Icon name="chevronDown" size="sm" :stroke-width="2" />
                   </button>
                   <button
                     type="button"
@@ -2801,14 +2637,7 @@
             @click="addTempUnschedRule()"
             class="w-full rounded-lg border-2 border-dashed border-gray-300 px-4 py-2 text-sm text-gray-600 transition-colors hover:border-gray-400 hover:text-gray-700 dark:border-dark-500 dark:text-gray-400 dark:hover:border-dark-400 dark:hover:text-gray-300"
           >
-            <svg
-              class="mr-1 inline h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path stroke-linecap="square" stroke-linejoin="miter" stroke-width="2" d="M12 4v16m8-8H4" />
-            </svg>
+            <Icon name="plus" size="sm" class="mr-1 inline" :stroke-width="2" />
             {{ t('admin.accounts.tempUnschedulable.addRule') }}
           </button>
         </div>

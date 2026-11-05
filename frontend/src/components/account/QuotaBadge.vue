@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Icon from '@/components/icons/Icon.vue'
 import { cnyNumber } from '@/utils/currency'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -40,9 +41,7 @@ const fmt = (v: number) => cnyNumber(v)
     :title="tooltip"
   >
     <span v-if="label" class="font-semibold opacity-70">{{ label }}</span>
-    <svg v-else class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-      <path stroke-linecap="square" stroke-linejoin="miter" fill="none" stroke="currentColor" stroke-width="1.5" d="M2 4H22V20H2ZM2 9H22M6 15H12" />
-    </svg>
+    <Icon name="creditCard" size="2xs" v-else :stroke-width="2" />
     <span class="font-mono">¥{{ fmt(used) }}</span>
     <span class="text-gray-400 dark:text-gray-500">/</span>
     <span class="font-mono">¥{{ fmt(limit) }}</span>

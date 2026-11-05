@@ -401,19 +401,7 @@
                 : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
             ]"
           >
-            <svg
-              class="mr-1.5 inline h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              stroke-width="1.5"
-            >
-              <path
-                stroke-linecap="square"
-                stroke-linejoin="miter"
-                fill="none" stroke="currentColor" stroke-width="1.5" d="M3 2H21V10H3ZM3 14H21V22H3ZM6 6H8M6 18H8"
-              />
-            </svg>
+            <Icon name="server" size="sm" class="mr-1.5 inline" />
             {{ t('admin.proxies.batchAdd') }}
           </button>
         </div>
@@ -567,19 +555,7 @@
               </span>
             </div>
             <div v-if="batchParseResult.duplicate > 0" class="flex items-center gap-1.5">
-              <svg
-                class="h-4 w-4 text-gray-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <path
-                  stroke-linecap="square"
-                  stroke-linejoin="miter"
-                  fill="none" stroke="currentColor" stroke-width="1.5" d="M8 5H3V22H21V5H16M8 2H16V8H8Z"
-                />
-              </svg>
+              <Icon name="clipboard" size="sm" class="text-gray-400" :stroke-width="2" />
               <span class="text-gray-500 dark:text-gray-400">
                 {{ t('admin.proxies.duplicateCount', { count: batchParseResult.duplicate }) }}
               </span>

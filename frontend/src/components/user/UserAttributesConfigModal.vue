@@ -22,9 +22,7 @@
 
       <!-- Empty State -->
       <div v-else-if="attributes.length === 0" class="py-12 text-center">
-        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1">
-          <path fill="none" stroke="currentColor" stroke-width="1.5" d="M2 2H12L23 13L13 23L2 12ZM6 6H9V9H6Z" />
-        </svg>
+        <Icon name="priceTag" size="3xl" class="mx-auto text-gray-400" :stroke-width="1" />
         <p class="mt-2 text-sm text-gray-500 dark:text-dark-400">
           {{ t('admin.users.attributes.noAttributes') }}
         </p>

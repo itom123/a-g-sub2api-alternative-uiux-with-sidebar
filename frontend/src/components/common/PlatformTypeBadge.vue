@@ -8,20 +8,7 @@
       </span>
       <span :class="['ag-platform-item inline-flex items-center gap-1 px-1.5 py-1', typeClass]" :title="typeLabel">
         <!-- OAuth icon -->
-        <svg
-          v-if="type === 'oauth'"
-          class="h-3 w-3"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <path
-            stroke-linecap="square"
-            stroke-linejoin="miter"
-            fill="none" stroke="currentColor" stroke-width="1.5" d="M13 2H22V11H15L6 21H2V17L13 6ZM17 5H19V7H17Z"
-          />
-        </svg>
+        <Icon name="key" size="xs" v-if="type === 'oauth'" :stroke-width="2" />
         <!-- Setup Token icon -->
         <Icon v-else-if="type === 'setup-token'" name="shield" size="xs" />
         <!-- API Key icon -->
@@ -51,9 +38,7 @@
         :class="['ag-platform-item ag-platform-privacy inline-flex items-center gap-1 px-1.5 py-1', privacyBadge.class]"
         :title="privacyBadge.title"
       >
-        <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="square" stroke-linejoin="miter" :d="privacyBadge.icon" />
-        </svg>
+        <Icon :name="privacyBadge.icon" size="xs" :stroke-width="2" />
         <span>{{ privacyBadge.label }}</span>
       </span>
     </div>
@@ -300,8 +285,8 @@ const privacyBadge = computed(() => {
   // 支持 OpenAI 和 Antigravity 平台
   if (props.platform !== 'openai' && props.platform !== 'antigravity') return null
 
-  const shieldCheck = 'M12 2L22 6V15L12 22L2 15V6ZM7 12L11 16L17 8'
-  const shieldX = 'M12 9v3.75m0-10.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285zM12 18h.008v.008H12V18z'
+  const shieldCheck = 'shield' as const
+  const shieldX = 'shieldX' as const
   switch (props.privacyMode) {
     // OpenAI states
     case 'training_off':

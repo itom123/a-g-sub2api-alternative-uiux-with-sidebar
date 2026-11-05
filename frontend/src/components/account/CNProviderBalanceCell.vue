@@ -32,20 +32,7 @@
         :title="t('admin.accounts.cnProviders.balanceProbeTooltip')"
         @click="handleProbe"
       >
-        <svg
-          class="h-2.5 w-2.5"
-          :class="{ 'animate-spin': loading }"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path stroke-width="1.5"
-            stroke-linecap="square"
-            stroke-linejoin="miter"
-
-            fill="none" stroke="currentColor" d="M21 3V9H15M3 21V15H9M3 10L6 4H15L21 9M21 14L18 20H9L3 15"
-          />
-        </svg>
+        <Icon name="refresh" size="2xs" :class="{ 'animate-spin': loading }" />
         {{ t('admin.accounts.cnProviders.probe') }}
       </button>
     </div>
@@ -57,6 +44,7 @@
 </template>
 
 <script setup lang="ts">
+import Icon from '@/components/icons/Icon.vue'
 import { formatCny } from '@/utils/currency'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'

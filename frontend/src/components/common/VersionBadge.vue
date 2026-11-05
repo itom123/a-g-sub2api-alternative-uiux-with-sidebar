@@ -93,17 +93,7 @@
                     v-if="!hasUpdate"
                     class="flex h-5 w-5 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30"
                   >
-                    <svg
-                      class="h-3 w-3 text-green-600 dark:text-green-400"
-                      fill="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        fill-rule="evenodd"
-                        fill="none" stroke="currentColor" stroke-width="1.5" d="M4 12L10 18L21 5"
-                        clip-rule="evenodd"
-                      />
-                    </svg>
+                    <Icon name="check" size="xs" class="text-green-600 dark:text-green-400" />
                   </span>
                 </div>
                 <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">
@@ -158,15 +148,7 @@
                   <div
                     class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/50"
                   >
-                    <svg
-                      class="h-4 w-4 text-green-600 dark:text-green-400"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      stroke-width="2"
-                    >
-                      <path stroke-linecap="square" stroke-linejoin="miter" d="M5 13l4 4L19 7" />
-                    </svg>
+                    <Icon name="check" size="sm" class="text-green-600 dark:text-green-400" :stroke-width="2" />
                   </div>
                   <div class="min-w-0 flex-1">
                     <p class="text-sm font-medium text-green-700 dark:text-green-300">
@@ -208,20 +190,7 @@
                       d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                     ></path>
                   </svg>
-                  <svg
-                    v-else
-                    class="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    stroke-width="2"
-                  >
-                    <path
-                      stroke-linecap="square"
-                      stroke-linejoin="miter"
-                      fill="none" stroke="currentColor" stroke-width="1.5" d="M21 3V9H15M3 21V15H9M3 10L6 4H15L21 9M21 14L18 20H9L3 15"
-                    />
-                  </svg>
+                  <Icon name="refresh" size="sm" v-else :stroke-width="2" />
                   <template v-if="restarting">
                     <span>{{ t('version.restarting') }}</span>
                     <span v-if="restartCountdown > 0" class="tabular-nums"
@@ -259,33 +228,13 @@
                       v{{ latestVersion }}
                     </p>
                   </div>
-                  <svg
-                    class="h-4 w-4 text-amber-500 transition-transform group-hover:translate-x-0.5 dark:text-amber-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    stroke-width="2"
-                  >
-                    <path stroke-linecap="square" stroke-linejoin="miter" d="M9 5l7 7-7 7" />
-                  </svg>
+                  <Icon name="chevronRight" size="sm" class="text-amber-500 transition-transform group-hover:translate-x-0.5 dark:text-amber-400" :stroke-width="2" />
                 </a>
                 <!-- Source build hint -->
                 <div
                   class="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 p-2 dark:border-blue-800/50 dark:bg-blue-900/20"
                 >
-                  <svg
-                    class="h-3.5 w-3.5 flex-shrink-0 text-blue-500 dark:text-blue-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    stroke-width="2"
-                  >
-                    <path
-                      stroke-linecap="square"
-                      stroke-linejoin="miter"
-                      fill="none" stroke="currentColor" stroke-width="1.5" d="M3 3H21V21H3ZM12 6V8M10 11H12V18M9 18H15"
-                    />
-                  </svg>
+                  <Icon name="infoCircle" size="compact" class="flex-shrink-0 text-blue-500 dark:text-blue-400" :stroke-width="2" />
                   <p class="text-xs text-blue-600 dark:text-blue-400">
                     {{ t('version.sourceModeHint') }}
                   </p>
@@ -401,19 +350,7 @@
                         v-if="!isReleaseBuild"
                         class="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 p-2 dark:border-blue-800/50 dark:bg-blue-900/20"
                       >
-                        <svg
-                          class="h-3.5 w-3.5 flex-shrink-0 text-blue-500 dark:text-blue-400"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          stroke-width="2"
-                        >
-                          <path
-                            stroke-linecap="square"
-                            stroke-linejoin="miter"
-                            fill="none" stroke="currentColor" stroke-width="1.5" d="M3 3H21V21H3ZM12 6V8M10 11H12V18M9 18H15"
-                          />
-                        </svg>
+                        <Icon name="infoCircle" size="compact" class="flex-shrink-0 text-blue-500 dark:text-blue-400" :stroke-width="2" />
                         <p class="min-w-0 flex-1 text-xs leading-4 text-blue-600 dark:text-blue-400">
                           {{ t('version.rollbackSourceHint') }}
                         </p>

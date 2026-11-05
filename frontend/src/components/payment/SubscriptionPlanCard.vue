@@ -83,9 +83,7 @@
       <!-- Features list (compact) -->
       <div v-if="plan.features.length > 0" class="mb-3 space-y-1">
         <div v-for="feature in plan.features" :key="feature" class="flex items-start gap-1.5">
-          <svg :class="['mt-0.5 h-3.5 w-3.5 flex-shrink-0', iconClass]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-            <path stroke-linecap="square" stroke-linejoin="miter" d="M4 12L10 18L21 5" />
-          </svg>
+          <Icon name="check" size="compact" :class="['mt-0.5 flex-shrink-0', iconClass]" :stroke-width="2.5" />
           <span class="text-xs text-gray-600 dark:text-gray-300">{{ feature }}</span>
         </div>
       </div>
@@ -106,6 +104,7 @@
 </template>
 
 <script setup lang="ts">
+import Icon from '@/components/icons/Icon.vue'
 import { cnyNumber } from '@/utils/currency'
 
 import { computed } from 'vue'

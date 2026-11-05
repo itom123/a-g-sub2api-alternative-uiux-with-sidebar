@@ -35,19 +35,7 @@
     <!-- Error Info Indicator -->
     <HelpTooltip v-if="hasError && account.error_message" class="-ml-1" width-class="w-max max-w-[300px]">
       <template #trigger>
-        <svg
-          class="h-4 w-4 cursor-help text-red-500 transition-colors hover:text-red-600 dark:text-red-400 dark:hover:text-red-300"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <path
-            stroke-linecap="square"
-            stroke-linejoin="miter"
-            fill="none" stroke="currentColor" stroke-width="1.5" d="M3 3H21V21H3ZM8 7H16V11L12 13V15M12 17V19"
-          />
-        </svg>
+        <Icon name="questionCircle" size="sm" class="cursor-help text-red-500 transition-colors hover:text-red-600 dark:text-red-400 dark:hover:text-red-300" :stroke-width="2" />
       </template>
       <div class="whitespace-pre-wrap break-words leading-relaxed">{{ account.error_message }}</div>
     </HelpTooltip>

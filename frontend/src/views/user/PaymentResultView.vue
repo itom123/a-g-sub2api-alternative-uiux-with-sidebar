@@ -8,10 +8,7 @@
         <div class="text-center">
           <div v-if="isSuccess"
             class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
-            <svg class="h-10 w-10 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"
-              stroke-width="2">
-              <path stroke-linecap="square" stroke-linejoin="miter" d="M5 13l4 4L19 7" />
-            </svg>
+            <Icon name="check" size="2xl" class="text-green-500" :stroke-width="2" />
           </div>
           <div v-else-if="isPending"
             class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-yellow-100 dark:bg-yellow-900/30">
@@ -19,9 +16,7 @@
           </div>
           <div v-else
             class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
-            <svg class="h-10 w-10 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="square" stroke-linejoin="miter" d="M5 5L19 19M5 19L19 5" />
-            </svg>
+            <Icon name="x" size="2xl" class="text-red-500" :stroke-width="2" />
           </div>
           <h2 class="mt-4 text-2xl font-bold text-gray-900 dark:text-white">
             {{ statusTitle }}
@@ -99,6 +94,7 @@
 </template>
 
 <script setup lang="ts">
+import Icon from '@/components/icons/Icon.vue'
 import PageLoading from '@/components/common/PageLoading.vue'
 import { cnyNumber, formatCny } from '@/utils/currency'
 

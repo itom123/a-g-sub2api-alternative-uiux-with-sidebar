@@ -9,14 +9,7 @@
       <!-- Info -->
       <div class="rounded-lg bg-blue-50 p-4 dark:bg-blue-900/20">
         <p class="text-sm text-blue-700 dark:text-blue-400">
-          <svg class="mr-1.5 inline h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-width="1.5"
-              stroke-linecap="square"
-              stroke-linejoin="miter"
-
-              fill="none" stroke="currentColor" d="M3 3H21V21H3ZM12 6V8M10 11H12V18M9 18H15"
-            />
-          </svg>
+          <Icon name="infoCircle" size="md" class="mr-1.5 inline" />
           {{ t('admin.accounts.bulkEdit.selectionInfo', { count: targetMode === 'filtered' ? targetPreviewCount : accountIds.length }) }}
         </p>
       </div>
@@ -24,9 +17,7 @@
       <!-- Mixed platform warning -->
       <div v-if="isMixedPlatform" class="rounded-lg bg-amber-50 p-4 dark:bg-amber-900/20">
         <p class="text-sm text-amber-700 dark:text-amber-400">
-          <svg class="mr-1.5 inline h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="square" stroke-linejoin="miter" stroke-width="2" d="M12 2L23 22H1ZM12 9V15M12 18V20" />
-          </svg>
+          <Icon name="exclamationTriangle" size="md" class="mr-1.5 inline" :stroke-width="2" />
           {{ t('admin.accounts.bulkEdit.mixedPlatformWarning', { platforms: targetSelectedPlatforms.join(', ') }) }}
         </p>
       </div>
@@ -278,19 +269,7 @@
                 ]"
                 @click="modelRestrictionMode = 'whitelist'"
               >
-                <svg
-                  class="mr-1.5 inline h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path stroke-width="1.5"
-                    stroke-linecap="square"
-                    stroke-linejoin="miter"
-
-                    fill="none" stroke="currentColor" d="M3 3H21V21H3ZM7 12L11 16L18 7"
-                  />
-                </svg>
+                <Icon name="checkCircle" size="sm" class="mr-1.5 inline" />
                 {{ t('admin.accounts.modelWhitelist') }}
               </button>
               <button
@@ -303,19 +282,7 @@
                 ]"
                 @click="modelRestrictionMode = 'mapping'"
               >
-                <svg
-                  class="mr-1.5 inline h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    stroke-linecap="square"
-                    stroke-linejoin="miter"
-                    stroke-width="2"
-                    d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                  />
-                </svg>
+                <Icon name="swap" size="sm" class="mr-1.5 inline" :stroke-width="2" />
                 {{ t('admin.accounts.modelMapping') }}
               </button>
             </div>
@@ -324,19 +291,7 @@
             <div v-if="modelRestrictionMode === 'whitelist'">
               <div class="mb-3 rounded-lg bg-blue-50 p-3 dark:bg-blue-900/20">
                 <p class="text-xs text-blue-700 dark:text-blue-400">
-                  <svg
-                    class="mr-1 inline h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path stroke-width="1.5"
-                      stroke-linecap="square"
-                      stroke-linejoin="miter"
-
-                      fill="none" stroke="currentColor" d="M3 3H21V21H3ZM12 6V8M10 11H12V18M9 18H15"
-                    />
-                  </svg>
+                  <Icon name="infoCircle" size="sm" class="mr-1 inline" />
                   {{ t('admin.accounts.selectAllowedModels') }}
                 </p>
               </div>
@@ -359,19 +314,7 @@
             <div v-else>
               <div class="mb-3 rounded-lg bg-purple-50 p-3 dark:bg-purple-900/20">
                 <p class="text-xs text-purple-700 dark:text-purple-400">
-                  <svg
-                    class="mr-1 inline h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path stroke-width="1.5"
-                      stroke-linecap="square"
-                      stroke-linejoin="miter"
-
-                      fill="none" stroke="currentColor" d="M3 3H21V21H3ZM12 6V8M10 11H12V18M9 18H15"
-                    />
-                  </svg>
+                  <Icon name="infoCircle" size="sm" class="mr-1 inline" />
                   {{ t('admin.accounts.mapRequestModels') }}
                 </p>
               </div>
@@ -389,19 +332,7 @@
                     class="input flex-1"
                     :placeholder="t('admin.accounts.requestModel')"
                   />
-                  <svg
-                    class="h-4 w-4 flex-shrink-0 text-gray-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      stroke-linecap="square"
-                      stroke-linejoin="miter"
-                      stroke-width="2"
-                      d="M14 5l7 7m0 0l-7 7m7-7H3"
-                    />
-                  </svg>
+                  <Icon name="arrowRight" size="sm" class="flex-shrink-0 text-gray-400" :stroke-width="2" />
                   <input
                     v-model="mapping.to"
                     type="text"
@@ -413,14 +344,7 @@
                     class="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
                     @click="removeModelMapping(index)"
                   >
-                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-width="1.5"
-                        stroke-linecap="square"
-                        stroke-linejoin="miter"
-
-                        fill="none" stroke="currentColor" d="M3 6H21M6 6V21H18V6M9 6V3H15V6M10 10V17M14 10V17"
-                      />
-                    </svg>
+                    <Icon name="trash" size="sm" />
                   </button>
                 </div>
               </div>
@@ -430,19 +354,7 @@
                 class="mb-3 w-full rounded-lg border-2 border-dashed border-gray-300 px-4 py-2 text-gray-600 transition-colors hover:border-gray-400 hover:text-gray-700 dark:border-dark-500 dark:text-gray-400 dark:hover:border-dark-400 dark:hover:text-gray-300"
                 @click="addModelMapping"
               >
-                <svg
-                  class="mr-1 inline h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    stroke-linecap="square"
-                    stroke-linejoin="miter"
-                    stroke-width="2"
-                    d="M12 4v16m8-8H4"
-                  />
-                </svg>
+                <Icon name="plus" size="sm" class="mr-1 inline" :stroke-width="2" />
                 {{ t('admin.accounts.addMapping') }}
               </button>
 
@@ -527,14 +439,7 @@
               @keyup.enter="addCustomErrorCode"
             />
             <button type="button" class="btn btn-secondary px-3" @click="addCustomErrorCode">
-              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path
-                  stroke-linecap="square"
-                  stroke-linejoin="miter"
-                  stroke-width="2"
-                  d="M12 4v16m8-8H4"
-                />
-              </svg>
+              <Icon name="plus" size="sm" :stroke-width="2" />
             </button>
           </div>
 

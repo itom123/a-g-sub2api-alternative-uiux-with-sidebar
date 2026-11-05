@@ -50,9 +50,7 @@
         <div class="flex gap-3">
           <div class="flex-1 relative">
             <div class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-dark-500">
-              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter">
-                <path fill="none" stroke="currentColor" stroke-width="1.5" d="M7 10V3H17V10M4 10H20V22H4ZM12 14V18" />
-              </svg>
+              <Icon name="lock" size="md" :stroke-width="2" />
             </div>
             <input
               v-model="apiKey"
@@ -65,12 +63,8 @@
               @click="keyVisible = !keyVisible"
               class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 dark:text-dark-500 dark:hover:text-white transition-colors"
             >
-              <svg v-if="!keyVisible" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter">
-                <path fill="none" stroke="currentColor" stroke-width="1.5" d="M3 3L21 21M7 6L2 12L8 19H16M11 5H16L22 12L19 16M9 10V15H14" />
-              </svg>
-              <svg v-else class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter">
-                <path fill="none" stroke="currentColor" stroke-width="1.5" d="M2 12L8 5H16L22 12L16 19H8ZM9 9H15V15H9Z" />
-              </svg>
+              <Icon name="eyeOff" size="md" v-if="!keyVisible" :stroke-width="2" />
+              <Icon name="eye" size="md" v-else :stroke-width="2" />
             </button>
           </div>
           <button
@@ -82,9 +76,7 @@
               <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" opacity="0.25"/>
               <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
             </svg>
-            <svg v-else class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square" stroke-linejoin="miter">
-              <rect x="3" y="3" width="16" height="16"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-            </svg>
+            <Icon v-else name="search" size="sm" :stroke-width="2.5" />
             {{ isQuerying ? t('keyUsage.querying') : t('keyUsage.query') }}
           </button>
         </div>
@@ -179,17 +171,10 @@
                   {{ ring.title }}
                 </h3>
                 <!-- Clock icon -->
-                <svg v-if="ring.iconType === 'clock'" class="w-5 h-5 text-gray-400 dark:text-dark-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter">
-                  <rect x="2" y="2" width="20" height="20"/><polyline points="12 6 12 12 16 14"/>
-                </svg>
-                <!-- Calendar icon -->
-                <svg v-else-if="ring.iconType === 'calendar'" class="w-5 h-5 text-gray-400 dark:text-dark-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter">
-                  <rect x="3" y="4" width="18" height="18"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-                </svg>
+                <Icon v-if="ring.iconType === 'clock'" name="clock" size="md" class="text-gray-400 dark:text-dark-500" :stroke-width="2" />
+                <Icon v-else-if="ring.iconType === 'calendar'" name="calendar" size="md" class="text-gray-400 dark:text-dark-500" :stroke-width="2" />
                 <!-- Dollar icon -->
-                <svg v-else class="w-5 h-5 text-gray-400 dark:text-dark-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter">
-                  <path fill="none" stroke="currentColor" stroke-width="1.5" d="M19 5H5V12H19V19H5M12 1V23" />
-                </svg>
+                <Icon name="dollar" size="md" v-else class="text-gray-400 dark:text-dark-500" :stroke-width="2" />
               </div>
               <div class="flex justify-center">
                 <div class="relative">
@@ -251,13 +236,7 @@
               >
                 <div class="flex items-center gap-3">
                   <div class="w-8 h-8 rounded-lg flex items-center justify-center" :class="row.iconBg">
-                    <svg
-                      class="w-4 h-4"
-                      :class="row.iconColor"
-                      viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                      stroke-width="2" stroke-linecap="square" stroke-linejoin="miter"
-                      v-html="row.iconSvg"
-                    ></svg>
+                    <Icon :name="row.icon" size="sm" :class="row.iconColor" :stroke-width="2" />
                   </div>
                   <span class="text-sm text-gray-700 dark:text-dark-200">{{ row.label }}</span>
                 </div>
@@ -423,6 +402,7 @@ import { useAppStore } from '@/stores'
 import { FeatureFlags, resolveFeatureFlag } from '@/utils/featureFlags'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import Icon from '@/components/icons/Icon.vue'
+import type { IconName } from '@/components/icons/iconPaths'
 import { buildGatewayUrl } from '@/api/client'
 import { formatDateLocalInput } from '@/utils/format'
 import { sanitizeUrl } from '@/utils/url'
@@ -662,7 +642,7 @@ const ringGridClass = computed(() => {
 interface DetailRow {
   iconBg: string
   iconColor: string
-  iconSvg: string
+  icon: IconName
   label: string
   value: string
   valueClass: string
@@ -679,10 +659,6 @@ const detailRows = computed<DetailRow[]>(() => {
   if (!data) return []
 
   const rows: DetailRow[] = []
-  const ICON_SHIELD = '<path fill="none" stroke="currentColor" stroke-width="1.5" d="M12 2L22 6V15L12 22L2 15V6ZM7 12L11 16L17 8"/>'
-  const ICON_CALENDAR = '<rect x="3" y="4" width="18" height="18"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>'
-  const ICON_DOLLAR = '<path fill="none" stroke="currentColor" stroke-width="1.5" d="M19 5H5V12H19V19H5M12 1V23"/>'
-  const ICON_CHECK = '<polyline points="20 6 9 17 4 12"/>'
 
   if (data.mode === 'quota_limited') {
     if (data.quota) {
@@ -690,7 +666,7 @@ const detailRows = computed<DetailRow[]>(() => {
         : data.quota.remaining < data.quota.limit * 0.1 ? 'text-amber-500'
         : 'text-emerald-500'
       rows.push({
-        iconBg: 'bg-emerald-500/10', iconColor: 'text-emerald-500', iconSvg: ICON_SHIELD,
+        iconBg: 'bg-emerald-500/10', iconColor: 'text-emerald-500', icon: 'shield',
         label: t('keyUsage.remainingQuota'), value: usd(data.quota.remaining), valueClass: remainColor,
       })
     }
@@ -701,7 +677,7 @@ const detailRows = computed<DetailRow[]>(() => {
         expiryStr += daysLeft > 0 ? ` ${t('keyUsage.daysLeft', { days: daysLeft })}` : daysLeft === 0 ? ` ${t('keyUsage.todayExpires')}` : ''
       }
       rows.push({
-        iconBg: 'bg-amber-500/10', iconColor: 'text-amber-500', iconSvg: ICON_CALENDAR,
+        iconBg: 'bg-amber-500/10', iconColor: 'text-amber-500', icon: 'calendar',
         label: t('keyUsage.expiresAt'), value: expiryStr, valueClass: '',
       })
     }
@@ -715,7 +691,7 @@ const detailRows = computed<DetailRow[]>(() => {
           valueStr += ` (⟳ ${resetStr})`
         }
         rows.push({
-          iconBg: 'bg-primary-500/10', iconColor: 'text-primary-500', iconSvg: ICON_DOLLAR,
+          iconBg: 'bg-primary-500/10', iconColor: 'text-primary-500', icon: 'dollar',
           label: `${t('keyUsage.usedQuota')} (${windowMap[rl.window] || rl.window})`,
           value: valueStr,
           valueClass: getUsageColor(pct),
@@ -724,7 +700,7 @@ const detailRows = computed<DetailRow[]>(() => {
     }
   } else {
     rows.push({
-      iconBg: 'bg-emerald-500/10', iconColor: 'text-emerald-500', iconSvg: ICON_CHECK,
+      iconBg: 'bg-emerald-500/10', iconColor: 'text-emerald-500', icon: 'check',
       // 订阅功能关闭后这一行只会是「钱包余额」，标签改用不带「订阅」字样的「计费方式」。
       label: subscriptionFeatureEnabled.value ? t('keyUsage.subscriptionType') : t('keyUsage.billingType'),
       value: data.planName || t('keyUsage.walletBalance'), valueClass: '',
@@ -735,27 +711,27 @@ const detailRows = computed<DetailRow[]>(() => {
       if (sub.daily_limit_usd > 0) {
         const pct = (sub.daily_usage_usd / sub.daily_limit_usd) * 100
         rows.push({
-          iconBg: 'bg-primary-500/10', iconColor: 'text-primary-500', iconSvg: ICON_DOLLAR,
+          iconBg: 'bg-primary-500/10', iconColor: 'text-primary-500', icon: 'dollar',
           label: `${t('keyUsage.usedQuota')} (${locale.value === 'zh' ? '日' : 'D'})`, value: `${usd(sub.daily_usage_usd)} / ${usd(sub.daily_limit_usd)}`, valueClass: getUsageColor(pct),
         })
       }
       if (sub.weekly_limit_usd > 0) {
         const pct = (sub.weekly_usage_usd / sub.weekly_limit_usd) * 100
         rows.push({
-          iconBg: 'bg-indigo-500/10', iconColor: 'text-indigo-500', iconSvg: ICON_DOLLAR,
+          iconBg: 'bg-indigo-500/10', iconColor: 'text-indigo-500', icon: 'dollar',
           label: `${t('keyUsage.usedQuota')} (${locale.value === 'zh' ? '周' : 'W'})`, value: `${usd(sub.weekly_usage_usd)} / ${usd(sub.weekly_limit_usd)}`, valueClass: getUsageColor(pct),
         })
       }
       if (sub.monthly_limit_usd > 0) {
         const pct = (sub.monthly_usage_usd / sub.monthly_limit_usd) * 100
         rows.push({
-          iconBg: 'bg-emerald-500/10', iconColor: 'text-emerald-500', iconSvg: ICON_DOLLAR,
+          iconBg: 'bg-emerald-500/10', iconColor: 'text-emerald-500', icon: 'dollar',
           label: `${t('keyUsage.usedQuota')} (${locale.value === 'zh' ? '月' : 'M'})`, value: `${usd(sub.monthly_usage_usd)} / ${usd(sub.monthly_limit_usd)}`, valueClass: getUsageColor(pct),
         })
       }
       if (sub.expires_at) {
         rows.push({
-          iconBg: 'bg-amber-500/10', iconColor: 'text-amber-500', iconSvg: ICON_CALENDAR,
+          iconBg: 'bg-amber-500/10', iconColor: 'text-amber-500', icon: 'calendar',
           label: t('keyUsage.subscriptionExpires'), value: formatDate(sub.expires_at), valueClass: '',
         })
       }
@@ -765,7 +741,7 @@ const detailRows = computed<DetailRow[]>(() => {
       ? (data.remaining <= 0 ? 'text-rose-500' : data.remaining < 10 ? 'text-amber-500' : 'text-emerald-500')
       : ''
     rows.push({
-      iconBg: 'bg-emerald-500/10', iconColor: 'text-emerald-500', iconSvg: ICON_SHIELD,
+      iconBg: 'bg-emerald-500/10', iconColor: 'text-emerald-500', icon: 'shield',
       label: t('keyUsage.remainingQuota'), value: data.remaining != null ? usd(data.remaining) : '-', valueClass: remainColor,
     })
   }

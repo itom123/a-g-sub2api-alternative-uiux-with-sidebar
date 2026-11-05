@@ -330,7 +330,7 @@
             {{ t('common.copy') }}
           </button>
         </div>
-        <p class="max-h-48 overflow-y-auto whitespace-pre-wrap break-words leading-6 selection:bg-primary-100 selection:text-primary-900 dark:selection:bg-primary-900/60 dark:selection:text-primary-100">
+        <p class="max-h-48 overflow-y-auto whitespace-pre-wrap break-words leading-6">
           {{ promptPopover.text }}
         </p>
       </div>

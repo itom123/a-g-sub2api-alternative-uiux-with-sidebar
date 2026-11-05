@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Icon from '@/components/icons/Icon.vue'
 import { computed, nextTick, onBeforeUnmount, provide, ref, shallowReactive, useId, watch } from 'vue'
 import type { CSSProperties, ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -114,9 +115,7 @@ onBeforeUnmount(removeListeners)
       @click="toggle"
     >
       {{ t(open ? 'admin.accounts.usageWindow.hideDetails' : 'admin.accounts.usageWindow.details') }}
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-        <path :d="open ? 'm6 15 6-6 6 6' : 'm6 9 6 6 6-6'" />
-      </svg>
+      <Icon :name="open ? 'chevronUp' : 'chevronDown'" size="compact" aria-hidden="true" />
     </button>
     <div v-if="open" class="ag-usage-preview-content ag-usage-retained-summary">
       <div class="ag-account-usage">
