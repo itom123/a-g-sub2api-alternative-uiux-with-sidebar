@@ -360,7 +360,8 @@ class Attempt:
             time.sleep(self.t["poll"])
 
     def probe(self, phase, frontend, deadline, owner):
-        timeout = min(self.t["probe"], remaining(deadline))
+        deadline_budget = remaining(deadline)
+        timeout = min(self.t["probe"], deadline_budget)
         if timeout <= 0:
             raise Failure("probe deadline expired")
         ident = uuid.uuid4().hex
@@ -379,7 +380,8 @@ class Attempt:
                 except subprocess.TimeoutExpired:
                     terminate_record(record)
                     child.wait(timeout=3)
-                    raise Failure("probe timed out")
+                    reason = "probe deadline expired" if deadline_budget <= self.t["probe"] else "probe timed out"
+                    raise Failure(reason)
             finally:
                 if child.poll() is None:
                     child.kill()  # an unreaped, direct Popen child only

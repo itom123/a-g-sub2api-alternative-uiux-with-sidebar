@@ -38,6 +38,41 @@ def wait_until(check, timeout=20):
     raise AssertionError("bounded wait expired")
 
 
+class ProbeTimeoutTests(unittest.TestCase):
+    def assert_probe_timeout(self, deadline_budget, expected_reason):
+        with tempfile.TemporaryDirectory(prefix=".probe-timeout-test-", dir=HERE) as directory:
+            attempt = object.__new__(dc.Attempt)
+            attempt.path = Path(directory)
+            (attempt.path / "probe-results").mkdir()
+            attempt.t = {"probe": 2}
+            record = {"pid": 12345, "token": "fake-birth-token"}
+            child = mock.Mock(pid=record["pid"])
+            child.wait.side_effect = [subprocess.TimeoutExpired("fake-probe", 0), 0]
+            child.poll.return_value = 0
+            deadline = {"test": "fixed-deadline"}
+            with mock.patch.object(dc, "remaining", return_value=deadline_budget) as remaining, \
+                    mock.patch.object(dc.subprocess, "Popen", return_value=child), \
+                    mock.patch.object(attempt, "register", return_value=record) as register, \
+                    mock.patch.object(dc, "terminate_record") as terminate:
+                with self.assertRaises(dc.Failure) as raised:
+                    attempt.probe("new", False, deadline, "runner")
+            self.assertEqual(str(raised.exception), expected_reason)
+            remaining.assert_called_once_with(deadline)
+            register.assert_called_once_with("probe", record["pid"], "runner")
+            terminate.assert_called_once_with(record)
+            self.assertEqual(child.wait.call_args_list,
+                             [mock.call(timeout=min(2, deadline_budget)), mock.call(timeout=3)])
+            child.kill.assert_not_called()
+
+    def test_probe_timeout_clipped_by_global_deadline(self):
+        for deadline_budget in (0.5, 2):
+            with self.subTest(deadline_budget=deadline_budget):
+                self.assert_probe_timeout(deadline_budget, "probe deadline expired")
+
+    def test_probe_timeout_with_independent_probe_budget(self):
+        self.assert_probe_timeout(3, "probe timed out")
+
+
 class ControllerTests(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp(prefix=".fake-test-", dir=HERE))
