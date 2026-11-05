@@ -11,6 +11,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import shlex
 import socket
 import shutil
 import subprocess
@@ -259,6 +260,29 @@ class Harness(unittest.TestCase):
             if env.get('PGPASSWORD') == 'NEVER-PRINT-ME':
                 self.assertEqual(1, sum(x[2].get('PGPASSWORD') == 'NEVER-PRINT-ME' for x in worker.commands))
 
+    def test_long_root_postgres_is_tcp_only_and_restore_uses_loopback(self):
+        # The production poller's task root can exceed macOS's 104-byte socket
+        # address limit. Spaces also prove it is absent from pg_ctl's shell args.
+        self.f.args.root = self.f.base / ('long-canary-root-' + 'x' * 64) / 'root with spaces'
+        self.f.args.root.parent.mkdir()
+        worker = self.worker()
+        socket_path = worker.root / ('.s.PGSQL.%d' % m.DBPORT)
+        self.assertGreater(len(str(socket_path).encode('utf-8')), 104)
+        self.assertEqual('prepared_only', worker.execute()['state'])
+        starts = [args for args, _, _ in worker.commands if args[0] == 'pg_ctl' and 'start' in args]
+        self.assertEqual(1, len(starts))
+        options = shlex.split(starts[0][starts[0].index('-o') + 1])
+        self.assertEqual('127.0.0.1', options[options.index('-h') + 1])
+        self.assertEqual(str(m.DBPORT), options[options.index('-p') + 1])
+        settings = [options[i + 1] for i, arg in enumerate(options) if arg == '-c']
+        self.assertIn('unix_socket_directories=', settings)
+        self.assertNotIn('-k', options)
+        self.assertNotIn(str(worker.root), options)
+        restores = [args for args, _, _ in worker.commands if args[0] == 'pg_restore' and '--list' not in args]
+        self.assertEqual(1, len(restores))
+        self.assertEqual('127.0.0.1', restores[0][restores[0].index('-h') + 1])
+        self.assertEqual(str(m.DBPORT), restores[0][restores[0].index('-p') + 1])
+
     def test_each_fault_blocks_controller_and_success_evidence(self):
         for fault in ('dump', 'restore', 'egress_allowed', 'egress_refused_not_denied', 'new_sql', 'checksum',
                       'startup_checksum', 'ledger_drift', 'auth', 'same_platform', 'capped_quote', 'order_created', 'cleanup',
@@ -471,8 +495,9 @@ class Harness(unittest.TestCase):
         with mock.patch.object(worker, 'run', return_value='result') as run:
             self.assertEqual('result', worker.sql('SELECT 1;'))
         args, kwargs = run.call_args
-        self.assertIn(str(m.DBPORT), args[0])
-        self.assertIn('127.0.0.1', args[0])
+        self.assertEqual('psql', args[0][0])
+        self.assertEqual(str(m.DBPORT), args[0][args[0].index('-p') + 1])
+        self.assertEqual('127.0.0.1', args[0][args[0].index('-h') + 1])
         self.assertNotIn('SELECT 1;', args[0])
         self.assertEqual('SELECT 1;', kwargs['input_text'])
         self.assertEqual(worker.admin_password, kwargs['env']['PGPASSWORD'])

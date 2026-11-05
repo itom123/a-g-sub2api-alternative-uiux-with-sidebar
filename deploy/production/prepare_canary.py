@@ -449,10 +449,11 @@ class Canary:
         self.run(['initdb', '-D', cluster, '-U', 'canary_admin', '--auth-local=scram-sha-256',
                   '--auth-host=scram-sha-256', '--pwfile', pwfile, '--encoding=UTF8'], timeout=90)
         pwfile.unlink()
-        # No Unix socket in /tmp and no external listener. Every path is task-owned.
+        # TCP only: long task paths can exceed macOS's Unix socket path limit.
+        # No socket is created in /tmp or the task root; listen only on loopback.
         self.pg_attempted = True
         self.run(['pg_ctl', '-D', cluster, '-l', self.root / 'postgres.log', '-w', '-t', '20', '-o',
-                  '-h 127.0.0.1 -p %d -k %s -c max_connections=40' % (DBPORT, self.root), 'start'], timeout=30)
+                  "-h 127.0.0.1 -p %d -c unix_socket_directories='' -c max_connections=40" % DBPORT, 'start'], timeout=30)
         self.sql("CREATE ROLE canary_app LOGIN PASSWORD '%s' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;\nCREATE DATABASE canary OWNER canary_app;" % self.password, 'postgres')
         self.run(['pg_restore', '-h', '127.0.0.1', '-p', str(DBPORT), '-U', 'canary_admin', '-d', 'canary',
                   '--no-owner', '--no-privileges', '--role=canary_app', '--exit-on-error', dump], env=self.admin_env, timeout=300)
