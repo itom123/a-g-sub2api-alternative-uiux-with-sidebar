@@ -464,13 +464,20 @@ const healthScoreClass = computed(() => {
 
 const circleSize = computed(() => props.fullscreen ? 140 : 100)
 const strokeWidth = computed(() => props.fullscreen ? 10 : 8)
-const radius = computed(() => (circleSize.value - strokeWidth.value) / 2)
-const circumference = computed(() => 2 * Math.PI * radius.value)
+// Square health frame: the stroke is centred on the path, so inset by half its width.
+const ringPath = computed(() => {
+  const inset = strokeWidth.value / 2
+  const far = circleSize.value - inset
+  const mid = circleSize.value / 2
+  // Start at 12 o'clock and run clockwise so progress reads like a gauge.
+  return `M${mid} ${inset}H${far}V${far}H${inset}V${inset}Z`
+})
+const ringPerimeter = computed(() => 4 * (circleSize.value - strokeWidth.value))
 const dashOffset = computed(() => {
   if (isSystemIdle.value) return 0
   if (healthScoreValue.value == null) return 0
   const score = Math.max(0, Math.min(100, healthScoreValue.value))
-  return circumference.value - (score / 100) * circumference.value
+  return ringPerimeter.value - (score / 100) * ringPerimeter.value
 })
 
 interface DiagnosisItem {
@@ -1010,27 +1017,25 @@ function handleToolbarRefresh() {
             class="ag-ops-score flex flex-col items-center justify-center py-2"
           >
             <button type="button" class="ag-ops-ring relative flex items-center justify-center" :aria-expanded="diagnosisOpen" aria-controls="ops-diagnosis" @click="diagnosisOpen = !diagnosisOpen">
-              <svg :width="circleSize" :height="circleSize" class="-rotate-90 transform">
-                <circle
-                  :cx="circleSize / 2"
-                  :cy="circleSize / 2"
-                  :r="radius"
+              <svg :width="circleSize" :height="circleSize" :viewBox="`0 0 ${circleSize} ${circleSize}`" class="ag-ops-ring-frame">
+                <path
+                  :d="ringPath"
                   :stroke-width="strokeWidth"
                   fill="none"
                   class="ag-ops-ring-track"
                   stroke="currentColor"
+                  stroke-linejoin="miter"
                 />
-                <circle
-                  :cx="circleSize / 2"
-                  :cy="circleSize / 2"
-                  :r="radius"
+                <path
+                  :d="ringPath"
                   :stroke-width="strokeWidth"
                   fill="none"
                   :stroke="healthScoreColor"
-                  stroke-linecap="round"
-                  :stroke-dasharray="circumference"
+                  stroke-linecap="butt"
+                  stroke-linejoin="miter"
+                  :stroke-dasharray="ringPerimeter"
                   :stroke-dashoffset="dashOffset"
-                  class="transition-all duration-1000 ease-out"
+                  class="ag-ops-ring-progress transition-all duration-1000 ease-out"
                 />
               </svg>
 

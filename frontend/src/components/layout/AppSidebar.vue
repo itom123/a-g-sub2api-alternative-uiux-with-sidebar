@@ -278,6 +278,7 @@ const KeyIcon = { render: () => h(Icon, { name: 'key' }) }
 const LinkIcon = { render: () => h(Icon, { name: 'link' }) }
 const BatchImageIcon = { render: () => h(Icon, { name: 'camera' }) }
 const ChartIcon = { render: () => h(Icon, { name: 'chartBar' }) }
+const OpsIcon = { render: () => h(Icon, { name: 'navOps' }) }
 const GiftIcon = { render: () => h(Icon, { name: 'gift' }) }
 const UserIcon = { render: () => h(Icon, { name: 'user' }) }
 const UsersIcon = { render: () => h(Icon, { name: 'users' }) }
@@ -404,7 +405,7 @@ const adminNavItems = computed((): NavItem[] => {
   const baseItems: NavItem[] = [
     { path: '/admin/dashboard', label: t('nav.dashboard'), icon: DashboardIcon },
     { path: '/admin/openclaw', label: t('nav.openclawFleet'), icon: LighthouseIcon },
-    { path: '/admin/ops', label: t('nav.ops'), icon: ChartIcon, featureFlag: flagOpsMonitoring },
+    { path: '/admin/ops', label: t('nav.ops'), icon: OpsIcon, featureFlag: flagOpsMonitoring },
     { path: '/admin/users', label: t('nav.users'), icon: UsersIcon, hideInSimpleMode: true },
     { path: '/admin/groups', label: t('nav.groups'), icon: FolderIcon },
     {

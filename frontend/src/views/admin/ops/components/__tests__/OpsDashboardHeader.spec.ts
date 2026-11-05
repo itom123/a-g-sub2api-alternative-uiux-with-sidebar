@@ -105,3 +105,23 @@ describe('OpsDashboardHeader latency diagnosis', () => {
     wrapper.unmount()
   })
 })
+
+describe('OpsDashboardHeader health frame', () => {
+  const busy = { ...overview, qps: { current: 0.2, peak: 0.3, avg: 0.1 }, health_score: 75 } as OpsDashboardOverview
+
+  it('draws the health score as a right-angle frame, not a round arc', async () => {
+    const wrapper = mountHeader(busy)
+    await flushPromises()
+    const ring = wrapper.get('.ag-ops-ring svg')
+    expect(ring.findAll('circle')).toHaveLength(0)
+    const [track, progress] = ring.findAll('path')
+    // 100px frame, 8px stroke: centred path from 4 to 96, starting at 12 o'clock.
+    expect(track.attributes('d')).toBe('M50 4H96V96H4V4Z')
+    expect(progress.attributes('d')).toBe(track.attributes('d'))
+    expect(progress.attributes('stroke-linejoin')).toBe('miter')
+    expect(progress.attributes('stroke-linecap')).toBe('butt')
+    expect(Number(progress.attributes('stroke-dasharray'))).toBe(368)
+    expect(Number(progress.attributes('stroke-dashoffset'))).toBeCloseTo(92)
+    wrapper.unmount()
+  })
+})
