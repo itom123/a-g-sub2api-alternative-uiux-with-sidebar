@@ -20,6 +20,10 @@ import tarfile
 import time
 import uuid
 
+# Verified tool directories must stay byte-for-byte unchanged across restarts.
+# In particular, module() must not cache github_api beside its source.
+sys.dont_write_bytecode = True
+
 HERE = Path(__file__).resolve().parent
 SHA = re.compile(r'[0-9a-f]{40}')
 DIGEST = re.compile(r'[0-9a-f]{64}')
@@ -351,6 +355,22 @@ class Poller:
                 cli(root / 'controller.py', ['ensure-watchdog', '--attempt', receipt['attempt']], timeout=90)
                 state = self.controller_status(operation)
                 terminal = state.get('state', {}).get('state')
+        if terminal in {'committed', 'rolled_back'} and state.get('host_lock_held') is not False:
+            # Successful state is durable before lock release. Let only the
+            # frozen controller settle its owned lock, then verify fresh status.
+            receipt = read_json(root / 'prepare-receipt.json')
+            try:
+                cli(root / 'controller.py', ['ensure-watchdog', '--attempt', receipt['attempt']], timeout=90)
+            except Exception:
+                # Missing/conflicting decisions or a foreign owner fail closed;
+                # only the fresh status below can establish completed cleanup.
+                pass
+            state = self.controller_status(operation)
+            terminal = state.get('state', {}).get('state')
+        if terminal in TERMINAL and terminal != 'rollback_failed' and state.get('host_lock_held') is not False:
+            # Never publish installed/tooling receipts on missing cleanup proof.
+            # rollback_failed intentionally remains a terminal failure with lock.
+            return self.status('activation-pending', commit=operation['sha'], reason='terminal-cleanup-pending')
         if terminal not in TERMINAL:
             # A crash between the poller's intent and the adapter's first arm
             # intent leaves a prepared lock with no watchdog. Close it safely

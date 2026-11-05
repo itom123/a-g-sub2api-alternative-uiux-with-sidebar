@@ -100,8 +100,14 @@ tokens, environment values or raw private logs into the repository or issue text
 activation is followed through its existing controller status; arm and activation
 are never replayed. After logout or reboot, the next poll restores a missing
 recovery watchdog from the attempt's frozen launchd job, with the same deadlines.
-It does not restart the runner or grant a new activation window. A prepared
-attempt that never starts activation is closed after the bounded adapter window.
+It does not restart the runner or grant a new activation window. A successful
+`committed` or `rolled_back` state with its matching durable decision only clears
+that attempt's leftover ownership lock; it never replays activation or recovery.
+Terminal completion requires an explicitly released host lock before the puller
+adopts installed state or switches tools. `rollback_failed` and uncertain
+`prepare_failed` / `aborted_untouched` cleanup remain pending for host inspection;
+terminal state alone never authorizes clearing their locks. A prepared attempt
+that never starts activation is closed after the bounded adapter window.
 An interrupted canary or unknown prepare receipt stops for host inspection; do
 not delete its ownership lock or blindly rerun the attempt. Recovery waits for
 the service owner's GUI launchd domain to become available after login.

@@ -2,6 +2,8 @@ import hashlib
 import importlib.util
 import io
 import json
+import subprocess
+import sys
 from pathlib import Path
 import tarfile
 import tempfile
@@ -16,14 +18,56 @@ OLD, NEW = '1' * 40, '2' * 40
 REPO = 'owner/repository'
 
 
+# A fresh -I process runs copied poller source as a script, so its own code is
+# not imported/cached. Poller() still uses its real dynamic github_api loader.
+RESTART_PROOF = r"""
+import json
+from pathlib import Path
+import sys
+import types
+from unittest import mock
+
+script, app = map(Path, sys.argv[1:3])
+mode = sys.argv[3]
+runtime = types.ModuleType('restarted_poller')
+runtime.__file__ = str(script)
+exec(compile(script.read_bytes(), str(script), 'exec'), runtime.__dict__)
+tools = script.parent
+manifest = runtime.read_json(tools.parent / 'manifest.json')
+worker = runtime.Poller({'schema': 1, 'repository': 'owner/repository',
+                         'app_root': str(app), 'enabled': True})
+outcome = 'imported'
+if mode == 'resume':
+    installed = runtime.read_json(worker.installed_path)
+
+    def link(target, name, **kwargs):
+        Path(name).write_text(str(target))
+
+    with mock.patch.object(runtime, 'baseline', return_value=installed), \
+            mock.patch.object(worker, 'controller_status', return_value={
+                'attempt': installed['attempt'], 'state': {'state': 'committed'}, 'host_lock_held': False}), \
+            mock.patch.object(runtime.os, 'symlink', side_effect=link), \
+            mock.patch.object(worker.api, 'request', side_effect=AssertionError('network forbidden')):
+        outcome = worker.once()['state']
+print(json.dumps({'isolated': sys.flags.isolated, 'dont_write_bytecode': sys.dont_write_bytecode,
+    'tool_files_unchanged': runtime.inventory(tools) == manifest['tools_files'],
+    'bytecode_paths': [path.relative_to(tools).as_posix() for path in tools.rglob('*.pyc')],
+    'result_state': outcome}, sort_keys=True))
+"""
+
+
 def sha(value):
     return hashlib.sha256(value).hexdigest()
 
 
-def package_fixture(root, extra=None, mutate=None):
+def package_fixture(root, extra=None, mutate=None, runtime_tools=False):
     files = {'bin/sub2api': b'binary', 'frontend/index.html': b'<html>new</html>', 'migrations/001.sql': b'SELECT 1;'}
-    for name in ('poller.py', 'github_api.py', 'controller.py', 'prepare_canary.py', 'activate_prepared.py', 'install.py'):
-        files['tools/' + name] = ('# ' + name).encode()
+    if runtime_tools:
+        for path in ROOT.glob('*.py'):
+            files['tools/' + path.name] = path.read_bytes()
+    else:
+        for name in ('poller.py', 'github_api.py', 'controller.py', 'prepare_canary.py', 'activate_prepared.py', 'install.py'):
+            files['tools/' + name] = ('# ' + name).encode()
     manifest = {'schema': 1, 'repository': REPO, 'platform': 'darwin/arm64', 'new_commit': NEW,
                 'source_tree_sha256': '3' * 64, 'binary_sha256': sha(files['bin/sub2api']),
                 'controller_sha256': sha(files['tools/controller.py']),
@@ -204,7 +248,7 @@ class PollerStateTests(unittest.TestCase):
         root = self.app / 'canary'
         root.mkdir()
         poller.save(root / 'prepare-receipt.json', {'state': 'prepared', 'attempt': '/owned/attempt'})
-        with mock.patch.object(poller, 'cli', return_value={'state': {'state': 'prepared'}}) as command:
+        with mock.patch.object(poller, 'cli', return_value={'state': {'state': 'prepared'}, 'host_lock_held': True}) as command:
             self.worker.controller_status({'canary_root': str(root)})
         command.assert_called_once_with(root / 'controller.py', ['status', '--attempt', '/owned/attempt'])
 
@@ -282,7 +326,7 @@ class PollerStateTests(unittest.TestCase):
         root.mkdir()
         poller.save(root / 'prepare-receipt.json', {'state': 'prepared', 'attempt': '/owned/attempt'})
         self.worker.operation(phase='activation_started', activation_started_at=0, sha=NEW, canary_root=str(root))
-        with mock.patch.object(self.worker, 'controller_status', return_value={'state': {'state': 'prepared'}}), \
+        with mock.patch.object(self.worker, 'controller_status', return_value={'state': {'state': 'prepared'}, 'host_lock_held': True}), \
                 mock.patch.object(poller, 'cli', return_value={}) as command:
             self.assertEqual(self.worker.once()['state'], 'aborted_untouched')
             self.assertEqual(command.call_args.args[1][0], 'close-untouched')
@@ -293,11 +337,93 @@ class PollerStateTests(unittest.TestCase):
         poller.save(root / 'prepare-receipt.json', {'state': 'prepared', 'attempt': '/owned/attempt'})
         self.worker.operation(phase='activation_started', activation_started_at=900, sha=NEW, canary_root=str(root))
         with mock.patch.object(self.worker, 'controller_status', side_effect=[
-                {'state': {'state': 'activating'}}, {'state': {'state': 'rolled_back'}}]), \
+                {'state': {'state': 'activating'}, 'host_lock_held': True},
+                {'state': {'state': 'rolled_back'}, 'host_lock_held': False}]), \
                 mock.patch.object(poller, 'cli', return_value={}) as command:
             self.assertEqual(self.worker.once()['state'], 'rolled_back')
             command.assert_called_once_with(root / 'controller.py', ['ensure-watchdog', '--attempt', '/owned/attempt'], timeout=90)
         self.assertEqual(self.api.calls, [])
+
+    def terminal_operation(self):
+        root = self.app / 'canary'
+        root.mkdir(exist_ok=True)
+        poller.save(root / 'prepare-receipt.json', {'state': 'prepared', 'attempt': '/owned/attempt'})
+        operation = self.worker.operation(phase='activation_pending', sha=NEW, canary_root=str(root))
+        return root, operation
+
+    def test_successful_terminal_missing_lock_field_cannot_complete(self):
+        root, operation = self.terminal_operation()
+        installed = self.worker.installed_path.read_bytes()
+        for terminal in ('committed', 'rolled_back'):
+            with self.subTest(terminal=terminal):
+                status = {'state': {'state': terminal}}
+                with mock.patch.object(self.worker, 'controller_status', return_value=status) as read, \
+                        mock.patch.object(poller, 'cli', return_value={}) as command, \
+                        mock.patch.object(poller, 'baseline') as baseline, \
+                        mock.patch.object(poller.os, 'symlink') as switch:
+                    self.assertEqual(self.worker.finish(operation)['state'], 'activation-pending')
+                    self.assertEqual(read.call_count, 2)
+                    command.assert_called_once_with(root / 'controller.py',
+                        ['ensure-watchdog', '--attempt', '/owned/attempt'], timeout=90)
+                    baseline.assert_not_called()
+                    switch.assert_not_called()
+                self.assertEqual(self.worker.installed_path.read_bytes(), installed)
+                self.assertEqual(poller.read_json(self.worker.operation_path)['phase'], 'activation_pending')
+
+    def test_terminal_lock_not_strictly_false_or_settlement_error_stays_pending(self):
+        root, operation = self.terminal_operation()
+        installed = self.worker.installed_path.read_bytes()
+        for terminal in ('committed', 'rolled_back'):
+            for held in (True, None, 0, 'false'):
+                for failed in (False, True):
+                    with self.subTest(terminal=terminal, held=held, failed=failed):
+                        status = {'state': {'state': terminal}, 'host_lock_held': held}
+                        error = poller.Failure('matching durable decision missing') if failed else None
+                        with mock.patch.object(self.worker, 'controller_status', return_value=status), \
+                                mock.patch.object(poller, 'cli', side_effect=error, return_value={}) as command, \
+                                mock.patch.object(poller, 'baseline') as baseline, \
+                                mock.patch.object(poller.os, 'symlink') as switch:
+                            self.assertEqual(self.worker.finish(operation)['state'], 'activation-pending')
+                            command.assert_called_once()
+                            baseline.assert_not_called()
+                            switch.assert_not_called()
+                        self.assertEqual(self.worker.installed_path.read_bytes(), installed)
+                        self.assertEqual(poller.read_json(self.worker.operation_path)['phase'], 'activation_pending')
+
+    def test_rolled_back_settles_owned_lock_before_terminal_receipt(self):
+        root, operation = self.terminal_operation()
+        installed = self.worker.installed_path.read_bytes()
+        with mock.patch.object(self.worker, 'controller_status', side_effect=[
+                {'state': {'state': 'rolled_back'}, 'host_lock_held': True},
+                {'state': {'state': 'rolled_back'}, 'host_lock_held': False}]), \
+                mock.patch.object(poller, 'cli', return_value={}) as command, \
+                mock.patch.object(poller, 'baseline') as baseline, \
+                mock.patch.object(poller.os, 'symlink') as switch:
+            self.assertEqual(self.worker.finish(operation)['state'], 'rolled_back')
+            command.assert_called_once_with(root / 'controller.py',
+                ['ensure-watchdog', '--attempt', '/owned/attempt'], timeout=90)
+            baseline.assert_not_called()
+            switch.assert_not_called()
+        self.assertEqual(self.worker.installed_path.read_bytes(), installed)
+        self.assertEqual(poller.read_json(self.worker.operation_path)['phase'], 'rolled_back')
+
+    def test_other_failed_terminals_need_cleanup_proof_and_failed_rollback_keeps_lock(self):
+        _, operation = self.terminal_operation()
+        installed = self.worker.installed_path.read_bytes()
+        for terminal in ('prepare_failed', 'aborted_untouched'):
+            with self.subTest(terminal=terminal):
+                with mock.patch.object(self.worker, 'controller_status', return_value={'state': {'state': terminal}}), \
+                        mock.patch.object(poller, 'cli') as command:
+                    self.assertEqual(self.worker.finish(operation)['state'], 'activation-pending')
+                    command.assert_not_called()
+                self.assertEqual(poller.read_json(self.worker.operation_path)['phase'], 'activation_pending')
+        with mock.patch.object(self.worker, 'controller_status', return_value={
+                'state': {'state': 'rollback_failed'}, 'host_lock_held': True}), \
+                mock.patch.object(poller, 'cli') as command:
+            self.assertEqual(self.worker.finish(operation)['state'], 'rollback_failed')
+            command.assert_not_called()
+        self.assertEqual(poller.read_json(self.worker.operation_path)['phase'], 'rollback_failed')
+        self.assertEqual(self.worker.installed_path.read_bytes(), installed)
 
     def test_drift_in_each_protected_baseline_field_is_rejected(self):
         for field in ('binary_sha256', 'frontend_pointer', 'frontend_files', 'configuration_hashes'):
@@ -308,7 +434,65 @@ class PollerStateTests(unittest.TestCase):
                     with self.assertRaisesRegex(poller.Failure, 'installed-baseline-drift:' + field):
                         poller.verify_baseline(self.app, self.installed)
 
-    def test_full_candidate_contract_commits_receipt_and_updates_tools_once(self):
+    def runtime_package(self):
+        stage = self.state / 'packages' / NEW
+        stage.mkdir(parents=True)
+        archive, deployment = package_fixture(stage, runtime_tools=True)
+        package = stage / 'payload'
+        manifest = poller.extract_verified(archive, package, deployment, REPO, NEW)
+        return package, manifest, deployment
+
+    def restart_from_copied_tools(self, package, mode):
+        # Deliberately omit -B and ignore Python environment variables with -I:
+        # the copied runtime itself must keep the verified package immutable.
+        options = {'creationflags': subprocess.CREATE_NO_WINDOW} if sys.platform == 'win32' else {}
+        result = subprocess.run([sys.executable, '-I', '-c', RESTART_PROOF,
+                                 str(package / 'tools/poller.py'), str(self.app), mode],
+                                stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=20, **options)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        proof = json.loads(result.stdout)
+        self.assertEqual(proof['isolated'], 1)
+        self.assertIs(proof['dont_write_bytecode'], True)
+        self.assertIs(proof['tool_files_unchanged'], True)
+        self.assertEqual(proof['bytecode_paths'], [])
+        self.assertFalse((package / 'tools/__pycache__').exists())
+        return proof
+
+    def test_isolated_runtime_import_preserves_verified_tool_inventory(self):
+        package, _, _ = self.runtime_package()
+        self.assertEqual(self.restart_from_copied_tools(package, 'import')['result_state'], 'imported')
+
+    def test_restart_after_tool_switch_before_operation_commit_reconciles(self):
+        package, manifest, deployment = self.runtime_package()
+        root = self.app / 'canary'
+        root.mkdir()
+        attempt = self.app / 'deploy-controller/attempts/candidate'
+        attempt.mkdir(parents=True)
+        poller.save(root / 'baseline.json', self.installed)
+        poller.save(attempt / 'config.json', {'new_frontend_hashes': manifest['frontend_files']})
+        installed_new = dict(self.installed, source_commit=NEW, binary_sha256=manifest['binary_sha256'],
+                             frontend_pointer='releases/new', frontend_files=manifest['frontend_files'])
+        operation = self.worker.operation(phase='activation_pending', sha=NEW, canary_root=str(root),
+                                           package_root=str(package), archive_sha256=deployment['archive_sha256'])
+
+        def link(target, name, **kwargs):
+            Path(name).write_text(str(target))
+
+        with mock.patch.object(poller, 'baseline', return_value=installed_new), \
+                mock.patch.object(self.worker, 'controller_status', return_value={
+                    'attempt': str(attempt), 'state': {'state': 'committed'}, 'host_lock_held': False}), \
+                mock.patch.object(poller.os, 'symlink', side_effect=link), \
+                mock.patch.object(self.worker, 'operation', side_effect=RuntimeError('simulated crash after switch')):
+            with self.assertRaisesRegex(RuntimeError, 'simulated crash after switch'):
+                self.worker.finish(operation)
+        self.assertEqual((self.state / 'current').read_text(), str(package / 'tools'))
+        self.assertEqual(poller.read_json(self.state / 'installed.json')['source_commit'], NEW)
+        self.assertEqual(poller.read_json(self.worker.operation_path)['phase'], 'activation_pending')
+        self.assertEqual(self.restart_from_copied_tools(package, 'resume')['result_state'], 'committed')
+        self.assertEqual(poller.read_json(self.worker.operation_path)['phase'], 'committed')
+        self.assertEqual(poller.inventory(package / 'tools'), manifest['tools_files'])
+
+    def test_full_candidate_settles_lock_then_commits_receipt_and_updates_tools_once(self):
         stage = self.state / 'packages' / NEW
         stage.mkdir(parents=True)
         archive, deployment = package_fixture(stage)
@@ -338,6 +522,10 @@ class PollerStateTests(unittest.TestCase):
                 poller.save(root / 'baseline.json', self.installed)
             elif Path(script).name == 'activate_prepared.py':
                 self.assertEqual(poller.read_json(self.worker.operation_path)['phase'], 'activation_started')
+            elif Path(script).name == 'controller.py' and args == ['ensure-watchdog', '--attempt', str(attempt)]:
+                self.assertEqual(poller.read_json(self.worker.installed_path)['source_commit'], OLD)
+                self.assertEqual(poller.read_json(self.worker.operation_path)['phase'], 'activation_started')
+                self.assertFalse((self.state / 'current').exists())
             else:
                 self.fail('unexpected controller mutation ' + repr(args))
 
@@ -351,12 +539,14 @@ class PollerStateTests(unittest.TestCase):
                 mock.patch.object(poller, 'verify_baseline', return_value=self.installed), \
                 mock.patch.object(poller, 'baseline', return_value=installed_new), \
                 mock.patch.object(poller, 'cli', side_effect=command), \
-                mock.patch.object(self.worker, 'controller_status', return_value={'attempt': str(attempt), 'state': {'state': 'committed'}}), \
+                mock.patch.object(self.worker, 'controller_status', side_effect=[
+                    {'attempt': str(attempt), 'state': {'state': 'committed'}, 'host_lock_held': True},
+                    {'attempt': str(attempt), 'state': {'state': 'committed'}, 'host_lock_held': False}]), \
                 mock.patch.object(poller.os, 'symlink', side_effect=fake_link):
             self.assertEqual(self.worker.once()['state'], 'committed')
             self.api.main = NEW
             self.assertEqual(self.worker.once()['state'], 'up-to-date')
-        self.assertEqual(commands, ['prepare_canary.py', 'activate_prepared.py'])
+        self.assertEqual(commands, ['prepare_canary.py', 'activate_prepared.py', 'controller.py'])
         adopted = poller.read_json(self.state / 'installed.json')
         self.assertEqual(adopted['source_commit'], NEW)
         self.assertEqual(adopted['raw_frontend_files'], manifest['frontend_files'])

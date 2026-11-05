@@ -173,11 +173,38 @@ class ControllerTests(unittest.TestCase):
         return self.cli("activate", "--attempt", str(self.attempt.path))
 
     def terminal(self):
-        state = wait_until(lambda: self.read_state() if self.read_state() in dc.TERMINAL else None)
-        return state
+        def completed():
+            state = self.read_state()
+            if state not in dc.TERMINAL:
+                return None
+            # Durable terminal state precedes ownership cleanup for crash recovery.
+            if state != "rollback_failed":
+                # Share the writer's gate so a Windows observer cannot deny unlink.
+                with dc.gate(self.attempt.base / "ownership.lock"):
+                    active = self.attempt.base / "active.json"
+                    if active.exists() and dc.read_json(active).get("attempt") == str(self.attempt.path):
+                        return None
+            return state
+        return wait_until(completed)
 
     def read_state(self):
         return dc.read_json(self.attempt.path / "state.json")["state"]
+
+    def attempt_failure_context(self):
+        sections = []
+        paths = [self.attempt.path / name for name in
+                 ("state.json", "decision.json", "events.jsonl", "recovery.log", "runner.log", "watchdog.log")]
+        paths.extend((self.tmp / "wrapper.log", self.root / "listener.log"))
+        probes = list((self.attempt.path / "probe-results").glob("*.json"))
+        probes.sort(key=lambda path: path.stat().st_mtime_ns)
+        paths.extend(probes[-5:])
+        for path in paths:
+            try:
+                contents = path.read_text(encoding="utf-8", errors="replace")
+            except OSError as error:
+                contents = type(error).__name__
+            sections.append(str(path.relative_to(self.tmp)) + ":\n" + contents[-12000:])
+        return "\n".join(sections)
 
     def events(self):
         return [json.loads(v) for v in (self.attempt.path / "events.jsonl").read_text().splitlines()]
@@ -198,6 +225,117 @@ class ControllerTests(unittest.TestCase):
         self.assertFalse((self.attempt.path / "armed.json").exists())
         self.assertFalse((self.attempt.path / "activation.json").exists())
         self.assert_old()
+
+    def terminal_before_lock_cleanup(self, state, decision=None):
+        self.prepare()
+        dc.save(self.attempt.path / "armed.json", {"expiry": dc.clock_deadline(-1)})
+        dc.save(self.attempt.path / "activation.json",
+                {"not_before": dc.clock_deadline(-2), "deadline": dc.clock_deadline(-1)})
+        if decision is not None:
+            self.attempt.decide(decision, "interrupted terminal ownership cleanup")
+        # Model a crash after durable terminal publication, before lock release.
+        self.attempt.state(state)
+        return {name: (self.attempt.path / name).read_bytes()
+                for name in ("state.json", "decision.json", "armed.json", "activation.json")
+                if (self.attempt.path / name).exists()}
+
+    def assert_terminal_settles_without_replay(self, state, decision):
+        before = self.terminal_before_lock_cleanup(state, decision)
+        binary = dc.digest(self.attempt.binary())
+        frontend_pointer = self.attempt.pointer()
+        frontend = dc.tree_hashes(self.attempt.frontend_target(frontend_pointer))
+        processes = {path.name: path.read_bytes()
+                     for path in (self.attempt.path / "processes").glob("*.json")}
+        with mock.patch.object(dc.subprocess, "Popen") as popen, \
+                mock.patch.object(dc.subprocess, "run") as run:
+            for _ in range(2):
+                result = dc.ensure_watchdog(self.attempt)
+                self.assertEqual(result["state"], state)
+                self.assertFalse(result["watchdog_started"])
+                self.assertFalse(result["host_lock_held"])
+                self.assertFalse(result["attempt_lock_held"])
+        popen.assert_not_called()
+        run.assert_not_called()
+        self.assertFalse((self.attempt.base / "active.json").exists())
+        for name, contents in before.items():
+            self.assertEqual((self.attempt.path / name).read_bytes(), contents)
+        self.assertEqual(dc.digest(self.attempt.binary()), binary)
+        self.assertEqual(self.attempt.pointer(), frontend_pointer)
+        self.assertEqual(dc.tree_hashes(self.attempt.frontend_target(self.attempt.pointer())), frontend)
+        self.assertEqual({path.name: path.read_bytes()
+                          for path in (self.attempt.path / "processes").glob("*.json")}, processes)
+        self.assertFalse((self.attempt.path / "runner-ack.json").exists())
+        self.assertFalse((self.attempt.path / "watchdog-ack.json").exists())
+
+    def test_ensure_watchdog_settles_committed_terminal_ownership_idempotently(self):
+        self.assert_terminal_settles_without_replay("committed", "committed")
+
+    def test_ensure_watchdog_settles_rolled_back_terminal_ownership_idempotently(self):
+        self.assert_terminal_settles_without_replay("rolled_back", "rollback")
+
+    def test_ensure_watchdog_terminal_cleanup_preserves_foreign_ownership(self):
+        self.terminal_before_lock_cleanup("rolled_back", "rollback")
+        active = self.attempt.base / "active.json"
+        dc.save(active, {"attempt": str(self.attempt.path.with_name("another-attempt"))})
+        before = active.read_bytes()
+        with mock.patch.object(dc.subprocess, "Popen") as popen, \
+                mock.patch.object(dc.subprocess, "run") as run:
+            result = dc.ensure_watchdog(self.attempt)
+        self.assertFalse(result["watchdog_started"])
+        self.assertTrue(result["host_lock_held"])
+        self.assertFalse(result["attempt_lock_held"])
+        self.assertEqual(active.read_bytes(), before)
+        popen.assert_not_called()
+        run.assert_not_called()
+
+    def assert_terminal_evidence_rejected(self, state, decision=None):
+        before = self.terminal_before_lock_cleanup(state, decision)
+        active = self.attempt.base / "active.json"
+        ownership = active.read_bytes()
+        with mock.patch.object(dc.subprocess, "Popen") as popen, \
+                mock.patch.object(dc.subprocess, "run") as run, \
+                self.assertRaisesRegex(dc.Failure, "^successful terminal state lacks its matching durable decision$"):
+            dc.ensure_watchdog(self.attempt)
+        self.assertEqual(active.read_bytes(), ownership)
+        for name, contents in before.items():
+            self.assertEqual((self.attempt.path / name).read_bytes(), contents)
+        popen.assert_not_called()
+        run.assert_not_called()
+
+    def test_ensure_watchdog_terminal_missing_decision_retains_ownership(self):
+        self.assert_terminal_evidence_rejected("committed")
+
+    def test_ensure_watchdog_terminal_conflicting_decision_retains_ownership(self):
+        self.assert_terminal_evidence_rejected("rolled_back", "committed")
+
+    def test_ensure_watchdog_failed_rollback_retains_ownership(self):
+        self.terminal_before_lock_cleanup("rollback_failed", "rollback")
+        active = self.attempt.base / "active.json"
+        before = active.read_bytes()
+        with mock.patch.object(dc.subprocess, "Popen") as popen, \
+                mock.patch.object(dc.subprocess, "run") as run:
+            result = dc.ensure_watchdog(self.attempt)
+        self.assertEqual(result["state"], "rollback_failed")
+        self.assertFalse(result["watchdog_started"])
+        self.assertEqual(active.read_bytes(), before)
+        popen.assert_not_called()
+        run.assert_not_called()
+
+    def test_ensure_watchdog_unproven_terminal_states_retain_ownership(self):
+        self.prepare()
+        active = self.attempt.base / "active.json"
+        before = active.read_bytes()
+        for state in ("prepare_failed", "aborted_untouched"):
+            with self.subTest(state=state):
+                self.attempt.state(state)
+                with mock.patch.object(dc.subprocess, "Popen") as popen, \
+                        mock.patch.object(dc.subprocess, "run") as run:
+                    result = dc.ensure_watchdog(self.attempt)
+                self.assertEqual(result["state"], state)
+                self.assertFalse(result["watchdog_started"])
+                self.assertEqual(active.read_bytes(), before)
+                popen.assert_not_called()
+                run.assert_not_called()
 
     def test_ensure_watchdog_replaces_only_dead_watchdog_and_preserves_expiry(self):
         self.prepare()
@@ -392,7 +530,8 @@ class ControllerTests(unittest.TestCase):
         dc.save(self.tmp / "config.json", config)
         self.faults(health_warming_until={"new": time.time() + 60})
         self.arm_activate()
-        self.assertEqual(self.terminal(), "rolled_back")
+        state = self.terminal()
+        self.assertEqual(state, "rolled_back", self.attempt_failure_context() if state != "rolled_back" else None)
         self.assert_old()
         self.assertIn("deadline", self.attempt.decision()["reason"])
 
@@ -654,6 +793,64 @@ class ControllerTests(unittest.TestCase):
         self.assertEqual(self.terminal(), "rolled_back")
         self.assert_old()
         self.assertTrue(self.attempt.pointer().endswith("-recovered"))
+
+
+class TerminalWaitTests(unittest.TestCase):
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory(prefix=".terminal-wait-test-", dir=HERE)
+        self.addCleanup(directory.cleanup)
+        self.base = Path(directory.name)
+        self.subject = ControllerTests(methodName="runTest")
+        self.subject.attempt = mock.Mock(base=self.base, path=self.base / "attempt")
+        self.active = self.base / "active.json"
+
+    def test_released_terminal_states_wait_for_ownership_cleanup(self):
+        for state in sorted(dc.TERMINAL - {"rollback_failed"}):
+            with self.subTest(state=state):
+                self.subject.read_state = mock.Mock(return_value=state)
+                dc.save(self.active, {"attempt": str(self.subject.attempt.path)})
+
+                def release_after_first_poll(_):
+                    self.active.unlink()
+
+                with mock.patch.object(time, "sleep", side_effect=release_after_first_poll) as sleep:
+                    self.assertEqual(self.subject.terminal(), state)
+                sleep.assert_called_once_with(0.025)
+                self.assertFalse(self.active.exists())
+
+    def test_rollback_failed_returns_with_ownership_retained(self):
+        self.subject.read_state = mock.Mock(return_value="rollback_failed")
+        dc.save(self.active, {"attempt": str(self.subject.attempt.path)})
+        with mock.patch.object(time, "sleep") as sleep:
+            self.assertEqual(self.subject.terminal(), "rollback_failed")
+        sleep.assert_not_called()
+        self.assertTrue(self.active.exists())
+
+    def test_terminal_does_not_wait_for_another_attempts_ownership(self):
+        self.subject.read_state = mock.Mock(return_value="rolled_back")
+        dc.save(self.active, {"attempt": str(self.base / "another-attempt")})
+        with mock.patch.object(time, "sleep") as sleep:
+            self.assertEqual(self.subject.terminal(), "rolled_back")
+        sleep.assert_not_called()
+        self.assertTrue(self.active.exists())
+
+    def test_terminal_observes_ownership_under_the_writer_gate(self):
+        self.subject.read_state = mock.Mock(return_value="rolled_back")
+        dc.save(self.active, {"attempt": str(self.base / "another-attempt")})
+        gate_held = {"value": False}
+        original_read_json = dc.read_json
+
+        def read_while_locked(path):
+            self.assertTrue(gate_held["value"], "ownership reads must share the cleanup writer's gate")
+            return original_read_json(path)
+
+        with mock.patch.object(dc, "gate") as acquire, \
+                mock.patch.object(dc, "read_json", side_effect=read_while_locked):
+            acquire.return_value.__enter__.side_effect = lambda: gate_held.update(value=True)
+            acquire.return_value.__exit__.side_effect = lambda *_: gate_held.update(value=False)
+            self.assertEqual(self.subject.terminal(), "rolled_back")
+        acquire.assert_called_once_with(self.base / "ownership.lock")
+        self.assertFalse(gate_held["value"])
 
 
 if __name__ == "__main__":

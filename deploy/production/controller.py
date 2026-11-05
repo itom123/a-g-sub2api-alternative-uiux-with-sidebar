@@ -302,6 +302,8 @@ class Attempt:
             if lock.exists() and read_json(lock).get("attempt") == str(self.path):
                 lock.unlink()
                 sync_dir(self.base)
+            # Report the global lock separately: another attempt may own it.
+            return {"host_lock_held": lock.exists(), "attempt_lock_held": False}
 
     def binary(self):
         return self.root / "bin" / "sub2api"
@@ -729,7 +731,21 @@ def ensure_watchdog(a):
     with gate(a.path / "watchdog-supervisor.lock"):
         state = read_json(a.path / "state.json")["state"]
         if state in TERMINAL:
-            return {"attempt": str(a.path), "state": state, "watchdog_started": False}
+            ownership = {}
+            if state in {"committed", "rolled_back"}:
+                # A crash can persist successful completion before releasing its
+                # host lock. Finish only that bookkeeping, never replay work or
+                # revive a runner after its durable decision.
+                with gate(a.path / "mutation.lock"):
+                    state = read_json(a.path / "state.json")["state"]
+                    expected = {"committed": "committed", "rolled_back": "rollback"}.get(state)
+                    if expected is None:
+                        raise Failure("successful terminal state changed before ownership cleanup")
+                    decision = a.decision()
+                    if not isinstance(decision, dict) or decision.get("decision") != expected:
+                        raise Failure("successful terminal state lacks its matching durable decision")
+                    ownership = a.release_lock()
+            return {"attempt": str(a.path), "state": state, "watchdog_started": False, **ownership}
         active = a.base / "active.json"
         if not active.exists() or read_json(active).get("attempt") != str(a.path):
             raise Failure("recovery supervision requires this attempt's active host lock")
