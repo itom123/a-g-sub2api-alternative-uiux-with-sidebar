@@ -215,9 +215,14 @@ describe('KeyUsageView daily detail', () => {
 
     await vi.advanceTimersByTimeAsync(55)
     await nextTick()
-    const meter = wrapper.get('circle.progress-ring')
-    const perimeter = 2 * Math.PI * Number(meter.attributes('r'))
-    expect(Number(meter.attributes('stroke-dasharray'))).toBeCloseTo(perimeter, 1)
+    // Right-angle frame (no round arc): 136px sides inside a 160px box, starting at 12 o'clock.
+    expect(wrapper.find('circle.progress-ring').exists()).toBe(false)
+    const meter = wrapper.get('path.progress-ring')
+    expect(meter.attributes('d')).toBe('M80 12H148V148H12V12Z')
+    expect(meter.attributes('stroke-linejoin')).toBe('miter')
+    expect(meter.attributes('stroke-linecap')).toBe('butt')
+    const perimeter = 4 * 136
+    expect(Number(meter.attributes('stroke-dasharray'))).toBe(perimeter)
     expect(Number(meter.attributes('stroke-dashoffset'))).toBeCloseTo(perimeter * 0.9, 1)
 
     wrapper.unmount()

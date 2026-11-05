@@ -149,4 +149,14 @@ describe('admin AccountsView priority column preferences', () => {
     )
     expect(JSON.parse(localStorage.getItem('account-hidden-columns') || '[]')).not.toContain('priority')
   })
+
+  it('keeps one refresh glyph in the toolbar: auto refresh uses a timer glyph', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    const toggle = wrapper.get('[data-testid="account-auto-refresh-toggle"]')
+    const names = toggle.findAll('icon-stub').map(icon => icon.attributes('name'))
+    expect(names).toEqual(['clock'])
+    wrapper.unmount()
+  })
 })
