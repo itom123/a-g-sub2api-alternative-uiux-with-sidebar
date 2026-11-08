@@ -7,7 +7,7 @@ import AppHeader from '../AppHeader.vue'
 const state = vi.hoisted(() => ({
   enabled: true,
   user: { username: 'Studio customer', email: 'customer@example.invalid', role: 'user', balance: 0, frozen_balance: 0, avatar_url: '' },
-  replay: vi.fn(), logout: vi.fn(), push: vi.fn()
+  logout: vi.fn(), push: vi.fn()
 }))
 vi.mock('@vueuse/core', () => ({ useMediaQuery: () => ref(false) }))
 vi.mock('vue-i18n', async (importOriginal) => ({ ...await importOriginal<typeof import('vue-i18n')>(), useI18n: () => ({ t: (key: string) => key }) }))
@@ -17,8 +17,7 @@ vi.mock('vue-router', () => ({
 }))
 vi.mock('@/stores', () => ({
   useAppStore: () => ({ sidebarCollapsed: false, mobileOpen: false, siteLogo: '', contactInfo: '', docUrl: '', cachedPublicSettings: { subscription_enabled: state.enabled }, toggleSidebar: vi.fn(), toggleMobileSidebar: vi.fn() }),
-  useAuthStore: () => ({ user: state.user, isAdmin: false, isSimpleMode: false, logout: state.logout }),
-  useOnboardingStore: () => ({ replay: state.replay })
+  useAuthStore: () => ({ user: state.user, isAdmin: false, isSimpleMode: false, logout: state.logout })
 }))
 vi.mock('@/stores/adminSettings', () => ({ useAdminSettingsStore: () => ({ customMenuItems: [] }) }))
 vi.mock('@/utils/featureFlags', () => ({ FeatureFlags: { subscription: 'subscription', modelPlaza: 'modelPlaza' }, isFeatureFlagEnabled: (flag: string) => flag === 'subscription' && state.enabled }))

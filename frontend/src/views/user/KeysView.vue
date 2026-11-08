@@ -87,7 +87,7 @@
               </button>
             </div>
           </div>
-          <button @click="showCreateModal = true" class="btn btn-primary" data-tour="keys-create-btn">
+          <button @click="showCreateModal = true" class="btn btn-primary" data-testid="keys-create-btn">
             <Icon name="plus" size="md" class="mr-2" />
             {{ t('keys.createKey') }}
           </button>
@@ -475,11 +475,11 @@
             required
             class="input"
             :placeholder="t('keys.namePlaceholder')"
-            data-tour="key-form-name"
+            data-testid="key-form-name"
           />
         </div>
 
-        <fieldset v-if="!showEditModal" data-tour="key-form-provider">
+        <fieldset v-if="!showEditModal" data-testid="key-form-provider">
           <legend class="input-label">{{ t('keys.providerLabel') }}</legend>
           <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <label
@@ -540,7 +540,7 @@
             :searchable="true"
             :search-placeholder="t('keys.searchGroup')"
             :disabled="showEditModal && selectedKey !== null && isManagedOpenClawKey(selectedKey)"
-            data-tour="key-form-group"
+            data-testid="key-form-group"
           >
             <template #selected="{ option }">
               <GroupBadge
@@ -986,7 +986,6 @@
             type="submit"
             :disabled="submitting"
             class="btn btn-primary"
-            data-tour="key-form-submit"
           >
             <svg
               v-if="submitting"
@@ -1206,7 +1205,6 @@ import { cnyNumber } from '@/utils/currency'
 	import { ref, reactive, computed, watch, onMounted, onUnmounted, type ComponentPublicInstance } from 'vue'
 	import { useI18n } from 'vue-i18n'
 	import { useAppStore } from '@/stores/app'
-	import { useOnboardingStore } from '@/stores/onboarding'
 	import { useClipboard } from '@/composables/useClipboard'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 
@@ -1235,6 +1233,7 @@ import { formatDateTime } from '@/utils/format'
 import { maskApiKey } from '@/utils/maskApiKey'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import { platformBadgeLightClass } from '@/utils/platformColors'
+import { DEFAULT_SITE_NAME } from '@/utils/branding'
 import { KEY_GROUP_PROVIDERS, KEY_GROUP_PROVIDER_ICONS, getKeyGroupProvider, type KeyGroupProvider } from '@/utils/keyGroupProviders'
 import {
   CC_SWITCH_USAGE_SCRIPT,
@@ -1264,7 +1263,6 @@ interface GroupOption {
 }
 
 const appStore = useAppStore()
-const onboardingStore = useOnboardingStore()
 const { copyToClipboard: clipboardCopy } = useClipboard()
 
 const allColumns = computed<Column[]>(() => [
@@ -1893,17 +1891,12 @@ const handleSubmit = async () => {
         rateLimitData
       )
       appStore.showSuccess(t('keys.keyCreatedSuccess'))
-      // Only advance tour if active, on submit step, and creation succeeded
-      if (onboardingStore.isCurrentStep('[data-tour="key-form-submit"]')) {
-        onboardingStore.nextStep(500)
-      }
     }
     closeModals()
     loadApiKeys()
   } catch (error: any) {
     const errorMsg = error.response?.data?.detail || t('keys.failedToSave')
     appStore.showError(errorMsg)
-    // Don't advance tour on error
   } finally {
     submitting.value = false
   }
@@ -2038,7 +2031,7 @@ const executeCcsImport = (row: ApiKey, clientType: CcSwitchClientType) => {
   const platform = row.group?.platform || 'anthropic'
 
   const usageScript = CC_SWITCH_USAGE_SCRIPT
-  const providerName = (publicSettings.value?.site_name || 'sub2api').trim() || 'sub2api'
+  const providerName = (publicSettings.value?.site_name || DEFAULT_SITE_NAME).trim() || DEFAULT_SITE_NAME
   const deeplink = buildCcSwitchImportDeeplink({
     baseUrl,
     platform,

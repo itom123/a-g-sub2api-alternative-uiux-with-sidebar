@@ -289,11 +289,14 @@ func parseAuditLogRetentionDays(value string) int {
 	return n
 }
 
+// DefaultSiteName is the site name used until an administrator sets one.
+const DefaultSiteName = "AG_>"
+
 // GetSiteName 获取网站名称
 func (s *SettingService) GetSiteName(ctx context.Context) string {
 	value, err := s.settingRepo.GetValue(ctx, SettingKeySiteName)
 	if err != nil || value == "" {
-		return "Sub2API"
+		return DefaultSiteName
 	}
 	return value
 }

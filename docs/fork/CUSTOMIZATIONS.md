@@ -79,6 +79,25 @@ pass (`GO_GUARD_FILES` and the frontend spec list in `tools/fork-guard.sh`).
 
 ---
 
+## 7. No onboarding tutorial and no upstream branding
+
+**What it does.** The upstream first-use tutorial (driver.js tour) is removed, and nothing a user or admin sees
+says "Sub2API": UI text, site-name fallbacks (`AG_>`), emails, TOTP issuer (follows the site name), passkey display
+name, payment subjects, Codex model descriptions, copied client configs (`AG_API_KEY`, provider `ag`), and the admin
+compliance commitment (now served in-app at `/legal/admin-compliance`). Upstream GitHub links and the upstream proxy
+advert are gone.
+
+**Deliberately unchanged** (machine identifiers; renaming them breaks deployments, stored data or interop): the Go
+module path, database and table names, Redis keys, browser storage keys, the `/v1/sub2api/billing` relay protocol,
+the plugin package format, the `sub2api-admin` WebSocket subprotocol, import/export format names, env var names, and
+the Docker image and binary names.
+
+**When merging upstream:** drop any re-added tour files, `driver.js`, `data-tour` attributes and `ProxyAdBanner`;
+reword new "Sub2API" strings in the zh/en locales and `docs/legal`. `fork-guard` checks the files stay deleted and
+that the locales and legal docs contain no "Sub2API".
+
+---
+
 ## Production is built from `main` only
 
 Every production deploy must be built from a commit on `main`, with this guard green. Never deploy a locally built

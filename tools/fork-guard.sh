@@ -94,6 +94,18 @@ for f in 	backend/internal/service/payment_session_cancel.go 	backend/internal/s
 	if [[ -f "$f" ]]; then ok "present: $f"; else fail "fork-owned file present: $f"; fi
 done
 
+# 7. No upstream tutorial or branding (docs/fork/CUSTOMIZATIONS.md, section 7).
+for f in frontend/src/composables/useOnboardingTour.ts frontend/src/stores/onboarding.ts frontend/src/components/Guide frontend/src/styles/onboarding.css frontend/src/components/common/ProxyAdBanner.vue; do
+	if [[ -e "$f" ]]; then fail "tutorial and upstream ad removed ($f is back)"; else ok "absent: $f"; fi
+done
+if grep -qF '"driver.js"' frontend/package.json; then fail "tutorial dependency driver.js removed"; else ok "no driver.js dependency"; fi
+for d in frontend/src/i18n/locales docs/legal; do
+	hits="$(grep -rli 'sub2api' "$d" 2>/dev/null || true)"
+	if [[ -n "$hits" ]]; then fail "no Sub2API wording in $d ($(echo $hits))"; else ok "no Sub2API wording in $d"; fi
+done
+require_text backend/internal/service/setting_features.go 'DefaultSiteName = "AG_>"' "default site name is AG_>"
+require_text frontend/src/utils/branding.ts "DEFAULT_SITE_NAME = 'AG_>'" "frontend default site name is AG_>"
+
 if [[ "${1:-}" == "--static-only" ]]; then
 	echo
 else
