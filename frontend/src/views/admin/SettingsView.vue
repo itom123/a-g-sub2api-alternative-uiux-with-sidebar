@@ -7680,15 +7680,6 @@
               </h2>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {{ t("admin.settings.payment.description") }}
-                <a
-                  :href="paymentGuideHref"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="ml-2 inline-flex items-center text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
-                >
-                  <Icon name="externalLink" size="compact" class="mr-0.5" :stroke-width="2" />
-                  {{ t("admin.settings.payment.configGuide") }}
-                </a>
               </p>
             </div>
             <div class="space-y-4 p-6">
@@ -7715,7 +7706,7 @@
                       v-model="form.payment_product_name_prefix"
                       type="text"
                       class="input"
-                      placeholder="Sub2API"
+                      placeholder="AG"
                     />
                   </div>
                   <div>
@@ -7736,11 +7727,7 @@
                     <div
                       class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-300"
                     >
-                      {{
-                        (form.payment_product_name_prefix || "Sub2API") +
-                        " 100 " +
-                        (form.payment_product_name_suffix || "CNY")
-                      }}
+                      {{ paymentSubjectPreview }}
                     </div>
                   </div>
                 </div>
@@ -8078,7 +8065,7 @@
                     </div>
                   </div>
                 </div>
-                <!-- Row 4: Enabled payment types (provider badges like sub2apipay) -->
+                <!-- Row 4: Enabled payment types (provider badges) -->
                 <div>
                   <label class="input-label">{{
                     t("admin.settings.payment.enabledPaymentTypes")
@@ -8101,15 +8088,6 @@
                   </div>
                   <p class="mt-2 text-xs text-gray-400 dark:text-gray-500">
                     {{ t("admin.settings.payment.enabledPaymentTypesHint") }}
-                    <a
-                      :href="paymentMethodsHref"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      class="ml-1 text-primary-500 hover:text-primary-600 dark:text-primary-400 dark:hover:text-primary-300"
-                    >
-                      {{ t("admin.settings.payment.findProvider") }}
-                      <Icon name="externalLink" size="xs" class="mb-0.5 ml-0.5 inline" :stroke-width="2" />
-                    </a>
                   </p>
                 </div>
                 <!-- Row 5: Help image + text -->
@@ -8755,6 +8733,7 @@ import { affiliatesAPI, type AffiliateAdminEntry, type SimpleUser as AffiliateSi
 import { extractApiErrorMessage, extractI18nErrorMessage } from "@/utils/apiError";
 import { useAppStore } from "@/stores";
 import { useAdminSettingsStore } from "@/stores/adminSettings";
+import { DEFAULT_SITE_NAME } from "@/utils/branding";
 import { normalizeVisibleMethod } from "@/components/payment/paymentFlow";
 import {
   isRegistrationEmailSuffixDomainValid,
@@ -8779,18 +8758,6 @@ const isZhLocale = computed(() => locale.value.startsWith("zh"));
 function localText(zh: string, en: string): string {
   return isZhLocale.value ? zh : en;
 }
-
-const paymentGuideHref = computed(() =>
-  locale.value.startsWith("zh")
-    ? "https://github.com/Wei-Shaw/sub2api/blob/main/docs/PAYMENT_CN.md"
-    : "https://github.com/Wei-Shaw/sub2api/blob/main/docs/PAYMENT.md",
-);
-
-const paymentMethodsHref = computed(() =>
-  locale.value.startsWith("zh")
-    ? "https://github.com/Wei-Shaw/sub2api/blob/main/docs/PAYMENT_CN.md#支持的支付方式"
-    : "https://github.com/Wei-Shaw/sub2api/blob/main/docs/PAYMENT.md#supported-payment-methods",
-);
 
 type SettingsTab =
   | "general"
@@ -9528,7 +9495,7 @@ const form = reactive<SettingsForm>({
   default_subscriptions: [],
   force_email_on_third_party_signup: false,
   default_user_rpm_limit: 0,
-  site_name: "Sub2API",
+  site_name: DEFAULT_SITE_NAME,
   site_logo: "",
   site_subtitle: "Subscription to API Conversion Platform",
   api_base_url: "",
@@ -9791,6 +9758,14 @@ const form = reactive<SettingsForm>({
   affiliate_enabled: false,
   // Allow user view error requests
   allow_user_view_error_requests: false,
+});
+
+// Mirrors the server's payment subject for a 100 CNY top-up (buildPaymentSubject).
+const paymentSubjectPreview = computed(() => {
+  const prefix = (form.payment_product_name_prefix || "").trim();
+  const suffix = (form.payment_product_name_suffix || "").trim();
+  if (!prefix && !suffix) return "AG 100 CNY";
+  return [prefix, "100", suffix].filter(Boolean).join(" ");
 });
 
 // 人机验证 UI 状态：单卡片「总开关 + 服务商单选」，落库仍是三个独立

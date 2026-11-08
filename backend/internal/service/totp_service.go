@@ -93,7 +93,6 @@ const (
 	totpLoginTTL    = 5 * time.Minute
 	totpAttemptsTTL = 15 * time.Minute
 	maxTotpAttempts = 5
-	totpIssuer      = "Sub2API"
 )
 
 // TotpService handles TOTP operations
@@ -190,7 +189,7 @@ func (s *TotpService) InitiateSetup(ctx context.Context, userID int64, emailCode
 
 	// Generate a new TOTP key
 	key, err := totp.Generate(totp.GenerateOpts{
-		Issuer:      totpIssuer,
+		Issuer:      s.settingService.GetSiteName(ctx),
 		AccountName: user.Email,
 	})
 	if err != nil {

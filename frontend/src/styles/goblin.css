@@ -41,7 +41,7 @@ html.dark { --ag-paper: #000000; --ag-ink: #ffffff; --ag-paper-rgb: 0 0 0; --ag-
 }
 /* Selected text inverts the local paper/ink pair, so it never merges into the surface: ink fill on paper, paper fill on ink. */
 :root body { --ag-select-fill: var(--ag-ink); --ag-select-text: var(--ag-paper); }
-:root body :is(.btn-primary, .btn-danger, .btn-success, .btn-warning, .tab-active, .tabs .active, .chip-tinted-active, .switch-active, [role="switch"][aria-checked="true"], [aria-pressed="true"]:not(.ag-theme-toggle), .select-option-selected, [class~="bg-primary-500"], [class~="bg-primary-600"], [class*="bg-gradient"][class~="text-white"], button[class~="bg-blue-500"], [role="tab"][aria-selected="true"], [role="radio"][aria-checked="true"], .ag-status-warning, .ag-status-critical, .ag-switch[aria-checked="true"], .ag-help-tooltip, .ag-chart-tooltip, .model-icon-fallback, .date-picker-preset-active, .driver-popover-next-btn, .ag-usage-reset-action:not(:disabled)) { --ag-select-fill: var(--ag-paper); --ag-select-text: var(--ag-ink); }
+:root body :is(.btn-primary, .btn-danger, .btn-success, .btn-warning, .tab-active, .tabs .active, .chip-tinted-active, .switch-active, [role="switch"][aria-checked="true"], [aria-pressed="true"]:not(.ag-theme-toggle), .select-option-selected, [class~="bg-primary-500"], [class~="bg-primary-600"], [class*="bg-gradient"][class~="text-white"], button[class~="bg-blue-500"], [role="tab"][aria-selected="true"], [role="radio"][aria-checked="true"], .ag-status-warning, .ag-status-critical, .ag-switch[aria-checked="true"], .ag-help-tooltip, .ag-chart-tooltip, .model-icon-fallback, .date-picker-preset-active, .ag-usage-reset-action:not(:disabled)) { --ag-select-fill: var(--ag-paper); --ag-select-text: var(--ag-ink); }
 :root body ::selection { background: var(--ag-select-fill); color: var(--ag-select-text); -webkit-text-fill-color: var(--ag-select-text); }
 :root body :is(.btn-primary, .btn-danger, .btn-success, .btn-warning, .tab-active, .tabs .active, .chip-tinted-active, .switch-active, [role="switch"][aria-checked="true"], [aria-pressed="true"]:not(.ag-theme-toggle), .select-option-selected, [class~="bg-primary-500"], [class~="bg-primary-600"], [class*="bg-gradient"][class~="text-white"], button[class~="bg-blue-500"]) * { color: inherit !important; }
 :root body .switch-thumb, :root body .switch-active .switch-thumb { background: var(--ag-paper) !important; border: 1px solid var(--ag-ink); }
@@ -219,9 +219,9 @@ html.dark { --ag-paper: #000000; --ag-ink: #ffffff; --ag-paper-rgb: 0 0 0; --ag-
 .ag-choice[aria-pressed="true"]::after { content: ''; position: absolute; inset: 0; border: 2px solid var(--ag-ink) !important; pointer-events: none; }
 :root body .ag-choice[aria-pressed="true"]::before { content: '✓'; position: absolute; right: 6px; top: 3px; color: var(--ag-ink) !important; font-size: 12px; }
 :root body .ag-choice:hover:not([aria-pressed="true"]) { outline: 2px solid var(--ag-ink); outline-offset: -3px; }
-[data-tour="account-form-platform"] { display: grid !important; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 8px; padding: 0 !important; }
-:root body [data-tour="account-form-platform"] > div { display: contents !important; }
-[data-tour="account-form-platform"] .ag-choice { padding: 12px 28px 12px 12px; }
+.ag-platform-grid { display: grid !important; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 8px; padding: 0 !important; }
+:root body .ag-platform-grid > div { display: contents !important; }
+.ag-platform-grid .ag-choice { padding: 12px 28px 12px 12px; }
 :root body .ag-switch { min-height: 30px; padding: 4px 8px; border: 1px solid var(--ag-rule); background: var(--ag-paper) !important; color: var(--ag-ink) !important; font-size: 12px; white-space: nowrap; }
 :root body .ag-switch > span { background: transparent !important; border: 0; color: inherit !important; }
 :root body .ag-switch[aria-checked="true"] { background: var(--ag-ink) !important; color: var(--ag-paper) !important; }
@@ -281,17 +281,6 @@ html.dark { --ag-paper: #000000; --ag-ink: #ffffff; --ag-paper-rgb: 0 0 0; --ag-
 :root body button > span.pointer-events-none.inline-block.bg-white { background: var(--ag-ink) !important; }
 :root body button:has(> span.pointer-events-none.inline-block.bg-white:is(.translate-x-4, .translate-x-5)) { background: var(--ag-ink) !important; }
 :root body button > span.pointer-events-none.inline-block.bg-white:is(.translate-x-4, .translate-x-5) { background: var(--ag-paper) !important; }
-/* The first-use tour shares the same surfaces and controls as the application. */
-:root body .driver-popover.theme-tour-popover { background: var(--ag-paper) !important; color: var(--ag-ink) !important; border: 1px solid var(--ag-rule) !important; border-radius: 0 !important; box-shadow: none !important; font-family: var(--ag-font) !important; filter: grayscale(1); }
-:root body .driver-popover.theme-tour-popover * { color: var(--ag-ink) !important; border-color: var(--ag-rule) !important; border-radius: 0 !important; box-shadow: none !important; font-family: var(--ag-font) !important; }
-:root body .driver-popover.theme-tour-popover :is(.driver-popover-footer, button, kbd) { background: var(--ag-paper) !important; }
-:root body .driver-popover.theme-tour-popover .driver-popover-next-btn { background: var(--ag-ink) !important; color: var(--ag-paper) !important; border: 1px solid var(--ag-rule) !important; }
-:root body .driver-popover.theme-tour-popover .driver-popover-next-btn * { color: inherit !important; }
-:root body .driver-popover.theme-tour-popover .driver-popover-arrow { border-color: var(--ag-paper) !important; }
-:root body .driver-active-element { outline: 2px solid var(--ag-ink) !important; }
-:root body .driver-popover.theme-tour-popover .driver-popover-footer { flex-wrap: wrap !important; gap: 12px !important; }
-:root body .driver-popover.theme-tour-popover :is(.footer-left, .footer-right) { flex-wrap: wrap !important; max-width: 100%; }
-@media (max-width: 640px) { :root body .driver-popover.theme-tour-popover .footer-shortcuts { display: none !important; } }
 
 /* Usage windows distinguish read-only measurements from credit-spending actions. */
 .ag-account-usage { width: 360px; max-width: 100%; min-width: 280px; white-space: normal; font-size: 13px; line-height: 1.5; }

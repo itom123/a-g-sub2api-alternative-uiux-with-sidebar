@@ -20,7 +20,7 @@ const server = await createServer({
       })
     },
     transformIndexHtml(html) {
-      const init = `window.__APP_CONFIG__=${JSON.stringify(settings)};localStorage.setItem('auth_token','theme-fixture-token');localStorage.setItem('auth_user',${JSON.stringify(JSON.stringify(user))});localStorage.setItem('sub2api_locale','zh');localStorage.setItem('user_guide_42_user_v4_interactive','true');localStorage.setItem('admin_guide_42_admin_v4_interactive','true');`
+      const init = `window.__APP_CONFIG__=${JSON.stringify(settings)};localStorage.setItem('auth_token','theme-fixture-token');localStorage.setItem('auth_user',${JSON.stringify(JSON.stringify(user))});localStorage.setItem('sub2api_locale','zh');`
       return html.replace('</head>', `<script>${init}</script></head>`)
     },
   }],

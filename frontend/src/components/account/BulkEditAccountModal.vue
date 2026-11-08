@@ -1498,7 +1498,7 @@ const allOpenAIAPIKey = computed(() => {
 })
 
 // 上游倍率自动探测已放宽到全部 API-key 平台：只要求所选类型全为 apikey，
-// 平台不限（sub2api 上游即可应答 /v1/sub2api/billing）。
+// 平台不限（兼容的中转上游即可应答计费探测端点）。
 const allBillingProbeCapable = computed(() => {
   return (
     targetSelectedTypes.value.length > 0 &&

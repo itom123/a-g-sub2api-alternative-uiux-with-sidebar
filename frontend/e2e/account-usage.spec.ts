@@ -1,5 +1,5 @@
 import { test, expect, type Page, type Request } from '@playwright/test'
-import { prepare, settings, user, subscriptionFixtures, keyActivityFixture } from './fixtures'
+import { prepare, settings, user, subscriptionFixtures, keyActivityFixture, latestUsageDate } from './fixtures'
 import { assertPairedGeometry } from './paired-trend-geometry'
 
 const ARTIFACT_ROOT = process.env.ART || 'test-results/dashboard-v2'
@@ -364,7 +364,7 @@ test('key ranking sort and drill-down expose daily and model data', async ({ pag
   if (info.project.name !== 'phone') await ranking.getByRole('button', { name: 'Range cost' }).click()
   await ranking.getByRole('button', { name: 'Open details' }).first().click()
   await expect(page.getByTestId('account-key-drilldown')).toBeVisible()
-  await expect(page.getByTestId('key-daily-usage')).toContainText('2026-11-01')
+  await expect(page.getByTestId('key-daily-usage')).toContainText(latestUsageDate)
   await expect(page.getByTestId('key-model-split')).toContainText('fixture-model')
   await assertActualCostVisible(page, info.project.name)
   if (info.project.name === 'phone') {

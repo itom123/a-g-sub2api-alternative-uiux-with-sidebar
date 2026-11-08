@@ -65,13 +65,6 @@ vi.mock('@/stores/auth', () => ({
   useAuthStore: () => authState
 }))
 
-vi.mock('@/stores/onboarding', () => ({
-  useOnboardingStore: () => ({
-    isCurrentStep: vi.fn(() => false),
-    nextStep: vi.fn()
-  })
-}))
-
 vi.mock('vue-i18n', async () => {
   const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
   return {
@@ -342,7 +335,7 @@ describe('GroupsView duplicate action', () => {
     await wrapper.findAll('button').find(button => button.text() === 'common.edit')!.trigger('click')
     await flushPromises()
 
-    const multiplier = wrapper.get('#edit-group-form [data-tour="group-form-multiplier"]')
+    const multiplier = wrapper.get('#edit-group-form [data-testid="group-form-multiplier"]')
     expect(multiplier.attributes('disabled')).toBeUndefined()
     await multiplier.setValue('0.225')
     await wrapper.get('#edit-group-form').trigger('submit')

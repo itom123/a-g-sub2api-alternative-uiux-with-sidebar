@@ -517,7 +517,7 @@ func generateAdminEmail() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to generate admin email: %w", err)
 	}
-	return fmt.Sprintf("admin-%s@sub2api.local", suffix), nil
+	return fmt.Sprintf("admin-%s@ag.local", suffix), nil
 }
 
 func writeConfigFile(cfg *SetupConfig) error {

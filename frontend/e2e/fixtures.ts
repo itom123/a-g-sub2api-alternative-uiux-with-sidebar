@@ -120,6 +120,9 @@ for (const [dayIndex, day] of daySpecs.entries()) {
   }
 }
 
+// UTC date of the newest usage row; every key's daily drill-down includes it.
+export const latestUsageDate = usageRows[0]!.created_at.slice(0, 10)
+
 function summarizeRows(rows: FixtureUsageRow[]) {
   return rows.reduce((summary, row) => ({
     requests: summary.requests + 1,
@@ -346,8 +349,6 @@ export async function prepare(page: Page, theme: 'light' | 'dark', authenticated
           window.sessionStorage.setItem('portal_fixture_theme_seeded', 'true')
         }
         storage.setItem('sub2api_locale', locale)
-        storage.setItem(`admin_guide_${user.id}_admin_v4_interactive`, 'true')
-        storage.setItem(`user_guide_${user.id}_user_v4_interactive`, 'true')
         if (authenticated) {
           storage.setItem('auth_token', 'theme-fixture-token')
           storage.setItem('auth_user', JSON.stringify(user))

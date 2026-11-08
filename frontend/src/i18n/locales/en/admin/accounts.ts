@@ -359,7 +359,7 @@ export default {
         }
       },
       upstreamBilling: {
-        trustWarning: 'This rate is declared by the upstream site for the current API key. Sub2API cannot verify that it matches actual charges. The upstream site or an intermediary may return forged, stale, or modified data. Verify it against bills, balance changes, and actual usage.',
+        trustWarning: 'This rate is declared by the upstream site for the current API key. AG_> cannot verify that it matches actual charges. The upstream site or an intermediary may return forged, stale, or modified data. Verify it against bills, balance changes, and actual usage.',
         autoProbe: 'Automatically probe upstream declared rate',
         autoProbeHint: 'Refresh the upstream declared rate on the global interval. This switch alone does not change the account rate.',
         syncRate: 'Sync upstream declared rate',
@@ -657,7 +657,8 @@ export default {
       upstreamRequestIdHeaderHelp: {
         intro: 'Name of the response header in which the direct upstream declares its request ID. The value is recorded in the "Upstream ID" column of the usage log; leave empty to record nothing.',
         examplesTitle: 'Common values',
-        sub2apiNote: 'Matches the request ID column of its usage log',
+        relayLabel: 'AG_> & compatible relays',
+        relayNote: 'Matches the request ID column of its usage log',
         official: '{platform} official API'
       },
       // OpenAI specific hints
@@ -799,8 +800,8 @@ export default {
         searchTestHint:
           'Standalone web_search probe (same as gateway /v1/web_search). Not a free-form chat with tools.',
         ttsTextLabel: 'TTS text',
-        ttsTextPlaceholder: 'Example: Hello from Sub2API connectivity test.',
-        ttsTextDefault: 'Hello from Sub2API account connectivity test.',
+        ttsTextPlaceholder: 'Example: Hello from AG_> connectivity test.',
+        ttsTextDefault: 'Hello from AG_> account connectivity test.',
         ttsTestHint: 'Standalone /v1/tts with language=en; success reports audio byte size.',
         sttTestHint: 'Standalone /v1/stt with a synthetic silent WAV; success means the endpoint is reachable.',
         realtimeTestHint:
@@ -881,7 +882,7 @@ export default {
       poolMode: 'Pool Mode',
       poolModeHint: 'Enable when upstream is an account pool; errors won\'t mark local account status',
       poolModeInfo:
-        'When enabled, upstream 429/403/401 errors will auto-retry without marking the account as rate-limited or errored. Suitable for upstream pointing to another sub2api instance.',
+        'When enabled, upstream 429/403/401 errors will auto-retry without marking the account as rate-limited or errored. Suitable for upstream pointing to another AG_>-compatible instance.',
       poolModeRetryCount: 'Same-Account Retries',
       poolModeRetryCountHint:
         'Only applies in pool mode. Use 0 to disable in-place retry. Default {default}, maximum {max}.',
