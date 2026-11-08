@@ -120,6 +120,9 @@ for (const [dayIndex, day] of daySpecs.entries()) {
   }
 }
 
+// UTC date of the newest usage row; every key's daily drill-down includes it.
+export const latestUsageDate = usageRows[0]!.created_at.slice(0, 10)
+
 function summarizeRows(rows: FixtureUsageRow[]) {
   return rows.reduce((summary, row) => ({
     requests: summary.requests + 1,
