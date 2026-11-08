@@ -205,7 +205,7 @@ export default {
         }
       },
       upstreamBilling: {
-        trustWarning: '此倍率由上游站点针对当前 API Key 自行声明。本站无法验证该值是否与实际扣费一致；上游站点或中间代理可能返回伪造、过期或被篡改的数据。请结合账单、余额变化和实际用量自行核验。',
+        trustWarning: '此倍率由上游站点针对当前 API Key 自行声明。AG_> 无法验证该值是否与实际扣费一致；上游站点或中间代理可能返回伪造、过期或被篡改的数据。请结合账单、余额变化和实际用量自行核验。',
         autoProbe: '自动探测上游声明倍率',
         autoProbeHint: '启用后按全局周期刷新上游声明倍率；此开关本身不会修改账号倍率。',
         syncRate: '同步上游声明倍率',
@@ -574,7 +574,7 @@ export default {
         claude: 'Claude',
         grokRequests: '请求',
         grokTokens: 'Token',
-        grokFreeQuota24hHint: '按本站近 24 小时本地 Token 用量估算（上限 {limit}）',
+        grokFreeQuota24hHint: '按 AG_> 近 24 小时本地 Token 用量估算（上限 {limit}）',
         grokWeeklyUsage: '周额度已用 {percent}%',
         grokUsed: '已用 ¥',
         grokBalance: '余额 ¥',
@@ -804,7 +804,7 @@ export default {
       upstreamRequestIdHeaderHelp: {
         intro: '填写直接上游在响应头中声明请求标识的头名，记录到用量明细的“上游ID”列；留空则不记录。',
         examplesTitle: '常见取值',
-        relayLabel: '本网关及同类中转',
+        relayLabel: 'AG_> 及兼容中转',
         relayNote: '对应对方用量明细的请求ID列',
         official: '{platform} 官方 API'
       },
@@ -938,8 +938,8 @@ export default {
         searchTestHint:
           '独立网页搜索探测（与网关 /v1/web_search 语义一致），不是带 tools 的自由对话。',
         ttsTextLabel: 'TTS 文本',
-        ttsTextPlaceholder: '例如：Hello from the connectivity test.',
-        ttsTextDefault: 'Hello from the account connectivity test.',
+        ttsTextPlaceholder: '例如：Hello from AG_> connectivity test.',
+        ttsTextDefault: 'Hello from AG_> account connectivity test.',
         ttsTestHint: '独立调用 /v1/tts（language=en）；成功时显示音频字节数。',
         sttTestHint: '独立调用 /v1/stt，使用合成静音 WAV；成功表示接口可达。',
         realtimeTestHint:
@@ -1016,7 +1016,7 @@ export default {
       poolMode: '池模式',
       poolModeHint: '上游为账号池时启用，错误不标记本地账号状态',
       poolModeInfo:
-        '启用后，上游 429/403/401 错误将自动重试而不标记账号限流或错误，适用于上游是另一个中转网关的场景。',
+        '启用后，上游 429/403/401 错误将自动重试而不标记账号限流或错误，适用于上游指向另一个 AG_> 兼容实例的场景。',
       poolModeRetryCount: '同账号重试次数',
       poolModeRetryCountHint: '仅在池模式下生效。0 表示不原地重试；默认 {default}，最大 {max}。',
       poolModeRetryStatusCodes: '同账号重试状态码',

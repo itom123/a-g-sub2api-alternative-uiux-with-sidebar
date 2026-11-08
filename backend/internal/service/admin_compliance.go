@@ -20,8 +20,8 @@ const (
 	// The console serves both language versions at this in-app page.
 	AdminComplianceDocumentURLZH = "/legal/admin-compliance"
 	AdminComplianceDocumentURLEN = "/legal/admin-compliance"
-	AdminComplianceAckPhraseZH   = "我已阅读、理解并同意部署与运营合规承诺"
-	AdminComplianceAckPhraseEN   = "I have read, understood, and agree to the Deployment and Operation Compliance Commitment"
+	AdminComplianceAckPhraseZH   = "我已阅读、理解并同意 AG_> 部署与运营合规承诺"
+	AdminComplianceAckPhraseEN   = "I have read, understood, and agree to the AG_> Deployment and Operation Compliance Commitment"
 
 	settingKeyAdminComplianceAcknowledgement = "admin_compliance_acknowledgement"
 )

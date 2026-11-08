@@ -45,7 +45,7 @@ func RunCLI() error {
 
 	fmt.Println()
 	fmt.Println("╔═══════════════════════════════════════════╗")
-	fmt.Println("║           Installation Wizard             ║")
+	fmt.Println("║         AG_> Installation Wizard          ║")
 	fmt.Println("╚═══════════════════════════════════════════╝")
 	fmt.Println()
 

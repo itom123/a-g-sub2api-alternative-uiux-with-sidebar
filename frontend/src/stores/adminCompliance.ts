@@ -3,8 +3,8 @@ import { computed, ref } from 'vue'
 import adminComplianceAPI, { type AdminComplianceStatus } from '@/api/admin/compliance'
 import { getLocale } from '@/i18n'
 
-const FALLBACK_ZH_PHRASE = '我已阅读、理解并同意部署与运营合规承诺'
-const FALLBACK_EN_PHRASE = 'I have read, understood, and agree to the Deployment and Operation Compliance Commitment'
+const FALLBACK_ZH_PHRASE = '我已阅读、理解并同意 AG_> 部署与运营合规承诺'
+const FALLBACK_EN_PHRASE = 'I have read, understood, and agree to the AG_> Deployment and Operation Compliance Commitment'
 // The console serves both language versions of the commitment at this in-app page.
 export const ADMIN_COMPLIANCE_DOCUMENT_URL = '/legal/admin-compliance'
 

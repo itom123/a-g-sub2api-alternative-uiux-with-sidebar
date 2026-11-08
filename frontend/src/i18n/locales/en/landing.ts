@@ -192,8 +192,8 @@ export default {
 
   // Setup Wizard
   setup: {
-    title: 'Setup Wizard',
-    description: 'Configure your instance',
+    title: 'AG_> Setup',
+    description: 'Configure your AG_> instance',
     database: {
       title: 'Database Configuration',
       description: 'Connect to your PostgreSQL database',

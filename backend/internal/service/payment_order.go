@@ -917,11 +917,16 @@ func selectedInstanceSupportedTypes(sel *payment.InstanceSelection) string {
 	return sel.SupportedTypes
 }
 
+// paymentSubjectBrand names the site in default payment subjects. It is the
+// site brand without the "_>" symbols, which some payment providers reject or
+// re-escape in order subjects.
+const paymentSubjectBrand = "AG"
+
 func (s *PaymentService) buildPaymentSubject(plan *dbent.SubscriptionPlan, limitAmount float64, cfg *PaymentConfig, sel *payment.InstanceSelection) string {
 	if plan != nil {
 		productName := plan.ProductName
 		if productName == "" {
-			productName = "Subscription " + plan.Name
+			productName = paymentSubjectBrand + " Subscription " + plan.Name
 		}
 		return applyPaymentProductNameAffix(productName, cfg)
 	}
@@ -933,7 +938,7 @@ func (s *PaymentService) buildPaymentSubject(plan *dbent.SubscriptionPlan, limit
 	if hasPaymentProductNameAffix(cfg) {
 		return applyPaymentProductNameAffix(amountStr, cfg)
 	}
-	return "Top-up " + amountStr + " " + currency
+	return paymentSubjectBrand + " " + amountStr + " " + currency
 }
 
 func hasPaymentProductNameAffix(cfg *PaymentConfig) bool {

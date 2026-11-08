@@ -7706,7 +7706,7 @@
                       v-model="form.payment_product_name_prefix"
                       type="text"
                       class="input"
-                      :placeholder="DEFAULT_SITE_NAME"
+                      placeholder="AG"
                     />
                   </div>
                   <div>
@@ -9764,7 +9764,7 @@ const form = reactive<SettingsForm>({
 const paymentSubjectPreview = computed(() => {
   const prefix = (form.payment_product_name_prefix || "").trim();
   const suffix = (form.payment_product_name_suffix || "").trim();
-  if (!prefix && !suffix) return "Top-up 100 CNY";
+  if (!prefix && !suffix) return "AG 100 CNY";
   return [prefix, "100", suffix].filter(Boolean).join(" ");
 });
 

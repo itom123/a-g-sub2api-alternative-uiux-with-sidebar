@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	typeSafeTestDefaultState    = "Connection test"
+	typeSafeTestDefaultState    = "AG_> connection test"
 	typeSafeTestQuestionID      = "connection_test"
 	typeSafeTestMaxPreviewBytes = 2000
 )
