@@ -64,7 +64,9 @@ func main() {
 	flag.Parse()
 
 	if *showVersion {
-		log.Printf("AG_> %s (commit: %s, built: %s)\n", Version, Commit, Date)
+		// Machine contract: deploy/production (poller, canary, controller) parses this exact
+		// "Sub2API <version> (commit: <sha>," line. Do not rebrand it.
+		log.Printf("Sub2API %s (commit: %s, built: %s)\n", Version, Commit, Date)
 		return
 	}
 

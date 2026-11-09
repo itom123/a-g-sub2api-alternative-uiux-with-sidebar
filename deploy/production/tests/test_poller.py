@@ -309,6 +309,61 @@ class PollerStateTests(unittest.TestCase):
         self.assertEqual(self.worker.once()['state'], 'canary-failed')
         self.assertEqual(self.worker.once()['state'], 'candidate-blocked')
 
+    def _fail_canary_on_every_attempt(self, stage, home, logs):
+        """Run the real cli() with a canary that fails; record each log path it opened."""
+        def run(argv, **kwargs):
+            args = argv[3:]
+            root = Path(args[args.index('--root') + 1])
+            root.mkdir()
+            poller.save(root / 'failure.json', {'status': 'failed'})
+            logs.append(Path(kwargs['stdout'].name))
+            return subprocess.CompletedProcess(argv, 1)
+        return mock.patch.multiple(poller.subprocess, run=mock.DEFAULT), run
+
+    def test_failed_canary_in_the_same_poll_keeps_the_daily_backoff(self):
+        stage = self.state / 'packages' / NEW
+        stage.mkdir(parents=True)
+        home = Path(self.temporary.name) / 'owned-home'
+        home.mkdir()
+        logs = []
+        patch, run = self._fail_canary_on_every_attempt(stage, home, logs)
+        with mock.patch.object(poller.Path, 'home', return_value=home), \
+                mock.patch.object(self.worker, 'stage', return_value=(stage, stage / 'payload', {}, {'archive_sha256': 'd' * 64})), \
+                mock.patch.object(poller, 'verify_baseline', return_value=self.installed), \
+                patch as mocked:
+            mocked['run'].side_effect = run
+            with self.assertRaisesRegex(poller.Failure, 'protected-command-failed'):
+                self.worker.once()
+        operation = poller.read_json(self.worker.operation_path)
+        self.assertEqual(operation['phase'], 'canary_failed')
+        self.assertEqual(operation['retry_after'], 1000 + 86400)
+        self.assertEqual(operation['detail'], 'protected-command-failed')
+
+    def test_retry_after_failed_canary_writes_fresh_logs(self):
+        stage = self.state / 'packages' / NEW
+        stage.mkdir(parents=True)
+        home = Path(self.temporary.name) / 'owned-home'
+        home.mkdir()
+        now = [1000]
+        self.worker.clock = lambda: now[0]
+        logs = []
+        patch, run = self._fail_canary_on_every_attempt(stage, home, logs)
+        with mock.patch.object(poller.Path, 'home', return_value=home), \
+                mock.patch.object(self.worker, 'stage', return_value=(stage, stage / 'payload', {}, {'archive_sha256': 'd' * 64})), \
+                mock.patch.object(poller, 'verify_baseline', return_value=self.installed), \
+                patch as mocked:
+            mocked['run'].side_effect = run
+            with self.assertRaisesRegex(poller.Failure, 'protected-command-failed'):
+                self.worker.once()
+            now[0] += 86400 + 1
+            # A retry of the same candidate must run its canary again, not trip over the
+            # previous attempt's log file.
+            with self.assertRaisesRegex(poller.Failure, 'protected-command-failed'):
+                self.worker.once()
+        self.assertEqual(len(logs), 2)
+        self.assertNotEqual(logs[0], logs[1])
+        self.assertTrue(all(log.parent == stage and log.is_file() for log in logs))
+
     def test_pause_closes_prepared_attempt_without_activation(self):
         root = self.app / 'canary'
         root.mkdir()

@@ -435,7 +435,7 @@ class Poller:
             package = Path(operation['package_root'])
             try:
                 cli(package / 'tools/activate_prepared.py', ['--canary-root', str(root)], timeout=520,
-                    log=Path(operation['stage']) / 'activation.log')
+                    log=Path(operation['stage']) / ('activation-' + root.name + '.log'))
             except Exception:
                 pass
             return self.finish(read_json(self.operation_path))
@@ -478,18 +478,24 @@ class Poller:
                         '--app-root', str(self.app), '--public-base', self.config['public_base'],
                         '--local-base', self.config.get('local_base', 'http://127.0.0.1:8080'),
                         '--env-file', str(self.app / '.env'), '--deadline-seconds', '900']
-                cli(package / 'tools/prepare_canary.py', args, timeout=940, log=stage / 'canary.log')
+                # One log per attempt: a retry of the same candidate must not collide with the
+                # previous attempt's log (cli opens it exclusively).
+                cli(package / 'tools/prepare_canary.py', args, timeout=940, log=stage / ('canary-' + root.name + '.log'))
                 self.operation(phase='prepared')
                 return self.resume(read_json(self.operation_path))
             except Exception as exc:
+                reason = str(exc) if isinstance(exc, Failure) else type(exc).__name__
                 current_op = read_json(self.operation_path)
                 if current_op.get('phase') == 'canary_started':
                     root = Path(current_op['canary_root'])
                     if not root.exists() or (root / 'failure.json').exists():
-                        self.operation(phase='canary_failed', reason='canary-failed', retry_after=self.clock() + 86400)
+                        # Keep the daily backoff and the underlying reason; a failed canary
+                        # must not be retried every 15 minutes under a generic "blocked".
+                        self.operation(phase='canary_failed', reason='canary-failed', detail=reason,
+                                       retry_after=self.clock() + 86400)
                         current_op = read_json(self.operation_path)
-                if current_op.get('phase') not in ('activation_started', 'activation_pending', 'canary_started', 'prepared'):
-                    reason = str(exc) if isinstance(exc, Failure) else type(exc).__name__
+                if current_op.get('phase') not in ('activation_started', 'activation_pending', 'canary_started', 'prepared',
+                                                   'canary_failed'):
                     self.operation(phase='blocked', reason=reason, retry_after=self.clock() + 900)
                 raise
 
