@@ -91,7 +91,8 @@ and the upstream proxy advert are gone.
 **Deliberately unchanged** (machine identifiers; renaming them breaks deployments, stored data or interop): the Go
 module path, database and table names, Redis keys, browser storage keys, the `/v1/sub2api/billing` relay protocol,
 the plugin package format, the `sub2api-admin` WebSocket subprotocol, import/export format names, env var names,
-the Docker image and binary names, and the OpenClaw provider ID `sub2api` (a config key inside live tenant
+the Docker image and binary names, the `--version` output (`Sub2API <version> (commit: <sha>, …)`, parsed by
+`deploy/production`), and the OpenClaw provider ID `sub2api` (a config key inside live tenant
 workspaces; renaming it needs a migration of those workspaces).
 
 **When merging upstream:** drop any re-added tour files, `driver.js`, `data-tour` attributes and `ProxyAdBanner`;

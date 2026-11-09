@@ -105,6 +105,8 @@ for d in frontend/src/i18n/locales docs/legal; do
 done
 require_text backend/internal/service/setting_features.go 'DefaultSiteName = "AG_>"' "default site name is AG_>"
 require_text frontend/src/utils/branding.ts "DEFAULT_SITE_NAME = 'AG_>'" "frontend default site name is AG_>"
+# The deploy tooling parses the binary's --version line; it must keep the upstream format.
+require_text backend/cmd/server/main.go 'log.Printf("Sub2API %s (commit: %s, built: %s)' "binary --version keeps the format deploy/production parses"
 
 if [[ "${1:-}" == "--static-only" ]]; then
 	echo
