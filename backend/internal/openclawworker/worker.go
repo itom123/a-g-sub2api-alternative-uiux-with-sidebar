@@ -203,14 +203,21 @@ func (w *Worker) configure(ctx context.Context, tenant string, mapping modelMapp
 	if len(strings.TrimSpace(mapping.APIKey)) < 20 || len(mapping.Models) == 0 {
 		return errors.New("invalid model mapping")
 	}
-	models := make([]map[string]string, 0, len(mapping.Models))
+	models := make([]map[string]any, 0, len(mapping.Models))
 	for _, model := range mapping.Models {
 		alias := strings.TrimSpace(model.Alias)
 		modelID := strings.TrimSpace(model.Model)
 		if alias == "" || modelID == "" || len([]rune(alias)) > 100 || len([]rune(modelID)) > 200 {
 			return errors.New("invalid model alias")
 		}
-		models = append(models, map[string]string{"id": modelID, "name": alias})
+		models = append(models, map[string]any{
+			"id":   modelID,
+			"name": alias,
+			// OpenClaw only sends prompt_cache_key to api.openai.com by default.
+			// Without it, OAuth upstreams behind sub2api get no cache affinity and
+			// each turn re-reads the whole context.
+			"compat": map[string]any{"supportsPromptCacheKey": true},
+		})
 	}
 	defaultModel := strings.TrimSpace(mapping.DefaultModel)
 	if defaultModel == "" {
