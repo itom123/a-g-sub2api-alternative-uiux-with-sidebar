@@ -1,5 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
+import QRCode from 'qrcode'
 import { prepare } from './fixtures'
+import { WECHAT_QR_OPTIONS } from '../src/views/user/wechatQr'
 
 // Renders the real WeChat connect dialog with synthetic OpenClaw API data. Screenshots go to
 // WECHAT_SHOT_DIR (default: test-results via the test output path). Run with --project=desktop;
@@ -66,13 +68,34 @@ for (const shot of shots) {
       await primary.click()
       const qr = dialog.locator('img.wechat-qr-img')
       await expect(qr).toBeVisible()
-      await expect(primary).toBeDisabled()
+      await expect(dialog.getByTestId('wechat-waiting')).toBeVisible()
+      await expect(dialog.locator('.dialog-actions .btn-primary')).toHaveCount(0)
+      // The action row stays on one line.
+      const tops = await dialog.locator('.dialog-actions button').evaluateAll(els => els.map(e => Math.round(e.getBoundingClientRect().top)))
+      expect(new Set(tops).size).toBe(1)
       const suffix = `${shot.theme}-${shot.width}.png`
       const out = (name: string) => dir ? `${dir}/${name}` : info.outputPath(name)
       await page.screenshot({ path: out(locale === 'zh' ? `A-zh-${suffix}` : `A-${suffix}`) })
       if (locale === 'en') {
         const src = await qr.getAttribute('src')
         expect(src).toMatch(/^data:image\//)
+        // Deterministic: the rendered QR is exactly the QR of the mocked URL, generated with the component's options.
+        // The browser build of qrcode encodes the PNG through <canvas>, the Node build through pngjs, so the
+        // two data URLs differ byte-wise; the decoded pixels must be identical.
+        const expected = await QRCode.toDataURL(SETUP_URL, WECHAT_QR_OPTIONS)
+        const pixels = await page.evaluate(async ([actual, wanted]) => {
+          const load = async (data: string) => {
+            const img = new Image(); img.src = data; await img.decode()
+            const canvas = document.createElement('canvas'); canvas.width = img.naturalWidth; canvas.height = img.naturalHeight
+            const ctx = canvas.getContext('2d')!; ctx.drawImage(img, 0, 0)
+            return { w: canvas.width, h: canvas.height, data: ctx.getImageData(0, 0, canvas.width, canvas.height).data }
+          }
+          const [x, y] = [await load(actual), await load(wanted)]
+          let diff = 0
+          for (let i = 0; i < x.data.length; i++) if (x.data[i] !== y.data[i]) diff++
+          return { sameSize: x.w === y.w && x.h === y.h, w: x.w, diff }
+        }, [src!, expected])
+        expect(pixels).toEqual({ sameSize: true, w: pixels.w, diff: 0 })
         const decoded = await page.evaluate(async (data) => {
           const Detector = (window as unknown as { BarcodeDetector?: new (o: object) => { detect(i: ImageBitmapSource): Promise<{ rawValue: string }[]> } }).BarcodeDetector
           if (!Detector) return null

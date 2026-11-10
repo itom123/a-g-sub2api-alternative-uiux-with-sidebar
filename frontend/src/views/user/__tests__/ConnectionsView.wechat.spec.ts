@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { OpenClawConnection, OpenClawConnectionKindInfo, OpenClawInstance } from '@/api/openclaw'
 import ConnectionsView from '../ConnectionsView.vue'
+import { WECHAT_QR_OPTIONS } from '../wechatQr'
 
 const api = vi.hoisted(() => ({
   lifecycle: vi.fn(), dashboard: vi.fn(), kinds: vi.fn(), connections: vi.fn(),
@@ -76,7 +77,7 @@ describe('WeChat connect dialog', () => {
     const wrapper = await render([conn({ setup_url: URL_A, setup_key: 'k1' })])
     api.complete.mockImplementation(() => new Promise(() => {}))
     await open(wrapper)
-    expect(api.qr).toHaveBeenCalledWith(URL_A, expect.objectContaining({ width: 200 }))
+    expect(api.qr).toHaveBeenCalledWith(URL_A, WECHAT_QR_OPTIONS)
     const img = wrapper.get('img.wechat-qr-img')
     expect(img.attributes('alt')).toBe('connections.wechatQrAlt')
     expect(img.attributes('src')).toContain('data:image/png')
@@ -100,11 +101,89 @@ describe('WeChat connect dialog', () => {
     expect(wrapper.get('a.wechat-link').attributes('href')).toBe(URL_A)
   })
 
-  it('shows setup_message whenever present', async () => {
+  it('never renders the raw setup_message', async () => {
     const wrapper = await render([conn({ setup_url: URL_A, setup_key: 'k1', setup_message: 'Scan me / 请扫码' })])
     api.complete.mockImplementation(() => new Promise(() => {}))
     await open(wrapper)
-    expect(wrapper.text()).toContain('Scan me / 请扫码')
+    expect(wrapper.text()).not.toContain('Scan me / 请扫码')
+  })
+
+  it('shows the instructions only while WeChat is not connected', async () => {
+    const wrapper = await render([])
+    await open(wrapper)
+    expect(wrapper.find('.provider-instructions').text()).toBe('connections.wechatSetup')
+    api.create.mockResolvedValue(conn({ setup_url: URL_A, setup_key: 'k1' }))
+    api.complete.mockResolvedValue(conn({ status: 'connected' }))
+    await button(wrapper, 'connections.setUp').trigger('click')
+    await tick()
+    expect(wrapper.text()).toContain('connections.wechatConnected')
+    expect(wrapper.find('.provider-instructions').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('connections.wechatSetup')
+  })
+
+  it('wechatNotice: ignores the create message, shows a refreshed-QR notice, shows a failure reason', async () => {
+    api.create.mockResolvedValue(conn({ setup_url: URL_A, setup_key: 'k1', setup_message: 'scan the QR below' }))
+    api.complete
+      .mockResolvedValueOnce(conn({ setup_url: URL_A, setup_key: 'k1', setup_message: 'waiting' }))
+      .mockResolvedValueOnce(conn({ setup_url: URL_B, setup_key: 'k2' }))
+      .mockResolvedValueOnce(conn({ setup_url: '', setup_key: 'k2', setup_message: 'worker said no' }))
+      .mockResolvedValue(conn({ setup_url: '', setup_key: 'k2' }))
+    const wrapper = await render([])
+    await open(wrapper)
+    await button(wrapper, 'connections.setUp').trigger('click')
+    await tick()
+    const notice = () => wrapper.findAll('[role="status"].setup-note').map(n => n.text())
+    expect(notice()).toEqual([]) // create message ignored; same-URL check leaves it unchanged
+    await tick(2000)
+    expect(notice()).toEqual(['connections.wechatQrRefreshed'])
+    await tick(2000)
+    expect(notice()).toEqual(['worker said no'])
+    await tick(2000) // empty url and empty message: unchanged
+    expect(notice()).toEqual(['worker said no'])
+    // A new QR clears the notice.
+    api.create.mockResolvedValueOnce(conn({ setup_url: URL_A, setup_key: 'k3' }))
+    await wrapper.get('button.wechat-link-button').trigger('click')
+    await tick()
+    expect(notice()).toEqual([])
+  })
+
+  it('shows a spinner status under the QR while polling, with no disabled primary', async () => {
+    api.create.mockResolvedValue(conn({ setup_url: URL_A, setup_key: 'k1' }))
+    api.complete.mockImplementation(() => new Promise(() => {}))
+    const wrapper = await render([])
+    await open(wrapper)
+    await button(wrapper, 'connections.setUp').trigger('click')
+    await tick()
+    const status = wrapper.get('[data-testid="wechat-waiting"]')
+    expect(status.attributes('role')).toBe('status')
+    expect(status.attributes('aria-live')).toBe('polite')
+    expect(status.text()).toBe('connections.wechatWaiting')
+    expect(status.find('.wechat-spinner').exists()).toBe(true)
+    expect(wrapper.find('.wechat-login-box').element.contains(status.element)).toBe(true)
+    expect(wrapper.findAll('.dialog-actions button:disabled')).toHaveLength(0)
+    expect(labels(wrapper)).toEqual(['connections.close', 'connections.removeConnection'])
+  })
+
+  it('"Get a new QR code" lives in the QR box and creates a new session', async () => {
+    api.create.mockResolvedValueOnce(conn({ setup_url: URL_A, setup_key: 'k1' }))
+    api.complete.mockImplementation(() => new Promise(() => {}))
+    const wrapper = await render([])
+    await open(wrapper)
+    await button(wrapper, 'connections.setUp').trigger('click')
+    await tick()
+    expect(labels(wrapper)).not.toContain('connections.wechatNewQr')
+    const link = wrapper.get('.wechat-login-box button.wechat-link-button')
+    expect(link.text()).toBe('connections.wechatNewQr')
+    expect(link.attributes('type')).toBe('button')
+    expect(link.attributes('disabled')).toBeUndefined()
+    const pending = deferred<OpenClawConnection>()
+    api.create.mockReturnValueOnce(pending.promise)
+    await link.trigger('click')
+    expect(api.create).toHaveBeenCalledTimes(2)
+    expect(wrapper.get('.wechat-login-box button.wechat-link-button').attributes('disabled')).toBeDefined()
+    pending.resolve(conn({ setup_url: URL_B, setup_key: 'k2' }))
+    await tick()
+    expect(wrapper.get('a.wechat-link').attributes('href')).toBe(URL_B)
   })
 
   it('labels the primary button by state', async () => {
@@ -113,14 +192,14 @@ describe('WeChat connect dialog', () => {
     await open(wrapper)
     expect(labels(wrapper)).toEqual(['connections.close', 'connections.setUp'])
 
-    // 2. QR active and auto-detect running: disabled "waiting", plus Get a new QR code
+    // 2. QR active and auto-detect running: no primary, status line in the QR box
     const inFlight = deferred<OpenClawConnection>()
     api.create.mockResolvedValue(conn({ setup_url: URL_A, setup_key: 'k1' }))
     api.complete.mockReturnValue(inFlight.promise)
     await button(wrapper, 'connections.setUp').trigger('click')
     await tick()
-    expect(labels(wrapper)).toEqual(['connections.close', 'connections.wechatNewQr', 'connections.wechatWaiting', 'connections.removeConnection'])
-    expect(button(wrapper, 'connections.wechatWaiting').attributes('disabled')).toBeDefined()
+    expect(labels(wrapper)).toEqual(['connections.close', 'connections.removeConnection'])
+    expect(wrapper.find('[data-testid="wechat-waiting"]').exists()).toBe(true)
 
     // 3. key but auto-detect stopped (error): "I scanned the QR code"
     api.complete.mockReset()
@@ -139,7 +218,7 @@ describe('WeChat connect dialog', () => {
     await open(wrapper)
     expect(labels(wrapper)).toContain('connections.setUp')
     expect(labels(wrapper)).not.toContain('connections.checkWeChatLogin')
-    expect(labels(wrapper)).not.toContain('connections.wechatNewQr')
+    expect(wrapper.find('button.wechat-link-button').exists()).toBe(false)
     expect(api.complete).not.toHaveBeenCalled()
   })
 
@@ -226,7 +305,7 @@ describe('WeChat connect dialog', () => {
 
     api.create.mockResolvedValueOnce(conn({ setup_url: URL_B, setup_key: 'k2' }))
     api.complete.mockResolvedValue(conn({ setup_url: URL_B, setup_key: 'k2' }))
-    await button(wrapper, 'connections.wechatNewQr').trigger('click')
+    await wrapper.get('button.wechat-link-button').trigger('click')
     await tick()
     expect(api.create).toHaveBeenCalledTimes(2)
     expect(api.complete).toHaveBeenCalledTimes(1) // new run waits for the old request to settle
@@ -254,7 +333,8 @@ describe('WeChat connect dialog', () => {
     await tick(60000)
     expect(api.complete).toHaveBeenCalledTimes(calls)
     expect(labels(wrapper)).toContain('connections.checkWeChatLogin')
-    expect(labels(wrapper)).toContain('connections.wechatNewQr')
+    expect(wrapper.find('[data-testid="wechat-waiting"]').exists()).toBe(false)
+    expect(wrapper.find('button.wechat-link-button').exists()).toBe(true)
 
     // "I scanned the QR code" restarts auto-detect with a fresh window.
     await button(wrapper, 'connections.checkWeChatLogin').trigger('click')
