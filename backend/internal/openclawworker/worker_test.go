@@ -88,7 +88,9 @@ case "$3 $4 $5" in
   "openclaw plugins inspect") printf '%s' '{"plugin":{"rootDir":"/home/node/.openclaw/extensions/openclaw-weixin","status":"loaded","enabled":true}}' ;;
   "openclaw gateway call")
     case "$6" in
-      web.login.start) printf '%s' '{"qrDataUrl":"data:image/png;base64,QR","sessionKey":"sess-1","message":"scan"}' ;;
+      web.login.start)
+        [ "$CLAW_TEST_START" != fail ] || { echo boom >&2; exit 1; }
+        if [ -n "$CLAW_TEST_START" ]; then printf '%s' "$CLAW_TEST_START"; else printf '%s' '{"qrDataUrl":"data:image/png;base64,QR","sessionKey":"sess-1","message":"scan"}'; fi ;;
       web.login.wait) [ -n "$CLAW_TEST_WAIT" ] || { echo timeout >&2; exit 1; }; printf '%s' "$CLAW_TEST_WAIT" ;;
       channels.status) [ -n "$CLAW_TEST_STATUS" ] || { echo down >&2; exit 1; }; printf '%s' "$CLAW_TEST_STATUS" ;;
     esac ;;
@@ -150,20 +152,46 @@ func TestConnectWeChatWaitConnectedDoesNotReloadOrCheckStatus(t *testing.T) {
 	requireWaitOnly(t, calls)
 }
 
-func TestConnectWeChatWaitNotConnectedStaysPending(t *testing.T) {
-	logFile := fakePodman(t, `{"connected":false,"message":"waiting"}`, weixinNone)
+const newQRStart = `{"qrDataUrl":"data:image/png;base64,NEW","sessionKey":"sess-2","message":"scan"}`
+
+// requireForceFalseStart checks the last call is web.login.start with force:false and nothing touched plugins or sh.
+func requireForceFalseStart(t *testing.T, calls []string) {
+	t.Helper()
+	last := calls[len(calls)-1]
+	if !strings.Contains(last, "gateway call web.login.start --params ") || !strings.Contains(last, `"force":false`) || strings.Contains(last, `"force":true`) {
+		t.Fatalf("want a force:false web.login.start last, got %q", calls)
+	}
+	requireWaitOnly(t, calls)
+}
+
+func TestConnectWeChatWaitNotConnectedNoAccountHandsBackNewQR(t *testing.T) {
+	logFile := fakePodman(t, `{"connected":false,"message":"no active login"}`, weixinNone)
+	t.Setenv("CLAW_TEST_START", newQRStart)
 	res, err := (&Worker{}).connectWeChat(context.Background(), "u1-123456789abc", " sess-1 ", "main")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.State != "pending" || res.SetupKey != " sess-1 " || res.Message != "waiting" {
+	if res.State != "pending" || res.SetupURL != "data:image/png;base64,NEW" || res.SetupKey != "sess-2" || res.Message != weChatQRExpired {
 		t.Fatalf("unexpected result: %+v", res)
 	}
 	calls := readCalls(t, logFile)
-	if len(calls) != 2 || !strings.Contains(calls[1], "gateway call channels.status") {
-		t.Fatalf("want wait then channels.status, got %q", calls)
+	if len(calls) != 3 || !strings.Contains(calls[1], "gateway call channels.status") {
+		t.Fatalf("want wait, channels.status, start; got %q", calls)
 	}
-	requireWaitOnly(t, calls)
+	requireForceFalseStart(t, calls)
+}
+
+func TestConnectWeChatWaitNotConnectedStartFailsFallsBackToSameKey(t *testing.T) {
+	logFile := fakePodman(t, `{"connected":false,"message":"waiting"}`, weixinNone)
+	t.Setenv("CLAW_TEST_START", "fail")
+	res, err := (&Worker{}).connectWeChat(context.Background(), "u1-123456789abc", " sess-1 ", "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.State != "pending" || res.SetupKey != " sess-1 " || res.SetupURL != "" || res.Message != "waiting" {
+		t.Fatalf("unexpected result: %+v", res)
+	}
+	requireForceFalseStart(t, readCalls(t, logFile))
 }
 
 func TestConnectWeChatWaitFalseButAccountConfiguredIsConnected(t *testing.T) {
@@ -175,24 +203,49 @@ func TestConnectWeChatWaitFalseButAccountConfiguredIsConnected(t *testing.T) {
 	if res.State != "connected" {
 		t.Fatalf("state = %q, want connected", res.State)
 	}
-	requireWaitOnly(t, readCalls(t, logFile))
+	calls := readCalls(t, logFile)
+	requireWaitOnly(t, calls)
+	for _, c := range calls {
+		if strings.Contains(c, "web.login.start") {
+			t.Fatalf("configured account must not start a login: %q", c)
+		}
+	}
 }
 
-func TestConnectWeChatWaitErrorWithoutAccountIsPendingWithoutRawError(t *testing.T) {
-	fakePodman(t, "", weixinNone)
+func TestConnectWeChatWaitErrorWithoutAccountHandsBackQRWithStillWaiting(t *testing.T) {
+	logFile := fakePodman(t, "", weixinNone)
+	t.Setenv("CLAW_TEST_START", newQRStart)
 	res, err := (&Worker{}).connectWeChat(context.Background(), "u1-123456789abc", "sess-1", "main")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.State != "pending" || res.SetupKey != "sess-1" || res.Message == "" || strings.Contains(res.Message, "exit status") {
+	if res.State != "pending" || res.SetupURL != "data:image/png;base64,NEW" || res.SetupKey != "sess-2" || res.Message != weChatStillWaiting {
+		t.Fatalf("unexpected result: %+v", res)
+	}
+	requireForceFalseStart(t, readCalls(t, logFile))
+}
+
+func TestConnectWeChatWaitErrorStartFailsIsPendingWithoutRawError(t *testing.T) {
+	fakePodman(t, "", weixinNone)
+	t.Setenv("CLAW_TEST_START", "fail")
+	res, err := (&Worker{}).connectWeChat(context.Background(), "u1-123456789abc", "sess-1", "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.State != "pending" || res.SetupKey != "sess-1" || res.SetupURL != "" || res.Message != weChatStillWaiting || strings.Contains(res.Message, "exit status") {
 		t.Fatalf("unexpected result: %+v", res)
 	}
 }
 
 func TestConnectWeChatWaitErrorAndStatusErrorReturnsError(t *testing.T) {
-	fakePodman(t, "", "")
+	logFile := fakePodman(t, "", "")
 	if _, err := (&Worker{}).connectWeChat(context.Background(), "u1-123456789abc", "sess-1", "main"); err == nil {
 		t.Fatal("want the wait error when both wait and status fail")
+	}
+	for _, c := range readCalls(t, logFile) {
+		if strings.Contains(c, "web.login.start") {
+			t.Fatalf("start must not be called when wait and status both fail: %q", c)
+		}
 	}
 }
 
@@ -218,6 +271,9 @@ func TestConnectWeChatStartPreparesPluginFirst(t *testing.T) {
 	}
 	if inspect < 0 || start < 0 || inspect > start {
 		t.Fatalf("want plugins inspect before web.login.start, got %q", calls)
+	}
+	if !strings.Contains(calls[start], `"force":true`) {
+		t.Fatalf("start path must use force:true: %q", calls[start])
 	}
 	if start != len(calls)-1 {
 		t.Fatalf("web.login.start must be the last command: %q", calls)

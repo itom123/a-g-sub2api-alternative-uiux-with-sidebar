@@ -417,7 +417,7 @@ func (w *Worker) connectWeChat(ctx context.Context, tenant, sessionKey, account 
 	}
 	out, err := w.cellCommand(ctx, tenant, "openclaw", "gateway", "call", method, "--params", string(paramsJSON), "--json", "--timeout", "15000")
 	if method == "web.login.wait" {
-		return w.finishWeChatWait(ctx, tenant, sessionKey, out, err)
+		return w.finishWeChatWait(ctx, tenant, account, sessionKey, out, err)
 	}
 	if err != nil {
 		return Result{}, err
@@ -445,7 +445,7 @@ func (w *Worker) connectWeChat(ctx context.Context, tenant, sessionKey, account 
 
 // finishWeChatWait turns a web.login.wait outcome into a Result. The CLI call times out long before the
 // gateway-side wait does, so a scan confirmed later (or a wait that errored) is detected from channels.status.
-func (w *Worker) finishWeChatWait(ctx context.Context, tenant, sessionKey string, out []byte, waitErr error) (Result, error) {
+func (w *Worker) finishWeChatWait(ctx context.Context, tenant, account, sessionKey string, out []byte, waitErr error) (Result, error) {
 	var response struct {
 		Connected bool   `json:"connected"`
 		Message   string `json:"message"`
@@ -460,14 +460,40 @@ func (w *Worker) finishWeChatWait(ctx context.Context, tenant, sessionKey string
 	if statusErr == nil && weChatConfigured(status) {
 		return Result{State: "connected", Message: response.Message}, nil
 	}
-	if waitErr == nil {
-		return Result{State: "pending", SetupKey: sessionKey, Message: response.Message}, nil
-	}
-	if statusErr != nil {
+	if waitErr != nil && statusErr != nil {
 		return Result{}, waitErr
 	}
-	return Result{State: "pending", SetupKey: sessionKey, Message: "Still waiting for the WeChat scan. Confirm the login on your phone, then check again."}, nil
+	// Every wait outcome without a connection has already discarded the plugin's login (or the gateway is
+	// still polling it). Ask for the current QR instead of force-restarting: force:false returns the existing
+	// fresh login or creates a new one, and no plugin reload is issued because that would kill a live login.
+	message := response.Message
+	if waitErr != nil {
+		message = weChatStillWaiting
+	}
+	if account == "" {
+		account = "main"
+	}
+	if paramsJSON, err := json.Marshal(map[string]any{"channel": "openclaw-weixin", "accountId": account, "force": false}); err == nil {
+		if startOut, startErr := w.cellCommand(ctx, tenant, "openclaw", "gateway", "call", "web.login.start", "--params", string(paramsJSON), "--json", "--timeout", "15000"); startErr == nil {
+			var started struct {
+				QRDataURL  string `json:"qrDataUrl"`
+				SessionKey string `json:"sessionKey"`
+			}
+			if json.Unmarshal(startOut, &started) == nil && started.QRDataURL != "" && started.SessionKey != "" {
+				if waitErr == nil {
+					message = weChatQRExpired
+				}
+				return Result{State: "pending", SetupURL: started.QRDataURL, SetupKey: started.SessionKey, Message: message}, nil
+			}
+		}
+	}
+	return Result{State: "pending", SetupKey: sessionKey, Message: message}, nil
 }
+
+const (
+	weChatQRExpired    = "二维码已失效，已为你生成新的二维码：请扫描并在手机上确认，然后再点「我已扫码」。The QR code expired, so a new one was created: scan it, confirm on your phone, then check again."
+	weChatStillWaiting = "仍在等待微信扫码确认：请在手机上确认后再检查。Still waiting for the WeChat scan. Confirm the login on your phone, then check again."
+)
 
 func weChatConfigured(status []byte) bool {
 	var parsed struct {
