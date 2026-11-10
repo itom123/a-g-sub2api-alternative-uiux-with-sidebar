@@ -399,8 +399,11 @@ func (w *Worker) connectWeChat(ctx context.Context, tenant, sessionKey, account 
 	if account == "" {
 		account = "main"
 	}
-	if err := w.ensureWeChatPlugin(ctx, tenant); err != nil {
-		return Result{}, err
+	// Only prepare the plugin before starting a login: its reload drops the pending QR login session that web.login.wait needs.
+	if strings.TrimSpace(sessionKey) == "" {
+		if err := w.ensureWeChatPlugin(ctx, tenant); err != nil {
+			return Result{}, err
+		}
 	}
 	method := "web.login.start"
 	params := map[string]any{"channel": "openclaw-weixin", "accountId": account, "force": true}
@@ -413,6 +416,9 @@ func (w *Worker) connectWeChat(ctx context.Context, tenant, sessionKey, account 
 		return Result{}, err
 	}
 	out, err := w.cellCommand(ctx, tenant, "openclaw", "gateway", "call", method, "--params", string(paramsJSON), "--json", "--timeout", "15000")
+	if method == "web.login.wait" {
+		return w.finishWeChatWait(ctx, tenant, sessionKey, out, err)
+	}
 	if err != nil {
 		return Result{}, err
 	}
@@ -435,6 +441,49 @@ func (w *Worker) connectWeChat(ctx context.Context, tenant, sessionKey, account 
 		return Result{State: "connected", Message: response.Message}, nil
 	}
 	return Result{State: "pending", SetupKey: sessionKey, Message: response.Message}, nil
+}
+
+// finishWeChatWait turns a web.login.wait outcome into a Result. The CLI call times out long before the
+// gateway-side wait does, so a scan confirmed later (or a wait that errored) is detected from channels.status.
+func (w *Worker) finishWeChatWait(ctx context.Context, tenant, sessionKey string, out []byte, waitErr error) (Result, error) {
+	var response struct {
+		Connected bool   `json:"connected"`
+		Message   string `json:"message"`
+	}
+	if waitErr == nil {
+		waitErr = json.Unmarshal(out, &response)
+	}
+	if waitErr == nil && response.Connected {
+		return Result{State: "connected", Message: response.Message}, nil
+	}
+	status, statusErr := w.cellCommand(ctx, tenant, "openclaw", "gateway", "call", "channels.status", "--json", "--timeout", "15000")
+	if statusErr == nil && weChatConfigured(status) {
+		return Result{State: "connected", Message: response.Message}, nil
+	}
+	if waitErr == nil {
+		return Result{State: "pending", SetupKey: sessionKey, Message: response.Message}, nil
+	}
+	if statusErr != nil {
+		return Result{}, waitErr
+	}
+	return Result{State: "pending", SetupKey: sessionKey, Message: "Still waiting for the WeChat scan. Confirm the login on your phone, then check again."}, nil
+}
+
+func weChatConfigured(status []byte) bool {
+	var parsed struct {
+		ChannelAccounts map[string][]struct {
+			Configured bool `json:"configured"`
+		} `json:"channelAccounts"`
+	}
+	if json.Unmarshal(status, &parsed) != nil {
+		return false
+	}
+	for _, account := range parsed.ChannelAccounts["openclaw-weixin"] {
+		if account.Configured {
+			return true
+		}
+	}
+	return false
 }
 
 func (w *Worker) ensureWeChatPlugin(ctx context.Context, tenant string) error {
