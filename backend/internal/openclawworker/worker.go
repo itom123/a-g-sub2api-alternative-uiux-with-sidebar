@@ -491,7 +491,7 @@ func (w *Worker) finishWeChatWait(ctx context.Context, tenant, account, sessionK
 }
 
 const (
-	weChatQRExpired    = "二维码已失效，已为你生成新的二维码：请扫描并在手机上确认，然后再点「我已扫码」。The QR code expired, so a new one was created: scan it, confirm on your phone, then check again."
+	weChatQRExpired    = "二维码已失效，已为你生成新的二维码：请扫描并在手机上确认，然后再点「我已扫描二维码」。The QR code expired, so a new one was created: scan it, confirm on your phone, then check again."
 	weChatStillWaiting = "仍在等待微信扫码确认：请在手机上确认后再检查。Still waiting for the WeChat scan. Confirm the login on your phone, then check again."
 )
 
