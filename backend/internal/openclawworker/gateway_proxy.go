@@ -2,14 +2,11 @@ package openclawworker
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"os"
-	"os/exec"
-	"strconv"
 	"strings"
 	"time"
 
@@ -24,42 +21,19 @@ type gatewayCellTarget struct {
 // Inspect only the selected container's nonsecret identity and loopback mapping.
 // Recheck this identity after TCP dial to reject host-port reuse races.
 func (w *Worker) gatewayCell(ctx context.Context, tenant string) (gatewayCellTarget, error) {
-	if !tenantPattern.MatchString(tenant) {
-		return gatewayCellTarget{}, errors.New("invalid gateway tenant")
+	observed, err := w.inspectCell(ctx, tenant)
+	if err != nil || observed.State != "running" {
+		return gatewayCellTarget{}, errCellUnavailable
 	}
-	format := `{"id":{{json .ID}},"name":{{json .Name}},"running":{{json .State.Running}},"ports":{{json .NetworkSettings.Ports}}}`
-	cmd := exec.CommandContext(ctx, "podman", "inspect", "--format", format, "openclaw-cell-"+tenant) // #nosec G702 -- Fixed executable and validated container name.
-	cmd.WaitDelay = time.Second
-	out, err := cmd.Output()
-	if err != nil {
-		return gatewayCellTarget{}, errors.New("gateway cell unavailable")
-	}
-	return parseGatewayCell(out, tenant)
+	return observed.Target, nil
 }
 
 func parseGatewayCell(out []byte, tenant string) (gatewayCellTarget, error) {
-	var cell struct {
-		ID      string `json:"id"`
-		Name    string `json:"name"`
-		Running bool   `json:"running"`
-		Ports   map[string][]struct {
-			HostIP   string `json:"HostIp"`
-			HostPort string `json:"HostPort"`
-		} `json:"ports"`
+	observed, err := parseCellObservation(out, tenant)
+	if err != nil || observed.State != "running" {
+		return gatewayCellTarget{}, errCellUnavailable
 	}
-	invalid := errors.New("gateway cell unavailable")
-	if len(out) > 16<<10 || json.Unmarshal(out, &cell) != nil || len(cell.ID) != 64 || strings.TrimPrefix(cell.Name, "/") != "openclaw-cell-"+tenant || !cell.Running {
-		return gatewayCellTarget{}, invalid
-	}
-	bindings := cell.Ports["18789/tcp"]
-	if len(bindings) != 1 || bindings[0].HostIP != "127.0.0.1" {
-		return gatewayCellTarget{}, invalid
-	}
-	port, err := strconv.Atoi(bindings[0].HostPort)
-	if err != nil || port < 19100 || port >= 19200 {
-		return gatewayCellTarget{}, invalid
-	}
-	return gatewayCellTarget{ID: cell.ID, Address: net.JoinHostPort("127.0.0.1", strconv.Itoa(port))}, nil
+	return observed.Target, nil
 }
 
 func (w *Worker) proxyGateway(rw http.ResponseWriter, r *http.Request) {
