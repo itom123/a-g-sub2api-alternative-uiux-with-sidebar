@@ -454,10 +454,12 @@ func (w *Worker) finishWeChatWait(ctx context.Context, tenant, account, sessionK
 		waitErr = json.Unmarshal(out, &response)
 	}
 	if waitErr == nil && response.Connected {
+		w.startWeChatChannelIfStopped(ctx, tenant, nil)
 		return Result{State: "connected", Message: response.Message}, nil
 	}
 	status, statusErr := w.cellCommand(ctx, tenant, "openclaw", "gateway", "call", "channels.status", "--json", "--timeout", "15000")
 	if statusErr == nil && weChatConfigured(status) {
+		w.startWeChatChannelIfStopped(ctx, tenant, status)
 		return Result{State: "connected", Message: response.Message}, nil
 	}
 	if waitErr != nil && statusErr != nil {
@@ -494,6 +496,49 @@ const (
 	weChatQRExpired    = "二维码已失效，已为你生成新的二维码：请扫描并在手机上确认，然后再点「我已扫描二维码」。The QR code expired, so a new one was created: scan it, confirm on your phone, then check again."
 	weChatStillWaiting = "仍在等待微信扫码确认：请在手机上确认后再检查。Still waiting for the WeChat scan. Confirm the login on your phone, then check again."
 )
+
+// startWeChatChannelIfStopped starts a freshly logged-in WeChat account right away. After saving the account the
+// plugin (2.4.8) triggers a channel reload by importing openclaw/plugin-sdk/config-runtime, which OpenClaw
+// 2026.10 does not export (ERR_PACKAGE_PATH_NOT_EXPORTED), so the account stays configured but not running until
+// the health monitor restarts it minutes later. Doing the plugin's own write through the CLI,
+// channels.openclaw-weixin.channelConfigUpdatedAt, is a hot channel reload with no gateway restart.
+// Best effort: status is the channels.status output when the caller already has it (nil to fetch it);
+// every failure is ignored and never changes the login result.
+func (w *Worker) startWeChatChannelIfStopped(ctx context.Context, tenant string, status []byte) {
+	if status == nil {
+		var err error
+		if status, err = w.cellCommand(ctx, tenant, "openclaw", "gateway", "call", "channels.status", "--json", "--timeout", "15000"); err != nil {
+			return
+		}
+	}
+	if !weChatConfiguredButStopped(status) {
+		return
+	}
+	stamp, err := json.Marshal(time.Now().UTC().Format("2006-01-02T15:04:05.000Z"))
+	if err != nil {
+		return
+	}
+	_, _ = w.cellCommand(ctx, tenant, "openclaw", "config", "set", "channels.openclaw-weixin.channelConfigUpdatedAt", string(stamp), "--json")
+}
+
+// weChatConfiguredButStopped reports whether any configured openclaw-weixin account is not running.
+func weChatConfiguredButStopped(status []byte) bool {
+	var parsed struct {
+		ChannelAccounts map[string][]struct {
+			Configured bool `json:"configured"`
+			Running    bool `json:"running"`
+		} `json:"channelAccounts"`
+	}
+	if json.Unmarshal(status, &parsed) != nil {
+		return false
+	}
+	for _, account := range parsed.ChannelAccounts["openclaw-weixin"] {
+		if account.Configured && !account.Running {
+			return true
+		}
+	}
+	return false
+}
 
 func weChatConfigured(status []byte) bool {
 	var parsed struct {

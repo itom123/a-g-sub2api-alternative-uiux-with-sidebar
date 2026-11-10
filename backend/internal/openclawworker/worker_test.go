@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
@@ -81,10 +82,11 @@ func fakePodman(t *testing.T, waitResponse, statusResponse string) string {
 	script := `#!/bin/sh
 # argv: exec <container> <cmd...>
 case "$3 $4" in
-  "openclaw gateway") printf '%s\n' "$*" >> "$CLAW_TEST_LOG" ;;
+  "openclaw gateway"|"openclaw config") printf '%s\n' "$*" >> "$CLAW_TEST_LOG" ;;
   *) printf '%s %s %s\n' "$3" "$4" "$5" >> "$CLAW_TEST_LOG" ;;
 esac
 case "$3 $4 $5" in
+  "openclaw config set") [ "$CLAW_TEST_CONFIG" != fail ] || { echo boom >&2; exit 1; } ;;
   "openclaw plugins inspect") printf '%s' '{"plugin":{"rootDir":"/home/node/.openclaw/extensions/openclaw-weixin","status":"loaded","enabled":true}}' ;;
   "openclaw gateway call")
     case "$6" in
@@ -136,8 +138,32 @@ func requireWaitOnly(t *testing.T, calls []string) {
 	}
 }
 
-func TestConnectWeChatWaitConnectedDoesNotReloadOrCheckStatus(t *testing.T) {
-	logFile := fakePodman(t, `{"connected":true,"message":"ok"}`, weixinNone)
+const (
+	weixinStopped = `{"channelAccounts":{"openclaw-weixin":[{"accountId":"x-im-bot","enabled":true,"configured":true,"running":false}]}}`
+	weixinRunning = `{"channelAccounts":{"openclaw-weixin":[{"accountId":"x-im-bot","enabled":true,"configured":true,"running":true}]}}`
+	configSetPfx  = "exec openclaw-cell-u1-123456789abc openclaw config set channels.openclaw-weixin.channelConfigUpdatedAt "
+)
+
+var configSetTimestamp = regexp.MustCompile(`^"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z" --json$`)
+
+// configSetCalls returns the channelConfigUpdatedAt writes and fails if one has a malformed value.
+func configSetCalls(t *testing.T, calls []string) int {
+	t.Helper()
+	n := 0
+	for _, c := range calls {
+		if !strings.Contains(c, "openclaw config set") {
+			continue
+		}
+		n++
+		if !strings.HasPrefix(c, configSetPfx) || !configSetTimestamp.MatchString(strings.TrimPrefix(c, configSetPfx)) {
+			t.Fatalf("unexpected config set call: %q", c)
+		}
+	}
+	return n
+}
+
+func TestConnectWeChatWaitConnectedAccountRunningDoesNotSetConfig(t *testing.T) {
+	logFile := fakePodman(t, `{"connected":true,"message":"ok"}`, weixinRunning)
 	res, err := (&Worker{}).connectWeChat(context.Background(), "u1-123456789abc", " sess-1 ", "main")
 	if err != nil {
 		t.Fatal(err)
@@ -146,10 +172,79 @@ func TestConnectWeChatWaitConnectedDoesNotReloadOrCheckStatus(t *testing.T) {
 		t.Fatalf("state = %q, want connected", res.State)
 	}
 	calls := readCalls(t, logFile)
-	if len(calls) != 1 {
-		t.Fatalf("cell commands = %d, want exactly 1: %q", len(calls), calls)
+	if len(calls) != 2 || !strings.Contains(calls[1], "gateway call channels.status") {
+		t.Fatalf("want wait then channels.status, got %q", calls)
 	}
 	requireWaitOnly(t, calls)
+	if n := configSetCalls(t, calls); n != 0 {
+		t.Fatalf("config set calls = %d, want 0", n)
+	}
+}
+
+func TestConnectWeChatWaitConnectedStoppedAccountStartsChannel(t *testing.T) {
+	logFile := fakePodman(t, `{"connected":true,"message":"ok"}`, weixinStopped)
+	res, err := (&Worker{}).connectWeChat(context.Background(), "u1-123456789abc", " sess-1 ", "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.State != "connected" || res.Message != "ok" {
+		t.Fatalf("unexpected result: %+v", res)
+	}
+	calls := readCalls(t, logFile)
+	if len(calls) != 3 || !strings.Contains(calls[1], "gateway call channels.status") {
+		t.Fatalf("want wait, channels.status, config set; got %q", calls)
+	}
+	requireWaitOnly(t, calls)
+	if n := configSetCalls(t, calls); n != 1 {
+		t.Fatalf("config set calls = %d, want 1: %q", n, calls)
+	}
+}
+
+func TestConnectWeChatWaitConnectedStatusFailsStillConnectedNoConfigSet(t *testing.T) {
+	logFile := fakePodman(t, `{"connected":true,"message":"ok"}`, "")
+	res, err := (&Worker{}).connectWeChat(context.Background(), "u1-123456789abc", "sess-1", "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.State != "connected" {
+		t.Fatalf("state = %q, want connected", res.State)
+	}
+	if n := configSetCalls(t, readCalls(t, logFile)); n != 0 {
+		t.Fatalf("config set calls = %d, want 0", n)
+	}
+}
+
+func TestConnectWeChatWaitNotConnectedStoppedAccountIsConnectedAndStartsChannel(t *testing.T) {
+	logFile := fakePodman(t, `{"connected":false,"message":"no active login"}`, weixinStopped)
+	res, err := (&Worker{}).connectWeChat(context.Background(), "u1-123456789abc", "sess-1", "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.State != "connected" {
+		t.Fatalf("state = %q, want connected", res.State)
+	}
+	calls := readCalls(t, logFile)
+	if len(calls) != 3 {
+		t.Fatalf("want wait, channels.status, config set; got %q", calls)
+	}
+	if n := configSetCalls(t, calls); n != 1 {
+		t.Fatalf("config set calls = %d, want 1: %q", n, calls)
+	}
+}
+
+func TestConnectWeChatConfigSetFailureStillConnected(t *testing.T) {
+	logFile := fakePodman(t, `{"connected":true,"message":"ok"}`, weixinStopped)
+	t.Setenv("CLAW_TEST_CONFIG", "fail")
+	res, err := (&Worker{}).connectWeChat(context.Background(), "u1-123456789abc", "sess-1", "main")
+	if err != nil {
+		t.Fatalf("config set failure must not surface: %v", err)
+	}
+	if res.State != "connected" || res.Message != "ok" {
+		t.Fatalf("unexpected result: %+v", res)
+	}
+	if n := configSetCalls(t, readCalls(t, logFile)); n != 1 {
+		t.Fatalf("config set calls = %d, want 1", n)
+	}
 }
 
 const newQRStart = `{"qrDataUrl":"data:image/png;base64,NEW","sessionKey":"sess-2","message":"scan"}`
