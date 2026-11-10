@@ -447,7 +447,12 @@ watch(wechatSetupUrl, async (url) => {
 function applyConnection(connection: OpenClawConnection) {
   const index = connections.value.findIndex(item => item.id === connection.id)
   if (index >= 0) {
-    if (connections.value[index].setup_url !== connection.setup_url) wechatQrShownAt = Date.now()
+    const existing = connections.value[index]
+    // A check can return the same pending session without a link; keep the QR code and its timer.
+    if (connection.status !== 'connected' && !connection.setup_url && connection.setup_key && connection.setup_key === existing.setup_key) {
+      connection = { ...connection, setup_url: existing.setup_url, setup_message: connection.setup_message || existing.setup_message }
+    }
+    if (existing.setup_url !== connection.setup_url) wechatQrShownAt = Date.now()
     connections.value.splice(index, 1, connection)
   } else {
     wechatQrShownAt = Date.now()

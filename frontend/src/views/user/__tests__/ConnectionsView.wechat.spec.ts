@@ -286,6 +286,20 @@ describe('WeChat connect dialog', () => {
     expect(api.complete).not.toHaveBeenCalled()
   })
 
+  it('keeps the QR code and its timer when a check returns the same session without a link', async () => {
+    const wrapper = await render([conn({ setup_url: URL_A, setup_key: 'k1', setup_message: 'scan me' })])
+    api.complete.mockResolvedValue(conn({ status: 'pending', setup_url: '', setup_key: 'k1', setup_message: '' }))
+    await open(wrapper)
+    await tick(1)
+    expect(api.complete).toHaveBeenCalled()
+    expect(wrapper.get('img.wechat-qr-img').exists()).toBe(true)
+    expect(api.qr).toHaveBeenCalledTimes(1)
+    await tick(5 * 60 * 1000)
+    expect(wrapper.text()).not.toContain('connections.wechatQrExpired')
+    await tick(61 * 1000)
+    expect(wrapper.text()).toContain('connections.wechatQrExpired')
+  })
+
   it('leaves Telegram unchanged', async () => {
     api.create.mockResolvedValue(conn({ id: 9, kind: 'telegram', status: 'connected' }))
     const wrapper = await render([])
