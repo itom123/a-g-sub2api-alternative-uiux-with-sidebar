@@ -251,13 +251,16 @@ export async function listOpenClawConnections(id: number): Promise<OpenClawConne
   return data.items
 }
 
+// WeChat/Google setup calls wait on the worker for a scan or login (up to ~25 s server-side); the client default of 30 s is too tight.
+const CONNECTION_SETUP_TIMEOUT_MS = 90000
+
 export async function createOpenClawConnection(
   instanceId: number,
   kind: OpenClawConnectionKind,
   label = '',
   credential = ''
 ): Promise<OpenClawConnection> {
-  const { data } = await apiClient.post<OpenClawConnection>(`/openclaw/instances/${instanceId}/connections`, { kind, label, credential })
+  const { data } = await apiClient.post<OpenClawConnection>(`/openclaw/instances/${instanceId}/connections`, { kind, label, credential }, { timeout: CONNECTION_SETUP_TIMEOUT_MS })
   return data
 }
 
@@ -268,7 +271,8 @@ export async function completeOpenClawConnection(
 ): Promise<OpenClawConnection> {
   const { data } = await apiClient.post<OpenClawConnection>(
     `/openclaw/instances/${instanceId}/connections/${connectionId}/complete`,
-    { credential }
+    { credential },
+    { timeout: CONNECTION_SETUP_TIMEOUT_MS }
   )
   return data
 }

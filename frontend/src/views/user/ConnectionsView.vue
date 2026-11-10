@@ -169,7 +169,7 @@
         <p class="dialog-kicker">{{ instance?.name }}</p>
         <h3 class="dialog-heading">{{ t('connections.setupTitle', { provider: activeKind.title }) }}</h3>
         <p class="dialog-intro">{{ t('connections.setupDescription', { provider: activeKind.title }) }}</p>
-        <div class="provider-instructions">
+        <div v-if="!(isWechat && activeConnection?.status === 'connected')" class="provider-instructions">
           <template v-if="normalizedKind(activeKind.kind) === 'telegram'">
             <p>{{ t('connections.telegramSetup') }}</p>
             <p v-if="telegramAvailable" class="mt-2" data-testid="site-bot-hint">{{ t('connections.siteBotHint') }}</p>
@@ -184,11 +184,21 @@
             <input id="telegram-token" v-model="telegramToken" class="field-input" type="password" autocomplete="off" :placeholder="t('connections.telegramTokenPlaceholder')" />
           </template>
           <template v-else-if="normalizedKind(activeKind.kind) === 'wechat'">
-            <div v-if="activeConnection?.setup_url" class="wechat-login-box">
-              <a class="btn btn-primary" :href="activeConnection.setup_url" target="_blank" rel="noopener">{{ t('connections.wechatOpenLogin') }}</a>
+            <div v-if="activeConnection?.setup_url && activeConnection.status !== 'connected'" class="wechat-login-box">
+              <div v-if="wechatQrDataUrl" class="wechat-qr-tile">
+                <img class="wechat-qr-img" :src="wechatQrDataUrl" width="200" height="200" :alt="t('connections.wechatQrAlt')" />
+              </div>
+              <p v-if="wechatPolling" class="wechat-waiting" role="status" aria-live="polite" data-testid="wechat-waiting"><span class="wechat-spinner" aria-hidden="true"></span>{{ t('connections.wechatWaiting') }}</p>
               <p class="setup-note">{{ t('connections.wechatScanHint') }}</p>
-              <p v-if="activeConnection.setup_message" class="setup-note">{{ activeConnection.setup_message }}</p>
+              <p class="wechat-links">
+                <a class="wechat-link" :href="activeConnection.setup_url" target="_blank" rel="noopener">{{ t('connections.wechatOpenLogin') }}</a>
+                <span aria-hidden="true"> · </span>
+                <button type="button" class="wechat-link wechat-link-button" :disabled="preparingConnection" @click="newWechatQr">{{ t('connections.wechatNewQr') }}</button>
+              </p>
             </div>
+            <p v-if="wechatNotice && activeConnection?.status !== 'connected'" class="setup-note" role="status">{{ wechatNotice }}</p>
+            <p v-if="wechatExpired" class="setup-note" role="status">{{ t('connections.wechatQrExpired') }}</p>
+            <p v-if="wechatError" class="field-error" role="alert">{{ wechatError }}</p>
             <p v-if="activeConnection?.status === 'connected'" class="setup-success">{{ t('connections.wechatConnected') }}</p>
           </template>
           <template v-else-if="normalizedKind(activeKind.kind) === 'gws'">
@@ -206,8 +216,8 @@
         <p v-else class="setup-note">{{ t('connections.providerUnavailable', { provider: activeKind.title }) }}</p>
         <div class="dialog-actions">
           <button type="button" class="btn btn-secondary" @click="showConnectionModal = false">{{ t('connections.close') }}</button>
-          <button v-if="setupAvailable(activeKind) && (!activeConnection || activeConnection.status !== 'connected')" type="button" class="btn btn-primary" :disabled="preparingConnection || (normalizedKind(activeKind.kind) === 'telegram' && !telegramToken.trim()) || (normalizedKind(activeKind.kind) === 'gws' && !!activeConnection?.setup_key && !googleCode.trim())" @click="prepareConnection">
-            {{ preparingConnection ? (normalizedKind(activeKind.kind) === 'wechat' ? t('connections.wechatWaiting') : t('connections.connecting')) : normalizedKind(activeKind.kind) === 'wechat' && activeConnection ? t('connections.checkWeChatLogin') : normalizedKind(activeKind.kind) === 'gws' && activeConnection?.setup_key ? t('connections.gwsComplete') : normalizedKind(activeKind.kind) === 'gws' ? t('connections.gwsStart') : normalizedKind(activeKind.kind) === 'wechat' ? t('connections.setUp') : t('connections.connectTelegram') }}
+          <button v-if="setupAvailable(activeKind) && (!activeConnection || activeConnection.status !== 'connected') && !(isWechat && wechatPolling)" type="button" class="btn btn-primary" :disabled="preparingConnection || (normalizedKind(activeKind.kind) === 'telegram' && !telegramToken.trim()) || (normalizedKind(activeKind.kind) === 'gws' && !!activeConnection?.setup_key && !googleCode.trim())" @click="isWechat ? wechatPrimary() : prepareConnection()">
+            {{ isWechat ? wechatPrimaryLabel : preparingConnection ? t('connections.connecting') : normalizedKind(activeKind.kind) === 'gws' && activeConnection?.setup_key ? t('connections.gwsComplete') : normalizedKind(activeKind.kind) === 'gws' ? t('connections.gwsStart') : t('connections.connectTelegram') }}
           </button>
           <button v-if="activeConnection" type="button" class="btn btn-danger" :disabled="deletingConnection" @click="removeConnection(activeConnection)">
             {{ deletingConnection ? t('connections.removing') : t('connections.removeConnection') }}
@@ -219,7 +229,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import QRCode from 'qrcode'
+import { WECHAT_QR_OPTIONS } from './wechatQr'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
@@ -373,7 +385,14 @@ async function remove(target: OpenClawInstance) {
   if (!window.confirm(t('connections.deleteConfirm', { name: target.name }))) return
   await run(async () => { await deleteOpenClawInstance(target.id) })
 }
-function openConnection(kind: OpenClawConnectionKindInfo) { activeKind.value = kind; telegramToken.value = ''; googleCode.value = ''; setupPrepared.value = false; showConnectionModal.value = true }
+function openConnection(kind: OpenClawConnectionKindInfo) {
+  stopWechatDetect()
+  activeKind.value = kind; telegramToken.value = ''; googleCode.value = ''; setupPrepared.value = false
+  wechatExpired.value = false; wechatError.value = ''; wechatNotice.value = ''
+  showConnectionModal.value = true
+  const existing = connectionFor(kind.kind)
+  if (normalizedKind(kind.kind) === 'wechat' && existing?.setup_key && existing.status !== 'connected') startWechatDetect()
+}
 function normalizedKind(kind: string) { return kind.trim().toLowerCase() }
 function connectionFor(kind: string) {
   const normalized = normalizedKind(kind)
@@ -400,6 +419,119 @@ async function prepareConnection() {
   } catch (err: any) { error.value = err?.message || t('connections.connectFailed') }
   finally { preparingConnection.value = false }
 }
+// ---- WeChat: in-dialog QR code and automatic scan detection ----
+const WECHAT_CHECK_GAP_MS = 2000
+const WECHAT_QR_LIFETIME_MS = 6 * 60 * 1000
+const isWechat = computed(() => !!activeKind.value && normalizedKind(activeKind.value.kind) === 'wechat')
+const wechatPolling = ref(false)
+const wechatExpired = ref(false)
+const wechatError = ref('')
+const wechatNotice = ref('')
+const wechatQrDataUrl = ref('')
+const wechatSetupUrl = computed(() => isWechat.value ? activeConnection.value?.setup_url || '' : '')
+const wechatPrimaryLabel = computed(() => {
+  if (preparingConnection.value) return t('connections.connecting')
+  return activeConnection.value?.setup_key ? t('connections.checkWeChatLogin') : t('connections.setUp')
+})
+let wechatGeneration = 0
+let wechatQrShownAt = 0
+let wechatCheckInFlight: Promise<unknown> | null = null
+let qrRenderSeq = 0
+
+watch(wechatSetupUrl, async (url) => {
+  const seq = ++qrRenderSeq
+  if (!url) { wechatQrDataUrl.value = ''; return }
+  try {
+    const dataUrl = await QRCode.toDataURL(url, WECHAT_QR_OPTIONS)
+    if (seq === qrRenderSeq) wechatQrDataUrl.value = dataUrl
+  } catch {
+    // The login link below the QR stays available.
+    if (seq === qrRenderSeq) wechatQrDataUrl.value = ''
+  }
+}, { immediate: true })
+
+function applyConnection(connection: OpenClawConnection) {
+  const index = connections.value.findIndex(item => item.id === connection.id)
+  if (index >= 0) {
+    const existing = connections.value[index]
+    // A check can return the same pending session without a link; keep the QR code and its timer.
+    if (connection.status !== 'connected' && !connection.setup_url && connection.setup_key && connection.setup_key === existing.setup_key) {
+      connection = { ...connection, setup_url: existing.setup_url, setup_message: connection.setup_message || existing.setup_message }
+    }
+    if (existing.setup_url !== connection.setup_url) wechatQrShownAt = Date.now()
+    connections.value.splice(index, 1, connection)
+  } else {
+    wechatQrShownAt = Date.now()
+    connections.value = [...connections.value, connection]
+  }
+}
+function stopWechatDetect() {
+  wechatGeneration++
+  wechatPolling.value = false
+}
+function startWechatDetect() {
+  const generation = ++wechatGeneration
+  wechatExpired.value = false
+  wechatError.value = ''
+  wechatQrShownAt = Date.now()
+  wechatPolling.value = true
+  void wechatDetectLoop(generation)
+}
+function wechatPause(ms: number) { return new Promise<void>(resolve => setTimeout(resolve, ms)) }
+async function wechatDetectLoop(generation: number) {
+  try {
+    while (generation === wechatGeneration) {
+      // An older run's request may still be in flight after "Get a new QR code"; never overlap with it.
+      if (wechatCheckInFlight) await wechatCheckInFlight
+      if (generation !== wechatGeneration) return
+      const current = activeKind.value && instance.value ? connectionFor(activeKind.value.kind) : undefined
+      if (!showConnectionModal.value || !instance.value || !current?.setup_key || current.status === 'connected') return
+      if (Date.now() - wechatQrShownAt >= WECHAT_QR_LIFETIME_MS) { wechatExpired.value = true; return }
+      const request = completeOpenClawConnection(instance.value.id, current.id, current.setup_key)
+      const settled = request.then(() => undefined, () => undefined)
+      wechatCheckInFlight = settled
+      let result: OpenClawConnection
+      try { result = await request } finally { await settled; if (wechatCheckInFlight === settled) wechatCheckInFlight = null }
+      if (generation !== wechatGeneration) return
+      const shownBefore = current.setup_url || ''
+      applyConnection(result)
+      if (result.status === 'connected') { setupPrepared.value = true; return }
+      if (!result.setup_url && result.setup_message) wechatNotice.value = result.setup_message
+      else if (result.setup_url && result.setup_url !== shownBefore) wechatNotice.value = t('connections.wechatQrRefreshed')
+      if (!result.setup_key) return
+      await wechatPause(WECHAT_CHECK_GAP_MS)
+    }
+  } catch (err: any) {
+    if (generation === wechatGeneration) wechatError.value = err?.message || t('connections.connectFailed')
+  } finally {
+    if (generation === wechatGeneration) wechatPolling.value = false
+  }
+}
+async function createWechatQr() {
+  if (!instance.value || !activeKind.value) return
+  stopWechatDetect()
+  const generation = wechatGeneration
+  preparingConnection.value = true
+  wechatError.value = ''
+  wechatNotice.value = ''
+  wechatExpired.value = false
+  try {
+    const connection = await createOpenClawConnection(instance.value.id, activeKind.value.kind, '', '')
+    if (generation !== wechatGeneration) return
+    applyConnection(connection)
+    if (connection.status === 'connected') setupPrepared.value = true
+    else if (connection.setup_key) startWechatDetect()
+  } catch (err: any) {
+    if (generation === wechatGeneration) wechatError.value = err?.message || t('connections.connectFailed')
+  } finally { preparingConnection.value = false }
+}
+function wechatPrimary() {
+  if (activeConnection.value?.setup_key) startWechatDetect()
+  else void createWechatQr()
+}
+function newWechatQr() { void createWechatQr() }
+watch(showConnectionModal, (open) => { if (!open) stopWechatDetect() })
+onBeforeUnmount(stopWechatDetect)
 async function removeConnection(connection: OpenClawConnection) {
   if (!instance.value) return
   deletingConnection.value = true
@@ -494,10 +626,21 @@ onMounted(load)
 .setup-note { margin: 4px 0 0; padding: 12px; border-left: 3px solid #a33c2d; font-size: 12px; line-height: 1.55; background: color-mix(in srgb, #a33c2d 7%, transparent); }
 .provider-instructions { border: 1px solid var(--ag-ink); padding: 14px; font-size: 13px; line-height: 1.65; }
 .provider-instructions p { margin: 0; }
+.wechat-login-box { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.wechat-login-box .setup-note { align-self: stretch; margin: 0; }
+.wechat-qr-tile { background: #fff; padding: 8px; border: 1px solid var(--ag-ink); line-height: 0; }
+.wechat-qr-img { display: block; width: 200px; height: 200px; image-rendering: pixelated; }
+.wechat-link { font-size: 13px; text-decoration: underline; text-underline-offset: 3px; color: inherit; }
+.wechat-links { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0 4px; margin: 0; font-size: 13px; }
+.wechat-link-button { border: 0; background: none; padding: 0; font: inherit; font-size: 13px; cursor: pointer; }
+.wechat-link-button:disabled { opacity: .5; cursor: not-allowed; }
+.wechat-waiting { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 0; font-size: 13px; }
+.wechat-spinner { width: 14px; height: 14px; flex: 0 0 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: connections-spin .8s linear infinite; }
+.wechat-link:focus-visible { outline: 2px solid #a33c2d; outline-offset: 2px; }
 .setup-success { margin: 0; border-left: 3px solid #28704d; padding: 10px 12px; font-size: 13px; line-height: 1.5; }
 @keyframes connections-spin { to { transform: rotate(360deg); } }
 @keyframes connections-progress { 0% { transform: translateX(-120%); } 100% { transform: translateX(380%); } }
 @media (max-width: 840px) { .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .provision-panel { grid-template-columns: 1fr; } .provision-eta { grid-column: auto; margin: -10px 0 0; } }
 @media (max-width: 560px) { .metric-grid { grid-template-columns: 1fr; } .tenant-hero { align-items: flex-start; padding: 18px; } .tenant-actions { width: 100%; } .tenant-actions .btn { flex: 1 1 140px; } .connection-footer { align-items: flex-start; flex-direction: column; } .connection-footer .btn { width: 100%; } .provision-panel { padding: 18px; } .billing-api-panel { align-items: flex-start; padding: 18px; } .billing-api-stats { width: 100%; justify-content: flex-start; } }
-@media (prefers-reduced-motion: reduce) { .loading-spinner, .provision-progress span.active { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .loading-spinner, .wechat-spinner, .provision-progress span.active { animation: none; } }
 </style>
