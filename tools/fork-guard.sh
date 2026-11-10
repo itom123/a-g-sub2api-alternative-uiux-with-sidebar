@@ -94,6 +94,17 @@ for f in 	backend/internal/service/payment_session_cancel.go 	backend/internal/s
 	if [[ -f "$f" ]]; then ok "present: $f"; else fail "fork-owned file present: $f"; fi
 done
 
+# 9. OpenClaw worker cell status and WeChat login (docs/fork/CUSTOMIZATIONS.md, section 9).
+ocw=backend/internal/openclawworker
+if [[ -f "$ocw/cell_status.go" ]]; then ok "present: $ocw/cell_status.go"; else fail "fork-owned file present: $ocw/cell_status.go"; fi
+require_text "$ocw/cell_status.go" "func (w *Worker) cellStatus(" "worker has the cell status action"
+require_text "$ocw/cell_status.go" "func (w *Worker) inspectCell(" "worker inspects cell containers in one place"
+require_text "$ocw/cell_status.go" "func parseCellObservation(" "worker parses cell observations in one place"
+require_text "$ocw/gateway_proxy.go" "w.inspectCell(" "gateway proxy shares the cell inspection"
+require_text "$ocw/worker.go" "cellStatus(" "worker dispatches the status action"
+require_text "$ocw/worker.go" "finishWeChatWait(" "WeChat login finishes through finishWeChatWait"
+require_text "$ocw/worker.go" "startWeChatChannelIfStopped(" "WeChat login restarts a stopped channel without a gateway reload"
+
 # 7. No upstream tutorial or branding (docs/fork/CUSTOMIZATIONS.md, section 7).
 for f in frontend/src/composables/useOnboardingTour.ts frontend/src/stores/onboarding.ts frontend/src/components/Guide frontend/src/styles/onboarding.css frontend/src/components/common/ProxyAdBanner.vue; do
 	if [[ -e "$f" ]]; then fail "tutorial and upstream ad removed ($f is back)"; else ok "absent: $f"; fi
@@ -149,6 +160,10 @@ else
 		backend/internal/service/openclaw_billing_lock_test.go
 		# 8. Referral codes as invitations
 		backend/internal/service/auth_service_referral_invitation_test.go
+		# 9. OpenClaw worker cell status and WeChat login
+		backend/internal/openclawworker/worker_status_test.go
+		backend/internal/openclawworker/gateway_proxy_test.go
+		backend/internal/openclawworker/worker_test.go
 	)
 	declare -A pkg_tests=()
 	expected=0

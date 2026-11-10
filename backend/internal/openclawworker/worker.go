@@ -9,13 +9,13 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -58,7 +58,10 @@ type Worker struct {
 	MaxCells           int
 	enrollmentMu       sync.RWMutex
 	enrollmentByDevice map[string]openclawgateway.EnrollmentBinding
-	mu                 sync.Mutex
+	// Nil seams use the direct Podman CLI and loopback TCP dial in production.
+	podmanRead func(context.Context, ...string) ([]byte, error)
+	statusDial func(context.Context, string, string) (net.Conn, error)
+	mu         sync.Mutex
 }
 
 func (w *Worker) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
@@ -91,13 +94,18 @@ func (w *Worker) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		http.Error(rw, `{"error":"unsupported action"}`, http.StatusBadRequest)
 		return
 	}
-	// Serializing lifecycle commands prevents concurrent create capacity races.
-	if !w.mu.TryLock() {
-		http.Error(rw, `{"error":"worker busy; retry shortly"}`, http.StatusConflict)
-		return
+	// Only status is read-only. Lifecycle/configuration commands keep the same
+	// global serialization and create-capacity protection.
+	timeout := 8 * time.Second
+	if action != "status" {
+		if !w.mu.TryLock() {
+			http.Error(rw, `{"error":"worker busy; retry shortly"}`, http.StatusConflict)
+			return
+		}
+		defer w.mu.Unlock()
+		timeout = 5 * time.Minute
 	}
-	defer w.mu.Unlock()
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(r.Context(), timeout)
 	defer cancel()
 	var result Result
 	var err error
@@ -618,6 +626,9 @@ func shellQuote(value string) string {
 }
 
 func (w *Worker) execute(ctx context.Context, tenant, action string) (Result, error) {
+	if action == "status" {
+		return w.cellStatus(ctx, tenant)
+	}
 	var registry struct {
 		Cells []struct {
 			Tenant string `json:"tenant"`
@@ -634,17 +645,6 @@ func (w *Worker) execute(ctx context.Context, tenant, action string) (Result, er
 		if cell.Tenant == tenant {
 			existing = &Result{State: cell.State, Port: cell.Port}
 		}
-	}
-	if action == "status" {
-		if existing == nil {
-			return Result{State: "missing"}, nil
-		}
-		if existing.Port > 0 {
-			if latency := probeCell(ctx, existing.Port); latency != nil {
-				existing.LatencyMS = latency
-			}
-		}
-		return *existing, nil
 	}
 	if action == "create" {
 		if existing != nil {
@@ -698,24 +698,4 @@ func (w *Worker) execute(ctx context.Context, tenant, action string) (Result, er
 		return Result{}, err
 	}
 	return Result{State: state, Port: existing.Port}, nil
-}
-
-func probeCell(parent context.Context, port int) *int {
-	ctx, cancel := context.WithTimeout(parent, 2*time.Second)
-	defer cancel()
-	started := time.Now()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://127.0.0.1:"+strconv.Itoa(port)+"/healthz", nil)
-	if err != nil {
-		return nil
-	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil
-	}
-	value := int(time.Since(started).Milliseconds())
-	return &value
 }

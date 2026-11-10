@@ -129,6 +129,28 @@ arrived with, and the invitation check endpoint reports a referral code as valid
 
 ---
 
+## 9. OpenClaw worker cell status and WeChat login
+
+**What it does.** The OpenClaw worker (`backend/cmd/openclaw-worker`) answers a `status` action for a tenant's cell:
+container state, identity, loopback gateway mapping and gateway health latency, from one `podman inspect`. The gateway
+proxy uses the same inspection, so what the status reports is what the proxy would dial. This has run on the uk-02
+worker since 2026-11-01. The worker's WeChat login (`finishWeChatWait`, `startWeChatChannelIfStopped`) restarts a
+stopped channel without reloading the gateway.
+
+**Fork-owned files:** `backend/internal/openclawworker/cell_status.go` and `worker_status_test.go`.
+
+**Hook points in shared files:**
+
+| File | Hook |
+| --- | --- |
+| `backend/internal/openclawworker/worker.go` | The `status` action calls `cellStatus`; WeChat login goes through `finishWeChatWait` and `startWeChatChannelIfStopped`. |
+| `backend/internal/openclawworker/gateway_proxy.go` | `gatewayCell` and `parseGatewayCell` delegate to `inspectCell` and `parseCellObservation`. |
+
+**Invariants checked by `fork-guard`:** `cell_status.go` and the functions above are present, and the tests in
+`worker_status_test.go`, `gateway_proxy_test.go` and `worker_test.go` pass.
+
+---
+
 ## Production is built from `main` only
 
 Every production deploy must be built from a commit on `main`, with this guard green. Never deploy a locally built
