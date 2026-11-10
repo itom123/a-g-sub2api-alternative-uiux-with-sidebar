@@ -102,6 +102,7 @@ import { useI18n } from 'vue-i18n'
 import TurnstileWidget from '@/components/CaptchaChallenge.vue'
 import { getPublicSettings, sendPendingOAuthVerifyCode } from '@/api/auth'
 import { useAppStore } from '@/stores'
+import { loadReferralInvitationCode } from '@/utils/oauthAffiliate'
 
 export type PendingOAuthCreateAccountPayload = {
   email: string
@@ -349,6 +350,9 @@ onMounted(async () => {
   try {
     const settings = await getPublicSettings()
     invitationCodeEnabled.value = settings.invitation_code_enabled === true
+    if (invitationCodeEnabled.value && !invitationCode.value.trim()) {
+      invitationCode.value = loadReferralInvitationCode(settings.affiliate_enabled)
+    }
     emailVerifyEnabled.value = settings.email_verify_enabled !== false
     turnstileEnabled.value = settings.turnstile_enabled === true
     turnstileSiteKey.value = settings.turnstile_site_key || ''

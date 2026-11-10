@@ -101,6 +101,34 @@ that the locales and legal docs contain no "Sub2API".
 
 ---
 
+## 8. Referral codes admit new users in invitation-only mode
+
+**What it does.** Users see their affiliate code as "my invitation code" (我的邀请码) and share it as
+`/register?aff=CODE`. Upstream only accepts admin-issued invitation codes when invitation-only registration is on, so
+a new user holding a friend's code could not sign up. Here, while the affiliate program is on, an active user's
+affiliate code also satisfies the invitation requirement, whether it is typed into the invitation field or carried
+by the invite link. That code is bound as the new user's inviter. Admin invitation codes still work and are still
+single-use; a referral code is reusable and never consumes one. Codes of disabled users are rejected.
+
+The register page and the OAuth invitation prompts prefill the invitation field with the referral code the visitor
+arrived with, and the invitation check endpoint reports a referral code as valid.
+
+**Hook points in upstream-owned files:**
+
+| File | Hook |
+| --- | --- |
+| `backend/internal/service/auth_service.go` | `resolveSignupInvitation` / `affiliateInvitationCode` / `IsAffiliateInvitationCode`; `RegisterWithVerification` and `loginOrRegisterOAuthWithTokenPair` call `resolveSignupInvitation` instead of checking the redeem code inline. |
+| `backend/internal/service/auth_oauth_email_flow.go`, `auth_email_oauth_auto.go` | `validateOAuthRegistrationInvitation` takes the affiliate code, delegates to `resolveSignupInvitation` and returns the code to bind; `FinalizeOAuthEmailAccount` and `createEmailOAuthUser` bind that code. |
+| `backend/internal/service/affiliate_service.go` | `LookupInviterByCode`. |
+| `backend/internal/handler/auth_handler.go` (`ValidateInvitationCode`) | Falls back to `IsAffiliateInvitationCode`. |
+| `frontend/src/views/auth/RegisterView.vue`, `PendingOAuthCreateAccountForm.vue`, the OAuth callback views, `frontend/src/utils/oauthAffiliate.ts`, zh/en i18n | Prefill via `loadReferralInvitationCode`; the `auth.invitationCodeReferralHint` hint. |
+
+**Invariants checked by `fork-guard`:** the hooks above are present, and the tests in
+`backend/internal/service/auth_service_referral_invitation_test.go` and
+`frontend/src/views/auth/__tests__/RegisterView.spec.ts` pass.
+
+---
+
 ## Production is built from `main` only
 
 Every production deploy must be built from a commit on `main`, with this guard green. Never deploy a locally built

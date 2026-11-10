@@ -257,6 +257,7 @@ import {
 import {
   clearAllAffiliateReferralCodes,
   loadOAuthAffiliateCode,
+  loadReferralInvitationCode,
   oauthAffiliatePayload
 } from '@/utils/oauthAffiliate'
 
@@ -273,6 +274,12 @@ const errorMessage = ref('')
 // Invitation code flow state
 const needsInvitation = ref(false)
 const invitationCode = ref('')
+// In invitation-only mode, prefill the referral code the visitor arrived with.
+watch(needsInvitation, (required) => {
+  if (required && !invitationCode.value.trim()) {
+    invitationCode.value = loadReferralInvitationCode(appStore.cachedPublicSettings?.affiliate_enabled)
+  }
+})
 const isSubmitting = ref(false)
 const invitationError = ref('')
 const redirectTo = ref('/dashboard')

@@ -164,6 +164,9 @@
               </span>
             </div>
           </transition>
+          <p v-if="affiliateEnabled && !invitationValidation.valid" class="input-hint">
+            {{ t('auth.invitationCodeReferralHint') }}
+          </p>
         </div>
 
         <!-- Affiliate Invitation Code Input (Optional) -->
@@ -558,6 +561,16 @@ function syncAffiliateReferralCode(): string {
   return code
 }
 
+// Invitation-only mode also accepts an inviter's affiliate code, so the code
+// from an invite link (/register?aff=CODE) fills the required invitation field.
+function prefillInvitationFromReferral(code: string): void {
+  if (!code || !invitationCodeEnabled.value || !affiliateEnabled.value || formData.invitation_code.trim()) {
+    return
+  }
+  formData.invitation_code = code
+  void validateInvitationCodeDebounced(code)
+}
+
 // ==================== Lifecycle ====================
 
 onMounted(async () => {
@@ -601,7 +614,7 @@ onMounted(async () => {
         await validatePromoCodeDebounced(promoParam)
       }
     }
-    syncAffiliateReferralCode()
+    prefillInvitationFromReferral(syncAffiliateReferralCode())
   } catch (error) {
     console.error('Failed to load public settings:', error)
     loginAgreementEnabled.value = false
@@ -614,7 +627,7 @@ onMounted(async () => {
 watch(
   () => [route.query.aff, route.query.aff_code],
   () => {
-    syncAffiliateReferralCode()
+    prefillInvitationFromReferral(syncAffiliateReferralCode())
   }
 )
 

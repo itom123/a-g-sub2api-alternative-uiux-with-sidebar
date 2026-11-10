@@ -8,6 +8,8 @@ const {
   showErrorMock,
   pushMock,
   verifyActionMock,
+  validateInvitationCodeMock,
+  routeQuery,
   appStoreMock
 } = vi.hoisted(() => ({
   getPublicSettingsMock: vi.fn(),
@@ -15,6 +17,8 @@ const {
   showErrorMock: vi.fn(),
   pushMock: vi.fn(),
   verifyActionMock: vi.fn(),
+  validateInvitationCodeMock: vi.fn(),
+  routeQuery: {} as Record<string, string>,
   appStoreMock: {
     cachedPublicSettings: null as { promo_code_enabled?: boolean } | null,
     showError: (...args: unknown[]) => showErrorMock(...args),
@@ -42,7 +46,7 @@ const publicSettings = {
 
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push: pushMock }),
-  useRoute: () => ({ query: {} })
+  useRoute: () => ({ query: routeQuery })
 }))
 
 vi.mock('vue-i18n', () => ({
@@ -69,7 +73,8 @@ vi.mock('@/api/auth', async () => {
   const actual = await vi.importActual<typeof import('@/api/auth')>('@/api/auth')
   return {
     ...actual,
-    getPublicSettings: (...args: unknown[]) => getPublicSettingsMock(...args)
+    getPublicSettings: (...args: unknown[]) => getPublicSettingsMock(...args),
+    validateInvitationCode: (...args: unknown[]) => validateInvitationCodeMock(...args)
   }
 })
 
@@ -102,6 +107,10 @@ describe('RegisterView', () => {
     showErrorMock.mockReset()
     pushMock.mockReset()
     verifyActionMock.mockReset()
+    validateInvitationCodeMock.mockReset()
+    validateInvitationCodeMock.mockResolvedValue({ valid: true })
+    for (const key of Object.keys(routeQuery)) delete routeQuery[key]
+    localStorage.removeItem('affiliate_referral_code')
     appStoreMock.cachedPublicSettings = null
     sessionStorage.removeItem('register_data')
     verifyActionMock.mockResolvedValue({ token: 'ticket', randstr: 'randstr' })
@@ -234,6 +243,36 @@ describe('RegisterView', () => {
 
     expect(wrapper.find('[data-testid="affiliate-invitation-field"]').exists()).toBe(false)
     expect(wrapper.get('#invitation_code').exists()).toBe(true)
+  })
+
+  it('fills the required invitation field from an invite link so referred users can register', async () => {
+    routeQuery.aff = 'FRIEND42'
+    getPublicSettingsMock.mockResolvedValueOnce({
+      ...publicSettings,
+      invitation_code_enabled: true
+    })
+
+    const wrapper = mountRegister()
+    await flushPromises()
+
+    expect((wrapper.get('#invitation_code').element as HTMLInputElement).value).toBe('FRIEND42')
+    expect(validateInvitationCodeMock).toHaveBeenCalledWith('FRIEND42')
+    expect(wrapper.text()).not.toContain('auth.invitationCodeReferralHint')
+  })
+
+  it('leaves the invitation field empty when the affiliate program is off', async () => {
+    routeQuery.aff = 'FRIEND42'
+    getPublicSettingsMock.mockResolvedValueOnce({
+      ...publicSettings,
+      invitation_code_enabled: true,
+      affiliate_enabled: false
+    })
+
+    const wrapper = mountRegister()
+    await flushPromises()
+
+    expect((wrapper.get('#invitation_code').element as HTMLInputElement).value).toBe('')
+    expect(validateInvitationCodeMock).not.toHaveBeenCalled()
   })
 
   it('submits a non-whitelist email domain so the backend can enforce its registration quota', async () => {

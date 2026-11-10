@@ -158,7 +158,7 @@ func (s *AuthService) createEmailOAuthUser(ctx context.Context, email, username,
 	if s.settingService == nil || !s.settingService.IsRegistrationEnabled(ctx) {
 		return nil, ErrRegDisabled
 	}
-	invitationRedeemCode, err := s.validateOAuthRegistrationInvitation(ctx, invitationCode)
+	invitationRedeemCode, affiliateCode, err := s.validateOAuthRegistrationInvitation(ctx, invitationCode, affiliateCode)
 	if err != nil {
 		if errors.Is(err, ErrInvitationCodeRequired) {
 			return nil, ErrOAuthInvitationRequired
