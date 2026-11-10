@@ -556,6 +556,13 @@ func (h *AuthHandler) ValidateInvitationCode(c *gin.Context) {
 
 	// 验证邀请码
 	redeemCode, err := h.redeemService.GetByCode(c.Request.Context(), req.Code)
+	if err != nil || redeemCode.Type != service.RedeemTypeInvitation || redeemCode.Status != service.StatusUnused {
+		// 已有用户的邀请返利码同样可以作为邀请码注册
+		if h.authService != nil && h.authService.IsAffiliateInvitationCode(c.Request.Context(), req.Code) {
+			response.Success(c, ValidateInvitationCodeResponse{Valid: true})
+			return
+		}
+	}
 	if err != nil {
 		response.Success(c, ValidateInvitationCodeResponse{
 			Valid:     false,

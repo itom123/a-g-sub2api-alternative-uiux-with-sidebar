@@ -122,6 +122,16 @@ export function clearOAuthAffiliateCode(): void {
   }
 }
 
+// The referral code this visitor arrived with, for prefilling a required
+// invitation field: the backend accepts an inviter's affiliate code as an
+// invitation while the affiliate program is on.
+export function loadReferralInvitationCode(affiliateEnabled: boolean | undefined): string {
+  if (!affiliateEnabled) {
+    return ''
+  }
+  return loadOAuthAffiliateCode() || loadAffiliateReferralCode()
+}
+
 export function clearAllAffiliateReferralCodes(): void {
   clearOAuthAffiliateCode()
   clearAffiliateReferralCode()

@@ -161,6 +161,7 @@ import {
 import {
   clearAllAffiliateReferralCodes,
   loadOAuthAffiliateCode,
+  loadReferralInvitationCode,
   oauthAffiliatePayload
 } from '@/utils/oauthAffiliate'
 
@@ -178,6 +179,12 @@ const registrationEmail = ref('')
 const password = ref('')
 const confirmPassword = ref('')
 const invitationCode = ref('')
+// In invitation-only mode, prefill the referral code the visitor arrived with.
+watch(invitationRequired, (required) => {
+  if (required && !invitationCode.value.trim()) {
+    invitationCode.value = loadReferralInvitationCode(appStore.cachedPublicSettings?.affiliate_enabled)
+  }
+})
 const registrationError = ref('')
 const pendingProvider = ref<'github' | 'google'>('github')
 const redirectTo = ref('/dashboard')

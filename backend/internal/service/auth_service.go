@@ -170,24 +170,15 @@ func (s *AuthService) RegisterWithVerification(ctx context.Context, email, passw
 	if isReservedEmail(email) {
 		return "", nil, ErrEmailReserved
 	}
-	// 检查是否需要邀请码
+	// 检查是否需要邀请码（管理员邀请码，或已有用户的邀请返利码）
 	var invitationRedeemCode *RedeemCode
 	if s.settingService != nil && s.settingService.IsInvitationCodeEnabled(ctx) {
-		if invitationCode == "" {
-			return "", nil, ErrInvitationCodeRequired
-		}
-		// 验证邀请码
-		redeemCode, err := s.redeemRepo.GetByCode(ctx, invitationCode)
+		redeemCode, inviterCode, err := s.resolveSignupInvitation(ctx, invitationCode, affiliateCode, s.loadSignupInvitation)
 		if err != nil {
-			logger.LegacyPrintf("service.auth", "[Auth] Invalid invitation code: %s, error: %v", invitationCode, err)
-			return "", nil, ErrInvitationCodeInvalid
-		}
-		// 检查类型和状态
-		if redeemCode.Type != RedeemTypeInvitation || !redeemCode.CanUse() {
-			logger.LegacyPrintf("service.auth", "[Auth] Invitation code invalid: type=%s, status=%s", redeemCode.Type, redeemCode.Status)
-			return "", nil, ErrInvitationCodeInvalid
+			return "", nil, err
 		}
 		invitationRedeemCode = redeemCode
+		affiliateCode = inviterCode
 	}
 
 	// 检查是否需要邮件验证
@@ -720,20 +711,18 @@ func (s *AuthService) loginOrRegisterOAuthWithTokenPair(ctx context.Context, ema
 				return nil, nil, ErrRegDisabled
 			}
 
-			// 检查是否需要邀请码
+			// 检查是否需要邀请码（管理员邀请码，或已有用户的邀请返利码）
 			var invitationRedeemCode *RedeemCode
 			if s.settingService != nil && s.settingService.IsInvitationCodeEnabled(ctx) {
-				if invitationCode == "" {
-					return nil, nil, ErrOAuthInvitationRequired
-				}
-				redeemCode, err := s.redeemRepo.GetByCode(ctx, invitationCode)
+				redeemCode, inviterCode, err := s.resolveSignupInvitation(ctx, invitationCode, affiliateCode, s.loadSignupInvitation)
 				if err != nil {
-					return nil, nil, ErrInvitationCodeInvalid
-				}
-				if redeemCode.Type != RedeemTypeInvitation || !redeemCode.CanUse() {
-					return nil, nil, ErrInvitationCodeInvalid
+					if errors.Is(err, ErrInvitationCodeRequired) {
+						return nil, nil, ErrOAuthInvitationRequired
+					}
+					return nil, nil, err
 				}
 				invitationRedeemCode = redeemCode
+				affiliateCode = inviterCode
 			}
 
 			randomPassword, err := randomHexString(32)
@@ -969,6 +958,71 @@ func authSourceSignupSettings(defaults *AuthSourceDefaultSettings, signupSource 
 	default:
 		return ProviderDefaultGrantSettings{}, false
 	}
+}
+
+// IsAffiliateInvitationCode reports whether code is a referral code that can
+// stand in for an invitation code in invitation-only registration.
+func (s *AuthService) IsAffiliateInvitationCode(ctx context.Context, code string) bool {
+	return s.affiliateInvitationCode(ctx, code) != ""
+}
+
+// affiliateInvitationCode returns the first candidate that is an active user's
+// affiliate code, or "". Users share that code as their invitation code (the
+// invite link is /register?aff=CODE), so in invitation-only mode it admits a
+// new user the same way an admin-issued invitation code does.
+func (s *AuthService) affiliateInvitationCode(ctx context.Context, candidates ...string) string {
+	if s == nil || s.affiliateService == nil {
+		return ""
+	}
+	for _, candidate := range candidates {
+		code, inviterID, ok := s.affiliateService.LookupInviterByCode(ctx, candidate)
+		if !ok {
+			continue
+		}
+		if s.userRepo != nil {
+			inviter, err := s.userRepo.GetByID(ctx, inviterID)
+			if err != nil || inviter == nil || !inviter.IsActive() {
+				continue
+			}
+		}
+		return code
+	}
+	return ""
+}
+
+func (s *AuthService) loadSignupInvitation(ctx context.Context, code string) (*RedeemCode, error) {
+	if s == nil || s.redeemRepo == nil {
+		return nil, ErrRedeemCodeNotFound
+	}
+	return s.redeemRepo.GetByCode(ctx, code)
+}
+
+// resolveSignupInvitation enforces invitation-only registration. A new user
+// gets in with an unused admin-issued invitation code, or with an inviter's
+// affiliate code typed into the invitation field or carried by the invite link.
+// It returns the invitation to claim (nil when a referral code was used) and
+// the affiliate code to bind as the user's inviter.
+func (s *AuthService) resolveSignupInvitation(
+	ctx context.Context,
+	invitationCode string,
+	affiliateCode string,
+	loadInvitation func(context.Context, string) (*RedeemCode, error),
+) (*RedeemCode, string, error) {
+	invitationCode = strings.TrimSpace(invitationCode)
+	if invitationCode != "" {
+		redeemCode, err := loadInvitation(ctx, invitationCode)
+		if err == nil && redeemCode != nil && redeemCode.Type == RedeemTypeInvitation && redeemCode.CanUse() {
+			return redeemCode, affiliateCode, nil
+		}
+	}
+	if code := s.affiliateInvitationCode(ctx, invitationCode, affiliateCode); code != "" {
+		return nil, code, nil
+	}
+	if invitationCode == "" {
+		return nil, affiliateCode, ErrInvitationCodeRequired
+	}
+	logger.LegacyPrintf("service.auth", "[Auth] Rejected registration: %q is neither a usable invitation code nor an inviter's affiliate code", invitationCode)
+	return nil, affiliateCode, ErrInvitationCodeInvalid
 }
 
 // bindOAuthAffiliate initializes the affiliate profile and binds the inviter

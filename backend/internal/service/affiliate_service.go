@@ -290,6 +290,20 @@ func (s *AffiliateService) GetAffiliateDetail(ctx context.Context, userID int64)
 	}, nil
 }
 
+// LookupInviterByCode returns the normalized code and the owner's user ID when
+// rawCode is an existing user's affiliate code and the program is on.
+func (s *AffiliateService) LookupInviterByCode(ctx context.Context, rawCode string) (string, int64, bool) {
+	code := strings.ToUpper(strings.TrimSpace(rawCode))
+	if code == "" || s == nil || s.repo == nil || !isValidAffiliateCodeFormat(code) || !s.IsEnabled(ctx) {
+		return "", 0, false
+	}
+	inviter, err := s.repo.GetAffiliateByCode(ctx, code)
+	if err != nil || inviter == nil || inviter.UserID <= 0 {
+		return "", 0, false
+	}
+	return code, inviter.UserID, true
+}
+
 func (s *AffiliateService) BindInviterByCode(ctx context.Context, userID int64, rawCode string) error {
 	code := strings.ToUpper(strings.TrimSpace(rawCode))
 	if code == "" {

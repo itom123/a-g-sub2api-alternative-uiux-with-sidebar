@@ -108,6 +108,12 @@ require_text frontend/src/utils/branding.ts "DEFAULT_SITE_NAME = 'AG_>'" "fronte
 # The deploy tooling parses the binary's --version line; it must keep the upstream format.
 require_text backend/cmd/server/main.go 'log.Printf("Sub2API %s (commit: %s, built: %s)' "binary --version keeps the format deploy/production parses"
 
+# 8. Referral codes admit new users in invitation-only mode (docs/fork/CUSTOMIZATIONS.md, section 8).
+require_text backend/internal/service/auth_service.go "s.resolveSignupInvitation(ctx, invitationCode, affiliateCode, s.loadSignupInvitation)" "email sign-up accepts referral codes as invitations"
+require_text backend/internal/service/auth_oauth_email_flow.go "s.resolveSignupInvitation(ctx, invitationCode, affiliateCode, s.loadOAuthRegistrationInvitation)" "OAuth sign-up accepts referral codes as invitations"
+require_text backend/internal/handler/auth_handler.go "h.authService.IsAffiliateInvitationCode(" "invitation check endpoint accepts referral codes"
+require_text frontend/src/views/auth/RegisterView.vue "prefillInvitationFromReferral(syncAffiliateReferralCode())" "register page fills the invitation field from the invite link"
+
 if [[ "${1:-}" == "--static-only" ]]; then
 	echo
 else
@@ -141,6 +147,8 @@ else
 		backend/internal/handler/usage_handler_user_insights_test.go
 		# 6. OpenClaw pricing
 		backend/internal/service/openclaw_billing_lock_test.go
+		# 8. Referral codes as invitations
+		backend/internal/service/auth_service_referral_invitation_test.go
 	)
 	declare -A pkg_tests=()
 	expected=0
@@ -188,7 +196,8 @@ else
 		src/views/admin/ops/components/__tests__/OpsDashboardHeader.spec.ts \
 		src/components/user/dashboard/insights/__tests__/aggregate.spec.ts \
 		src/components/user/dashboard/__tests__/UserDashboardSubscriptions.spec.ts \
-		src/views/admin/__tests__/SubscriptionsView.usageColumns.spec.ts); then
+		src/views/admin/__tests__/SubscriptionsView.usageColumns.spec.ts \
+		src/views/auth/__tests__/RegisterView.spec.ts); then
 		ok "frontend guard specs"
 	else
 		fail "frontend guard specs pass"
