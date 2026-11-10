@@ -399,8 +399,11 @@ func (w *Worker) connectWeChat(ctx context.Context, tenant, sessionKey, account 
 	if account == "" {
 		account = "main"
 	}
-	if err := w.ensureWeChatPlugin(ctx, tenant); err != nil {
-		return Result{}, err
+	// Only prepare the plugin before starting a login: its reload drops the pending QR login session that web.login.wait needs.
+	if strings.TrimSpace(sessionKey) == "" {
+		if err := w.ensureWeChatPlugin(ctx, tenant); err != nil {
+			return Result{}, err
+		}
 	}
 	method := "web.login.start"
 	params := map[string]any{"channel": "openclaw-weixin", "accountId": account, "force": true}
@@ -413,6 +416,9 @@ func (w *Worker) connectWeChat(ctx context.Context, tenant, sessionKey, account 
 		return Result{}, err
 	}
 	out, err := w.cellCommand(ctx, tenant, "openclaw", "gateway", "call", method, "--params", string(paramsJSON), "--json", "--timeout", "15000")
+	if method == "web.login.wait" {
+		return w.finishWeChatWait(ctx, tenant, account, sessionKey, out, err)
+	}
 	if err != nil {
 		return Result{}, err
 	}
@@ -435,6 +441,120 @@ func (w *Worker) connectWeChat(ctx context.Context, tenant, sessionKey, account 
 		return Result{State: "connected", Message: response.Message}, nil
 	}
 	return Result{State: "pending", SetupKey: sessionKey, Message: response.Message}, nil
+}
+
+// finishWeChatWait turns a web.login.wait outcome into a Result. The CLI call times out long before the
+// gateway-side wait does, so a scan confirmed later (or a wait that errored) is detected from channels.status.
+func (w *Worker) finishWeChatWait(ctx context.Context, tenant, account, sessionKey string, out []byte, waitErr error) (Result, error) {
+	var response struct {
+		Connected bool   `json:"connected"`
+		Message   string `json:"message"`
+	}
+	if waitErr == nil {
+		waitErr = json.Unmarshal(out, &response)
+	}
+	if waitErr == nil && response.Connected {
+		w.startWeChatChannelIfStopped(ctx, tenant, nil)
+		return Result{State: "connected", Message: response.Message}, nil
+	}
+	status, statusErr := w.cellCommand(ctx, tenant, "openclaw", "gateway", "call", "channels.status", "--json", "--timeout", "15000")
+	if statusErr == nil && weChatConfigured(status) {
+		w.startWeChatChannelIfStopped(ctx, tenant, status)
+		return Result{State: "connected", Message: response.Message}, nil
+	}
+	if waitErr != nil && statusErr != nil {
+		return Result{}, waitErr
+	}
+	// Every wait outcome without a connection has already discarded the plugin's login (or the gateway is
+	// still polling it). Ask for the current QR instead of force-restarting: force:false returns the existing
+	// fresh login or creates a new one, and no plugin reload is issued because that would kill a live login.
+	message := response.Message
+	if waitErr != nil {
+		message = weChatStillWaiting
+	}
+	if account == "" {
+		account = "main"
+	}
+	if paramsJSON, err := json.Marshal(map[string]any{"channel": "openclaw-weixin", "accountId": account, "force": false}); err == nil {
+		if startOut, startErr := w.cellCommand(ctx, tenant, "openclaw", "gateway", "call", "web.login.start", "--params", string(paramsJSON), "--json", "--timeout", "15000"); startErr == nil {
+			var started struct {
+				QRDataURL  string `json:"qrDataUrl"`
+				SessionKey string `json:"sessionKey"`
+			}
+			if json.Unmarshal(startOut, &started) == nil && started.QRDataURL != "" && started.SessionKey != "" {
+				if waitErr == nil {
+					message = weChatQRExpired
+				}
+				return Result{State: "pending", SetupURL: started.QRDataURL, SetupKey: started.SessionKey, Message: message}, nil
+			}
+		}
+	}
+	return Result{State: "pending", SetupKey: sessionKey, Message: message}, nil
+}
+
+const (
+	weChatQRExpired    = "二维码已失效，已为你生成新的二维码：请扫描并在手机上确认，然后再点「我已扫描二维码」。The QR code expired, so a new one was created: scan it, confirm on your phone, then check again."
+	weChatStillWaiting = "仍在等待微信扫码确认：请在手机上确认后再检查。Still waiting for the WeChat scan. Confirm the login on your phone, then check again."
+)
+
+// startWeChatChannelIfStopped starts a freshly logged-in WeChat account right away. After saving the account the
+// plugin (2.4.8) triggers a channel reload by importing openclaw/plugin-sdk/config-runtime, which OpenClaw
+// 2026.10 does not export (ERR_PACKAGE_PATH_NOT_EXPORTED), so the account stays configured but not running until
+// the health monitor restarts it minutes later. Doing the plugin's own write through the CLI,
+// channels.openclaw-weixin.channelConfigUpdatedAt, is a hot channel reload with no gateway restart.
+// Best effort: status is the channels.status output when the caller already has it (nil to fetch it);
+// every failure is ignored and never changes the login result.
+func (w *Worker) startWeChatChannelIfStopped(ctx context.Context, tenant string, status []byte) {
+	if status == nil {
+		var err error
+		if status, err = w.cellCommand(ctx, tenant, "openclaw", "gateway", "call", "channels.status", "--json", "--timeout", "15000"); err != nil {
+			return
+		}
+	}
+	if !weChatConfiguredButStopped(status) {
+		return
+	}
+	stamp, err := json.Marshal(time.Now().UTC().Format("2006-01-02T15:04:05.000Z"))
+	if err != nil {
+		return
+	}
+	_, _ = w.cellCommand(ctx, tenant, "openclaw", "config", "set", "channels.openclaw-weixin.channelConfigUpdatedAt", string(stamp), "--json")
+}
+
+// weChatConfiguredButStopped reports whether any configured openclaw-weixin account is not running.
+func weChatConfiguredButStopped(status []byte) bool {
+	var parsed struct {
+		ChannelAccounts map[string][]struct {
+			Configured bool `json:"configured"`
+			Running    bool `json:"running"`
+		} `json:"channelAccounts"`
+	}
+	if json.Unmarshal(status, &parsed) != nil {
+		return false
+	}
+	for _, account := range parsed.ChannelAccounts["openclaw-weixin"] {
+		if account.Configured && !account.Running {
+			return true
+		}
+	}
+	return false
+}
+
+func weChatConfigured(status []byte) bool {
+	var parsed struct {
+		ChannelAccounts map[string][]struct {
+			Configured bool `json:"configured"`
+		} `json:"channelAccounts"`
+	}
+	if json.Unmarshal(status, &parsed) != nil {
+		return false
+	}
+	for _, account := range parsed.ChannelAccounts["openclaw-weixin"] {
+		if account.Configured {
+			return true
+		}
+	}
+	return false
 }
 
 func (w *Worker) ensureWeChatPlugin(ctx context.Context, tenant string) error {
