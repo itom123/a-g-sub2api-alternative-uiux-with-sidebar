@@ -44,6 +44,7 @@ type modelPlazaOfficialPricing struct {
 	CacheWrite1hPrice   *float64                       `json:"cache_write_1h_price,omitempty"`
 	CacheReadPrice      *float64                       `json:"cache_read_price"`
 	CacheWrite12hPrices []service.PlazaCacheWritePrice `json:"cache_write_12h_prices,omitempty"`
+	CacheWrite12hPrice  *float64                       `json:"cache_write_12h_price,omitempty"`
 	// Intervals 官方长上下文阶梯，仅多档模型给出。
 	Intervals []userPricingIntervalDTO `json:"intervals,omitempty"`
 }
@@ -279,5 +280,6 @@ func toModelPlazaOfficialPricing(p *service.PlazaOfficialPricing) *modelPlazaOff
 		CacheReadPrice:      p.CacheReadPrice,
 		CacheWrite12hPrices: p.CacheWrite12hPrices,
 		Intervals:           toUserPricingIntervals(p.Intervals),
+		CacheWrite12hPrice:  p.CacheWrite12hPrice,
 	}
 }

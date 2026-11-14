@@ -38,7 +38,7 @@ var (
 	// cache_creation_input_token_cost_above_1hr_above_200k_tokens 等）。
 	// 组 1 为基础价字段名主干，组 2 为 1h 缓存时长段（可为空），组 3 为服务档后缀（可为空）。
 	cacheTierPricePattern = regexp.MustCompile(`^(cache_(?:creation|read)_input_token_cost)(_above_1hr)?_above_\d+k_tokens((?:_[a-z]+)?)$`)
-	// Official GPT Image 2.5 token rates (2026-09-08):
+	// Official GPT Image 2.5 / 2.6 token rates (verified 2026-11-06):
 	// https://developers.openai.com/api/docs/pricing#image-generation-models
 	openAIGPTImage25FallbackPricing = &LiteLLMModelPricing{
 		InputCostPerToken:       5e-06,
@@ -142,6 +142,14 @@ var (
 		Mode:                                "chat",
 		SupportsPromptCaching:               true,
 	}
+	// Fable/Mythos 5.2 share the official price card, including both cache TTLs:
+	// https://platform.claude.com/docs/en/about-claude/pricing
+	claude52FallbackPricing = &LiteLLMModelPricing{
+		InputCostPerToken: 8e-6, OutputCostPerToken: 40e-6,
+		CacheCreationInputTokenCost: 10e-6, CacheCreationInputTokenCostAbove1hr: 16e-6,
+		CacheReadInputTokenCost: 0.2e-6,
+		LiteLLMProvider:         "anthropic", Mode: "chat", SupportsPromptCaching: true,
+	}
 	claudeOpus55FallbackPricing = &LiteLLMModelPricing{
 		InputCostPerToken: 4e-6, OutputCostPerToken: 20e-6,
 		CacheCreationInputTokenCost: 5e-6, CacheCreationInputTokenCostAbove1hr: 8e-6,
@@ -227,28 +235,29 @@ var (
 // LiteLLMModelPricing LiteLLM价格数据结构
 // 只保留我们需要的字段，使用指针来处理可能缺失的值
 type LiteLLMModelPricing struct {
-	CacheCreationInputTokenCostExplicit  bool    `json:"-"`
-	InputCostPerToken                    float64 `json:"input_cost_per_token"`
-	InputCostPerTokenPriority            float64 `json:"input_cost_per_token_priority"`
-	OutputCostPerToken                   float64 `json:"output_cost_per_token"`
-	OutputCostPerTokenPriority           float64 `json:"output_cost_per_token_priority"`
-	CacheCreationInputTokenCost          float64 `json:"cache_creation_input_token_cost"`
-	CacheCreationInputTokenCostPriority  float64 `json:"cache_creation_input_token_cost_priority"`
-	CacheCreationInputTokenCostAbove1hr  float64 `json:"cache_creation_input_token_cost_above_1hr"`
-	CacheCreationInputTokenCostAbove12hr float64 `json:"cache_creation_input_token_cost_above_12hr"`
-	CacheReadInputTokenCost              float64 `json:"cache_read_input_token_cost"`
-	CacheReadInputTokenCostPriority      float64 `json:"cache_read_input_token_cost_priority"`
-	LongContextInputTokenThreshold       int     `json:"long_context_input_token_threshold,omitempty"`
-	LongContextInputCostMultiplier       float64 `json:"long_context_input_cost_multiplier,omitempty"`
-	LongContextOutputCostMultiplier      float64 `json:"long_context_output_cost_multiplier,omitempty"`
-	SupportsServiceTier                  bool    `json:"supports_service_tier"`
-	LiteLLMProvider                      string  `json:"litellm_provider"`
-	Mode                                 string  `json:"mode"`
-	SupportsPromptCaching                bool    `json:"supports_prompt_caching"`
-	OutputCostPerImage                   float64 `json:"output_cost_per_image"`       // 图片生成模型每张图片价格
-	OutputCostPerImageToken              float64 `json:"output_cost_per_image_token"` // 图片输出 token 价格
-	InputCostPerImageToken               float64 `json:"input_cost_per_image_token"`  // 图片输入 token 价格（如 gpt-image-2 图片编辑）
-	CacheReadInputImageTokenCost         float64 `json:"cache_read_input_image_token_cost"`
+	CacheCreationInputTokenCostExplicit          bool    `json:"-"`
+	InputCostPerToken                            float64 `json:"input_cost_per_token"`
+	InputCostPerTokenPriority                    float64 `json:"input_cost_per_token_priority"`
+	OutputCostPerToken                           float64 `json:"output_cost_per_token"`
+	OutputCostPerTokenPriority                   float64 `json:"output_cost_per_token_priority"`
+	CacheCreationInputTokenCost                  float64 `json:"cache_creation_input_token_cost"`
+	CacheCreationInputTokenCostPriority          float64 `json:"cache_creation_input_token_cost_priority"`
+	CacheCreationInputTokenCostAbove1hr          float64 `json:"cache_creation_input_token_cost_above_1hr"`
+	CacheCreationInputTokenCostAbove12hrExplicit bool    `json:"-"`
+	CacheCreationInputTokenCostAbove12hr         float64 `json:"cache_creation_input_token_cost_above_12hr"`
+	CacheReadInputTokenCost                      float64 `json:"cache_read_input_token_cost"`
+	CacheReadInputTokenCostPriority              float64 `json:"cache_read_input_token_cost_priority"`
+	LongContextInputTokenThreshold               int     `json:"long_context_input_token_threshold,omitempty"`
+	LongContextInputCostMultiplier               float64 `json:"long_context_input_cost_multiplier,omitempty"`
+	LongContextOutputCostMultiplier              float64 `json:"long_context_output_cost_multiplier,omitempty"`
+	SupportsServiceTier                          bool    `json:"supports_service_tier"`
+	LiteLLMProvider                              string  `json:"litellm_provider"`
+	Mode                                         string  `json:"mode"`
+	SupportsPromptCaching                        bool    `json:"supports_prompt_caching"`
+	OutputCostPerImage                           float64 `json:"output_cost_per_image"`       // 图片生成模型每张图片价格
+	OutputCostPerImageToken                      float64 `json:"output_cost_per_image_token"` // 图片输出 token 价格
+	InputCostPerImageToken                       float64 `json:"input_cost_per_image_token"`  // 图片输入 token 价格（如 gpt-image-2 图片编辑）
+	CacheReadInputImageTokenCost                 float64 `json:"cache_read_input_image_token_cost"`
 	// CacheStorageCostPerTokenPerHour 显式上下文缓存存储单价（每 token 每小时，USD），一般由定价覆盖文件提供，
 	// 配置后优先于内置价（见 BillingService.CacheStoragePricePerTokenHour）。
 	CacheStorageCostPerTokenPerHour float64 `json:"cache_storage_cost_per_token_per_hour"`
@@ -649,10 +658,10 @@ func (s *PricingService) downloadPricingData() error {
 		logger.LegacyPrintf("service.pricing", "[Pricing] Failed to save file: %v", err)
 	}
 
-	// 使用远程哈希作为同步锚点，防止重复下载
-	// 当远程哈希不可用时，回退到数据本身的哈希
+	// 只有远程哈希与下载正文一致时才将其作为同步锚点。
+	// 不匹配时保留正文哈希，让下一轮同步重试，避免旧数据被误标为最新。
 	syncHash := dataHashStr
-	if remoteHash != "" {
+	if strings.EqualFold(remoteHash, dataHashStr) {
 		syncHash = remoteHash
 	}
 	hashFile := s.getHashFilePath()
@@ -736,6 +745,7 @@ func (s *PricingService) parsePricingData(body []byte) (map[string]*LiteLLMModel
 		}
 		if entry.CacheCreationInputTokenCostAbove12hr != nil {
 			pricing.CacheCreationInputTokenCostAbove12hr = *entry.CacheCreationInputTokenCostAbove12hr
+			pricing.CacheCreationInputTokenCostAbove12hrExplicit = true
 		}
 		if entry.CacheReadInputTokenCost != nil {
 			pricing.CacheReadInputTokenCost = *entry.CacheReadInputTokenCost
@@ -1456,6 +1466,19 @@ func (s *PricingService) extractBaseName(model string) string {
 // matchByModelFamily 基于模型系列匹配
 func (s *PricingService) matchByModelFamily(model string) *LiteLLMModelPricing {
 	model = normalizeAntigravityClaudeTierAlias(model)
+	var claude52Model string
+	switch {
+	case claude.IsFable52(model):
+		claude52Model = "claude-fable-5-2"
+	case claude.IsMythos52(model):
+		claude52Model = "claude-mythos-5-2"
+	}
+	if claude52Model != "" {
+		if pricing, ok := s.pricingData[claude52Model]; ok {
+			return pricing
+		}
+		return claude52FallbackPricing
+	}
 	if claude.IsOpus55(model) {
 		if pricing, ok := s.pricingData["claude-opus-5-5"]; ok {
 			return pricing
@@ -1699,8 +1722,11 @@ func (s *PricingService) matchOpenAIModel(model string) *LiteLLMModelPricing {
 		return openAIGPT54FallbackPricing
 	}
 
-	// Remote price mirrors can lag new releases. Never bill GPT Image 2.5
+	// Remote price mirrors can lag new releases. Never bill GPT Image 2.5 / 2.6
 	// using the older image model's rates when its entry is absent.
+	if model == "gpt-image-2.6-flare" || model == "gpt-image-2.6-sunburst" {
+		return openAIGPTImage25FallbackPricing
+	}
 	for _, imageModel := range []string{"gpt-image-2.5-flare", "gpt-image-2.5-sunburst"} {
 		if model == imageModel || model == imageModel+"-2026-09-08" {
 			return openAIGPTImage25FallbackPricing
@@ -1813,4 +1839,12 @@ func isNumeric(s string) bool {
 		}
 	}
 	return true
+}
+
+// Preserve explicit free catalog prices when adapting to the upstream TTL price card.
+func catalogCacheWrite12hPrice(p *LiteLLMModelPricing) *float64 {
+	if p.CacheCreationInputTokenCostAbove12hrExplicit || p.CacheCreationInputTokenCostAbove12hr > 0 {
+		return float64Ptr(p.CacheCreationInputTokenCostAbove12hr)
+	}
+	return nil
 }

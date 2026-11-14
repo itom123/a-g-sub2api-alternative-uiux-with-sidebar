@@ -33,7 +33,7 @@ func TestOfficialPricingCorrectsStaleCatalogAndKeepsOperatorOverrides(t *testing
 	require.InDelta(t, 0.3e-6, data["claude-sonnet-5-5"].CacheReadInputTokenCost, 1e-15)
 	require.Zero(t, data["gpt-6.1-terra"].CacheCreationInputTokenCostAbove12hr)
 	billing := NewBillingService(&config.Config{}, &PricingService{pricingData: data})
-	cost, err := billing.CalculateCostWithServiceTier("gpt-6.1-terra", UsageTokens{CacheCreationTokens: 100, CacheCreation12hTokens: 50}, 1, "fast")
+	cost, err := billing.CalculateCostWithServiceTier("gpt-6.1-terra", UsageTokens{CacheCreationTokens: 100, CacheCreation30mTokens: 50, CacheCreation12hTokens: 50}, 1, "fast")
 	require.NoError(t, err)
 	require.Zero(t, cost.CacheCreationCost)
 }
@@ -57,7 +57,7 @@ func TestOpenAI12hCacheBillingUsesSeparateWritesAcrossTiers(t *testing.T) {
 			cost, err := billing.CalculateCostWithServiceTier("gpt-6.1-sol", UsageTokens{
 				InputTokens:  usage.InputTokens - usage.CacheReadInputTokens - usage.CacheCreationInputTokens,
 				OutputTokens: usage.OutputTokens, CacheReadTokens: usage.CacheReadInputTokens,
-				CacheCreationTokens: usage.CacheCreationInputTokens, CacheCreation12hTokens: usage.CacheCreation12hInputTokens,
+				CacheCreationTokens: usage.CacheCreationInputTokens, CacheCreation30mTokens: usage.CacheCreation30mInputTokens, CacheCreation12hTokens: usage.CacheCreation12hInputTokens,
 			}, 1.1, tier.name)
 			require.NoError(t, err)
 			require.InDelta(t, 1000*2e-6*tier.multiplier, cost.InputCost, 1e-12)
@@ -70,7 +70,7 @@ func TestOpenAI12hCacheBillingUsesSeparateWritesAcrossTiers(t *testing.T) {
 
 func TestOpenAI12hCacheLongContextAndCustomPrices(t *testing.T) {
 	billing := NewBillingService(&config.Config{}, nil)
-	tokens := UsageTokens{InputTokens: 261000, CacheReadTokens: 4000, CacheCreationTokens: 7000, CacheCreation12hTokens: 4000, OutputTokens: 100}
+	tokens := UsageTokens{InputTokens: 261000, CacheReadTokens: 4000, CacheCreationTokens: 7000, CacheCreation30mTokens: 3000, CacheCreation12hTokens: 4000, OutputTokens: 100}
 	base, err := billing.CalculateCost("gpt-6.1-terra", tokens, 1)
 	require.NoError(t, err)
 	require.False(t, base.LongContextBillingApplied)
