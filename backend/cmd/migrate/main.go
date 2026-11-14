@@ -38,7 +38,7 @@ func run(apply bool, expected string) error {
 	if err != nil {
 		return err
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 	files, err := fs.Glob(migrations.FS, "*.sql")
