@@ -1225,7 +1225,7 @@ func TestOpenAIGatewayServiceRecordUsage_OpenAI12hCacheChargesPreciseLedgerCost(
 		Result: &OpenAIForwardResult{
 			RequestID: "resp_mixed_cache_lifetimes",
 			Model:     "gpt-6.1-sol",
-			Usage:     OpenAIUsage{InputTokens: 12000, OutputTokens: 100, CacheReadInputTokens: 4000, CacheCreationInputTokens: 7000, CacheCreation12hInputTokens: 4000},
+			Usage:     OpenAIUsage{InputTokens: 12000, OutputTokens: 100, CacheReadInputTokens: 4000, CacheCreationInputTokens: 7000, CacheCreation30mInputTokens: 3000, CacheCreation12hInputTokens: 4000},
 			Duration:  time.Second,
 		},
 		APIKey: &APIKey{ID: 1056}, User: &User{ID: 2056}, Account: &Account{ID: 3056},
@@ -1234,6 +1234,8 @@ func TestOpenAIGatewayServiceRecordUsage_OpenAI12hCacheChargesPreciseLedgerCost(
 	require.NotNil(t, usageRepo.lastLog)
 	require.Equal(t, 1000, usageRepo.lastLog.InputTokens)
 	require.Equal(t, 12100, usageRepo.lastLog.TotalTokens())
+	require.Equal(t, 3000, usageRepo.lastLog.CacheCreation30mTokens)
+	require.Equal(t, 4000, usageRepo.lastLog.CacheCreation12hTokens)
 	require.InDelta(t, 0.0275, usageRepo.lastLog.CacheCreationCost, 1e-12)
 	require.InDelta(t, 0.0309, usageRepo.lastLog.TotalCost, 1e-12)
 	require.InDelta(t, 0.03399, usageRepo.lastLog.ActualCost, 1e-12)

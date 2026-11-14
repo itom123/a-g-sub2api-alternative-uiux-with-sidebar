@@ -514,11 +514,13 @@ func TestOpenAI12hCacheUsageSurvivesStreamingAndTurnAggregation(t *testing.T) {
 	parseUsageAndAccumulate(state, payload, "response.completed", nil)
 	turn := finalizeRelayTurnUsage(state)
 	require.Equal(t, 7000, turn.CacheCreationInputTokens)
+	require.Equal(t, 3000, turn.CacheCreation30mInputTokens)
 	require.Equal(t, 4000, turn.CacheCreation12hInputTokens)
 	require.Equal(t, turn, state.usage)
 	parseUsageAndAccumulate(state, payload, "response.completed", nil)
 	finalizeRelayTurnUsage(state)
 	require.Equal(t, 8000, state.usage.CacheCreation12hInputTokens)
+	require.Equal(t, 6000, state.usage.CacheCreation30mInputTokens)
 }
 
 func TestEmitTurnCompleteCoverage(t *testing.T) {
@@ -807,4 +809,18 @@ func TestObserveUpstreamMessage_ResponseServiceTierOnlyFromTerminalEvents(t *tes
 		nil,
 	)
 	require.Equal(t, "", second.responseServiceTier)
+}
+
+func TestOpenAI12hCacheUsageRejectsInvalidBreakdowns(t *testing.T) {
+	for _, details := range []string{`null`, `{}`, `{"ttl_12h_tokens":10}`, `{"ttl_30m_tokens":1,"ttl_12h_tokens":10}`, `{"ttl_30m_tokens":-1,"ttl_12h_tokens":11}`, `{"ttl_30m_tokens":0.5,"ttl_12h_tokens":9.5}`, `{"ttl_30m_tokens":"0","ttl_12h_tokens":"10"}`} {
+		t.Run(details, func(t *testing.T) {
+			state := &relayState{}
+			payload := []byte(`{"type":"response.completed","response":{"usage":{"input_tokens":10,"output_tokens":1,"input_tokens_details":{"cache_write_tokens":10,"cache_write_tokens_details":` + details + `}}}}`)
+			parseUsageAndAccumulate(state, payload, "response.completed", nil)
+			usage := finalizeRelayTurnUsage(state)
+			require.Equal(t, 10, usage.CacheCreationInputTokens)
+			require.Zero(t, usage.CacheCreation30mInputTokens)
+			require.Zero(t, usage.CacheCreation12hInputTokens)
+		})
+	}
 }
