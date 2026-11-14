@@ -103,7 +103,7 @@ func (s *BillingService) initOfficialFallbackPricing() {
 			CacheCreationPricePerTokenPriority: rate.CacheCreationInputTokenCostPriority,
 			CacheCreation5mPrice:               rate.CacheCreationInputTokenCost,
 			CacheCreation1hPrice:               rate.CacheCreationInputTokenCostAbove1hr,
-			CacheCreation12hPrice:              rate.CacheCreationInputTokenCostAbove12hr,
+			CacheCreation12hPricePerToken:      catalogCacheWrite12hPrice(rate),
 			SupportsCacheBreakdown:             rate.CacheCreationInputTokenCostAbove1hr > 0,
 			LongContextInputThreshold:          rate.LongContextInputTokenThreshold,
 			LongContextInputMultiplier:         rate.LongContextInputCostMultiplier,

@@ -1426,6 +1426,9 @@
                 />
               </div>
 
+              <!-- Exact Email Blacklist -->
+              <RegistrationEmailBlacklistEditor />
+
               <!-- Promo Code -->
               <div
                 class="flex items-center justify-between border-t border-gray-100 pt-4 dark:border-dark-700"
@@ -7807,7 +7810,7 @@
                     >
                       {{
                         t("admin.settings.payment.balanceRechargePreview", {
-                          usd: cnyNumber(form.payment_balance_recharge_multiplier),
+                          usd: formatBalanceRechargeMultiplier(Number(form.payment_balance_recharge_multiplier) || 1),
                         })
                       }}
                     </p>
@@ -8576,8 +8579,8 @@
           <BackupSettings />
         </div>
 
-        <!-- Save Button -->
-        <div v-show="activeTab !== 'backup'" class="flex justify-end">
+        <!-- Save dock — sticky so long tabs never require scrolling to the end -->
+        <div v-show="activeTab !== 'backup'" class="settings-save-dock">
           <button
             type="submit"
             :disabled="saving || loadFailed"
@@ -8651,7 +8654,6 @@
 
 <script setup lang="ts">
 import PageLoading from '@/components/common/PageLoading.vue'
-import { cnyNumber } from '@/utils/currency'
 import CurrencyInput from '@/components/common/CurrencyInput.vue'
 
 import { ref, reactive, computed, onMounted, watch } from "vue";
@@ -8719,6 +8721,7 @@ import {
   type RechargeBonusMode,
   type RechargeBonusTierDraft,
 } from "@/utils/rechargeBonus";
+import RegistrationEmailBlacklistEditor from "@/components/admin/settings/RegistrationEmailBlacklistEditor.vue";
 import OpenAIFastPolicyUserSelector from "@/views/admin/settings/OpenAIFastPolicyUserSelector.vue";
 import { useClipboard } from "@/composables/useClipboard";
 import {
@@ -8731,6 +8734,7 @@ import AdminAccessKeysSettings from "@/components/admin/settings/AdminAccessKeys
 import TotpStepUpDialog from "@/components/auth/TotpStepUpDialog.vue";
 import { affiliatesAPI, type AffiliateAdminEntry, type SimpleUser as AffiliateSimpleUser } from "@/api/admin/affiliates";
 import { extractApiErrorMessage, extractI18nErrorMessage } from "@/utils/apiError";
+import { formatBalanceRechargeMultiplier } from "@/utils/rechargeBonus";
 import { useAppStore } from "@/stores";
 import { useAdminSettingsStore } from "@/stores/adminSettings";
 import { DEFAULT_SITE_NAME } from "@/utils/branding";
@@ -13061,5 +13065,19 @@ watch(
 .settings-tab-label {
   white-space: nowrap;
   line-height: 20px;
+}
+
+.settings-save-dock {
+  @apply sticky bottom-3 z-20 ml-auto flex w-fit items-center p-1.5;
+  border: 1px solid var(--ag-rule);
+  background: var(--ag-paper);
+}
+
+.dark .settings-save-dock {
+  border-color: rgb(51 65 85 / 0.65);
+  background: rgb(15 23 42 / 0.86);
+  box-shadow:
+    0 14px 32px rgb(0 0 0 / 0.34),
+    0 1px 0 rgb(255 255 255 / 0.06) inset;
 }
 </style>

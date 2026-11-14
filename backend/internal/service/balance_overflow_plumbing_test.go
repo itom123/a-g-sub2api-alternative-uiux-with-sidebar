@@ -54,7 +54,7 @@ func TestAPIKeyAuthSnapshotBalanceOverflowRoundtrip(t *testing.T) {
 	require.True(t, materialized.User.BalanceOverflowAdminAllowed)
 	require.False(t, materialized.User.BalanceOverflowEnabled)
 	require.True(t, materialized.Group.SubscriptionSourceAny)
-	require.Equal(t, 27, cached.Snapshot.Version)
+	require.Equal(t, 28, cached.Snapshot.Version)
 }
 
 // "Any subscription" clears a hand-picked list on standard groups (no validation of the stale list),
