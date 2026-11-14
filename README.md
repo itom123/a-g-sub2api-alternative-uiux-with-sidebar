@@ -1,7 +1,5 @@
 <div align="center">
 
-<img src="assets/logo.svg" alt="Sub2API Logo" width="128" />
-
 # Sub2API Private Build
 
 **A shared AI gateway and operations workspace for our colleagues, internal services, and managed AI workloads.**
