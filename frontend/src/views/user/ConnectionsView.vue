@@ -88,7 +88,7 @@
         <section class="metric-grid" aria-label="Tenant health">
           <article class="metric-card"><span>{{ t('connections.metrics.latency') }}</span><strong>{{ dashboard?.latency_ms != null ? `${dashboard.latency_ms} ms` : '—' }}</strong><small>{{ t('connections.metrics.latencyHint') }}</small></article>
           <article class="metric-card"><span>{{ t('connections.metrics.connections') }}</span><strong>{{ dashboard?.connected_count || 0 }}/{{ dashboard?.connection_count || 0 }}</strong><small>{{ t('connections.metrics.connectionsHint') }}</small></article>
-          <article class="metric-card" data-testid="last-request-metric"><span>{{ t('connections.metrics.lastRequest') }}</span><strong><time v-if="lastModelRequest" :datetime="lastModelRequest" :aria-label="new Date(lastModelRequest).toLocaleString()" :title="new Date(lastModelRequest).toLocaleString()">{{ formatRequestTime(lastModelRequest) }}</time><template v-else-if="dashboard?.api_key">{{ t('connections.metrics.noRequests') }}</template><template v-else>—</template></strong><small>{{ t('connections.metrics.lastRequestHint') }}</small></article>
+          <article class="metric-card"><span>{{ t('connections.metrics.activity') }}</span><strong><time v-if="lastActivity" :datetime="lastActivity" :aria-label="new Date(lastActivity).toLocaleString()" :title="new Date(lastActivity).toLocaleString()">{{ formatActivityTime(lastActivity) }}</time><template v-else>{{ t('connections.metrics.noActivity') }}</template></strong><small>{{ t('connections.metrics.activityHint') }}</small></article>
           <article class="metric-card"><span>{{ t('connections.metrics.checked') }}</span><strong>{{ dashboard?.checked_at ? formatTime(dashboard.checked_at) : '—' }}</strong><small>{{ t('connections.metrics.checkedHint') }}</small></article>
         </section>
 
@@ -101,8 +101,8 @@
           <div v-if="dashboard?.api_key" class="billing-api-stats">
             <div class="billing-api-name"><span>{{ t('connections.billingApiName') }}</span><strong>{{ dashboard.api_key.name }}</strong></div>
             <div><span>{{ t('connections.billingApiStatus') }}</span><strong>{{ apiKeyStatus(dashboard.api_key.status) }}</strong></div>
-            <div><span>{{ t('connections.billingApiUsage') }}</span><strong>{{ dashboard.api_key.usage_count }}</strong></div>
-            <div><span>{{ t('connections.billingApiSpent') }}</span><strong>${{ dashboard.api_key.usage_cost.toFixed(4) }}</strong></div>
+            <div><span>{{ t('connections.billingApiUsage') }}</span><strong>{{ dashboard.api_key.usage_count.toLocaleString() }}</strong></div>
+            <div><span>{{ t('connections.billingApiSpent') }}</span><strong>{{ formatCharged(dashboard.api_key.usage_cost) }}</strong></div>
             <router-link class="btn btn-secondary btn-sm" to="/keys">{{ t('connections.billingApiOpenKeys') }}</router-link>
             <router-link class="btn btn-primary btn-sm" to="/purchase">{{ t('connections.billingApiTopUp') }}</router-link>
           </div>
@@ -260,6 +260,7 @@ import {
 import { useTelegramAvailability } from '@/composables/useTelegramAvailability'
 import GatewayDevices from '@/components/openclaw/GatewayDevices.vue'
 import GatewayEnrollment from '@/components/openclaw/GatewayEnrollment.vue'
+import { cnyCost } from '@/utils/currency'
 
 const { t } = useI18n()
 const { telegramAvailable } = useTelegramAvailability()
@@ -542,17 +543,18 @@ async function removeConnection(connection: OpenClawConnection) {
 function connectionStatus(status?: string) { return status ? t(`connections.status.${status}`, status) : t('connections.status.notConnected') }
 function instanceStatus(status: string) { return t(`connections.instanceStatus.${status}`, status) }
 function apiKeyStatus(status: string) { return t(`connections.apiKeyStatus.${status}`, status) }
+// Ledger amounts are USD; show CNY like the balance and the admin fleet view.
+function formatCharged(usd: number) { const value = cnyCost(usd); return value === '-' ? '—' : `¥${value}` }
 function providerMark(kind: string) { const normalized = normalizedKind(kind); return normalized === 'wechat' ? '微' : normalized === 'telegram' ? 'TG' : normalized === 'gws' ? 'G' : normalized.slice(0, 2).toUpperCase() }
 function formatDate(value: string) { return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(value)) }
 function formatDateTime(value: string) { return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) }
-// The control plane never sees WeChat/Telegram traffic, so there is no
-// per-connection activity to show. The billing ledger's newest request for the
-// workspace key is the truthful signal, and the card copy says exactly that.
-const lastModelRequest = computed(() => {
+// Every chat or connected-service message runs a model request through the
+// workspace's billing key, so its newest ledger entry is the latest activity.
+const lastActivity = computed(() => {
   const value = dashboard.value?.api_key?.last_request_at
   return value && Number.isFinite(Date.parse(value)) ? value : null
 })
-function formatRequestTime(value: string) {
+function formatActivityTime(value: string) {
   return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' }).format(new Date(value))
 }
 function formatTime(value: string) { return new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(new Date(value)) }

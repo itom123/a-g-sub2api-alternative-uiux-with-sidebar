@@ -3,7 +3,7 @@ import { prepare, settings } from './fixtures'
 
 const instance = { id: 7, tenant_slug: 'fixture-workspace', name: 'Example workspace', status: 'running', created_at: '2026-10-01T09:00:00Z', updated_at: '2026-10-01T09:00:00Z' }
 const models = ['example-model-with-a-very-long-identifier-'.repeat(3), 'reasoning-model', 'coding-model', 'general-model']
-const fleet = { ...instance, user_id: 1, user_email: 'long-workspace-owner@example.test', billing_group: 'OpenClaw', billing_rate: .3, api_key_status: 'active', connection_count: 2, connected_count: 1, usage_cost: 1.5, usage_count: 999, allowed_models: models, default_model: models[0], mapping_enabled: true }
+const fleet = { ...instance, user_id: 1, user_email: 'long-workspace-owner@example.test', billing_group: 'OpenClaw', billing_rate: .3, api_key_status: 'active', connection_count: 2, connected_count: 1, request_count: 999_999, usage_cost: 1234.5, token_count: 987_654_321, requests_7d: 12_345, usage_cost_7d: 99.5, last_request_at: '2026-10-19T09:00:00Z', allowed_models: models, default_model: models[0], mapping_enabled: true }
 const fulfill = (data: unknown) => ({ json: { code: 0, data } })
 async function noOverflow(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true)
@@ -84,20 +84,20 @@ test('home distinguishes channel errors from empty permissions', async ({ page }
   await expect(page.getByRole('alert')).toContainText('可用分组刷新失败')
   await expect(page.getByText('暂无可用模型，请联系管理员确认分组权限。')).toHaveCount(0)
 })
-for (const lastRequest of [undefined, '2026-10-18T15:42:00Z']) {
-  test(`last model request timestamp ${lastRequest || 'absent'}`, async ({ page }) => {
+for (const lastUsed of [undefined, '2026-10-18T15:42:00Z']) {
+  test(`workspace activity timestamp ${lastUsed || 'absent'}`, async ({ page }) => {
     await prepare(page, 'light')
     await page.route('**/api/v1/openclaw/lifecycle*', route => route.fulfill(fulfill({ instance, can_create: false, self_service_enabled: true })))
     await page.route('**/api/v1/openclaw/instances/7/connections*', route => route.fulfill(fulfill({ items: [] })))
-    // last_used_at is the key's auth-time touch; the card must show the billed request time instead.
-    await page.route('**/api/v1/openclaw/dashboard*', route => route.fulfill(fulfill({ instance, fleet_state: 'running', checked_at: '2026-10-19T12:00:00Z', connection_count: 0, connected_count: 0, api_key: { name: 'Billing key', status: 'active', usage_count: 999, usage_cost: 1, last_used_at: '2026-10-19T12:00:00Z', last_request_at: lastRequest } })))
+    await page.route('**/api/v1/openclaw/dashboard*', route => route.fulfill(fulfill({ instance, fleet_state: 'running', checked_at: '2026-10-19T12:00:00Z', connection_count: 0, connected_count: 0, api_key: { name: 'Billing key', status: 'active', usage_count: 999, usage_cost: 1, last_used_at: '2026-10-19T12:00:00Z', last_request_at: lastUsed } })))
     await page.goto('/connections', { waitUntil: 'networkidle' })
-    const activity = page.locator('.metric-card').filter({ hasText: 'Last model request' })
-    if (lastRequest) await expect(activity.locator('time')).toHaveAttribute('datetime', lastRequest)
+    const activity = page.locator('.metric-card').filter({ hasText: 'Latest activity' })
+    if (lastUsed) await expect(activity.locator('time')).toHaveAttribute('datetime', lastUsed)
     else await expect(activity).toContainText('No requests yet')
-    await expect(activity).toContainText('not per connection')
     await expect(activity).not.toContainText('999')
     await expect(page.locator('.billing-api-stats')).toContainText('999')
+    await expect(page.locator('.billing-api-stats')).toContainText('¥7.00')
+    await expect(page.locator('.billing-api-stats')).not.toContainText('$')
     await noOverflow(page)
   })
 }

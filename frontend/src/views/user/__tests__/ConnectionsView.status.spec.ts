@@ -1,6 +1,7 @@
 import { mount, flushPromises } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { OpenClawDashboard, OpenClawInstance } from '@/api/openclaw'
+import { currencyRate } from '@/utils/currency'
 import ConnectionsView from '../ConnectionsView.vue'
 
 const api = vi.hoisted(() => ({ lifecycle: vi.fn(), dashboard: vi.fn(), kinds: vi.fn(), connections: vi.fn(), provision: vi.fn() }))
@@ -37,6 +38,50 @@ async function render() {
 function actions(wrapper: ReturnType<typeof mount>) { return wrapper.get('.tenant-actions').text() }
 beforeEach(() => { vi.resetAllMocks(); api.kinds.mockResolvedValue([]); api.connections.mockResolvedValue([]) })
 afterEach(() => { wrappers.splice(0).forEach(wrapper => wrapper.unmount()) })
+
+describe('Connections workspace billing', () => {
+  afterEach(() => { currencyRate.value = null })
+  it('shows the charged amount in CNY like the balance, not raw USD', async () => {
+    currencyRate.value = { cnyPerUsd: 7, source: 'test', rateDate: '', updatedAt: '', nextRefreshAt: '' }
+    const dashboard = setup('running', 'running')
+    api.dashboard.mockResolvedValue({ ...dashboard, api_key: { id: 3, name: 'Billing key', status: 'active', quota: 0, quota_used: 0, usage_count: 1284, usage_cost: 51.9634 } })
+    const wrapper = await render()
+    const stats = wrapper.get('.billing-api-stats').text()
+    expect(stats).toContain('¥363.74')
+    expect(stats).toContain('1,284')
+    expect(stats).not.toContain('$')
+  })
+  it('shows a dash rather than a guessed amount when the exchange rate is unavailable', async () => {
+    currencyRate.value = null
+    const dashboard = setup('running', 'running')
+    api.dashboard.mockResolvedValue({ ...dashboard, api_key: { id: 3, name: 'Billing key', status: 'active', quota: 0, quota_used: 0, usage_count: 1, usage_cost: 1 } })
+    const wrapper = await render()
+    expect(wrapper.get('.billing-api-stats').text()).toContain('connections.billingApiSpent—')
+  })
+})
+
+describe('Connections workspace activity', () => {
+  const key = { id: 3, name: 'Billing key', status: 'active', quota: 0, quota_used: 0, usage_count: 4, usage_cost: 1 }
+  function activityCard(wrapper: ReturnType<typeof mount>) {
+    const card = wrapper.findAll('.metric-card').find(item => item.text().includes('connections.metrics.activity'))
+    if (!card) throw new Error('activity card missing')
+    return card
+  }
+  it('shows the workspace key\'s latest ledger request as the latest activity', async () => {
+    const dashboard = setup('running', 'running')
+    api.dashboard.mockResolvedValue({ ...dashboard, api_key: { ...key, last_used_at: '2026-11-01T02:59:00Z', last_request_at: '2026-11-01T02:58:00Z' } })
+    const card = activityCard(await render())
+    expect(card.get('time').attributes('datetime')).toBe('2026-11-01T02:58:00Z')
+    expect(card.text()).not.toContain('connections.metrics.noActivity')
+  })
+  it('says there are no requests when the ledger has none, even if the key was touched', async () => {
+    const dashboard = setup('running', 'running')
+    api.dashboard.mockResolvedValue({ ...dashboard, api_key: { ...key, usage_count: 0, last_used_at: '2026-11-01T02:59:00Z' } })
+    const card = activityCard(await render())
+    expect(card.find('time').exists()).toBe(false)
+    expect(card.text()).toContain('connections.metrics.noActivity')
+  })
+})
 
 describe('Connections workspace status', () => {
   it('uses the refreshed running instance for controls immediately', async () => {

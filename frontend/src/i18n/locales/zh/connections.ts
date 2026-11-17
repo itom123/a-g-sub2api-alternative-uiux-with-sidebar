@@ -139,9 +139,9 @@ export default {
       latencyHint: '最近一次 Claw Hub I 健康检查',
       connections: '已连接服务',
       connectionsHint: '此工作区中已就绪的连接',
-      lastRequest: '最近模型请求',
-      lastRequestHint: '来自工作区计费密钥，不区分具体连接',
-      noRequests: '暂无请求',
+      activity: '最近活动',
+      activityHint: '此工作区最近一次模型请求，来自任意对话或连接',
+      noActivity: '暂无请求',
       checked: '最近检查',
       checkedHint: '桥接状态时间'
     },
