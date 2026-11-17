@@ -101,8 +101,8 @@
           <div v-if="dashboard?.api_key" class="billing-api-stats">
             <div class="billing-api-name"><span>{{ t('connections.billingApiName') }}</span><strong>{{ dashboard.api_key.name }}</strong></div>
             <div><span>{{ t('connections.billingApiStatus') }}</span><strong>{{ apiKeyStatus(dashboard.api_key.status) }}</strong></div>
-            <div><span>{{ t('connections.billingApiUsage') }}</span><strong>{{ dashboard.api_key.usage_count }}</strong></div>
-            <div><span>{{ t('connections.billingApiSpent') }}</span><strong>${{ dashboard.api_key.usage_cost.toFixed(4) }}</strong></div>
+            <div><span>{{ t('connections.billingApiUsage') }}</span><strong>{{ dashboard.api_key.usage_count.toLocaleString() }}</strong></div>
+            <div><span>{{ t('connections.billingApiSpent') }}</span><strong>{{ formatCharged(dashboard.api_key.usage_cost) }}</strong></div>
             <router-link class="btn btn-secondary btn-sm" to="/keys">{{ t('connections.billingApiOpenKeys') }}</router-link>
             <router-link class="btn btn-primary btn-sm" to="/purchase">{{ t('connections.billingApiTopUp') }}</router-link>
           </div>
@@ -260,6 +260,7 @@ import {
 import { useTelegramAvailability } from '@/composables/useTelegramAvailability'
 import GatewayDevices from '@/components/openclaw/GatewayDevices.vue'
 import GatewayEnrollment from '@/components/openclaw/GatewayEnrollment.vue'
+import { cnyCost } from '@/utils/currency'
 
 const { t } = useI18n()
 const { telegramAvailable } = useTelegramAvailability()
@@ -542,6 +543,8 @@ async function removeConnection(connection: OpenClawConnection) {
 function connectionStatus(status?: string) { return status ? t(`connections.status.${status}`, status) : t('connections.status.notConnected') }
 function instanceStatus(status: string) { return t(`connections.instanceStatus.${status}`, status) }
 function apiKeyStatus(status: string) { return t(`connections.apiKeyStatus.${status}`, status) }
+// Ledger amounts are USD; show CNY like the balance and the admin fleet view.
+function formatCharged(usd: number) { const value = cnyCost(usd); return value === '-' ? '—' : `¥${value}` }
 function providerMark(kind: string) { const normalized = normalizedKind(kind); return normalized === 'wechat' ? '微' : normalized === 'telegram' ? 'TG' : normalized === 'gws' ? 'G' : normalized.slice(0, 2).toUpperCase() }
 function formatDate(value: string) { return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(value)) }
 function formatDateTime(value: string) { return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) }

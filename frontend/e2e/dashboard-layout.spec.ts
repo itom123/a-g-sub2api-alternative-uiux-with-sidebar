@@ -96,6 +96,8 @@ for (const lastUsed of [undefined, '2026-10-18T15:42:00Z']) {
     else await expect(activity).toContainText('No activity recorded')
     await expect(activity).not.toContainText('999')
     await expect(page.locator('.billing-api-stats')).toContainText('999')
+    await expect(page.locator('.billing-api-stats')).toContainText('¥7.00')
+    await expect(page.locator('.billing-api-stats')).not.toContainText('$')
     await noOverflow(page)
   })
 }

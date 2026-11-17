@@ -1,6 +1,7 @@
 import { mount, flushPromises } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { OpenClawDashboard, OpenClawInstance } from '@/api/openclaw'
+import { currencyRate } from '@/utils/currency'
 import ConnectionsView from '../ConnectionsView.vue'
 
 const api = vi.hoisted(() => ({ lifecycle: vi.fn(), dashboard: vi.fn(), kinds: vi.fn(), connections: vi.fn(), provision: vi.fn() }))
@@ -37,6 +38,27 @@ async function render() {
 function actions(wrapper: ReturnType<typeof mount>) { return wrapper.get('.tenant-actions').text() }
 beforeEach(() => { vi.resetAllMocks(); api.kinds.mockResolvedValue([]); api.connections.mockResolvedValue([]) })
 afterEach(() => { wrappers.splice(0).forEach(wrapper => wrapper.unmount()) })
+
+describe('Connections workspace billing', () => {
+  afterEach(() => { currencyRate.value = null })
+  it('shows the charged amount in CNY like the balance, not raw USD', async () => {
+    currencyRate.value = { cnyPerUsd: 7, source: 'test', rateDate: '', updatedAt: '', nextRefreshAt: '' }
+    const dashboard = setup('running', 'running')
+    api.dashboard.mockResolvedValue({ ...dashboard, api_key: { id: 3, name: 'Billing key', status: 'active', quota: 0, quota_used: 0, usage_count: 1284, usage_cost: 51.9634 } })
+    const wrapper = await render()
+    const stats = wrapper.get('.billing-api-stats').text()
+    expect(stats).toContain('¥363.74')
+    expect(stats).toContain('1,284')
+    expect(stats).not.toContain('$')
+  })
+  it('shows a dash rather than a guessed amount when the exchange rate is unavailable', async () => {
+    currencyRate.value = null
+    const dashboard = setup('running', 'running')
+    api.dashboard.mockResolvedValue({ ...dashboard, api_key: { id: 3, name: 'Billing key', status: 'active', quota: 0, quota_used: 0, usage_count: 1, usage_cost: 1 } })
+    const wrapper = await render()
+    expect(wrapper.get('.billing-api-stats').text()).toContain('connections.billingApiSpent—')
+  })
+})
 
 describe('Connections workspace status', () => {
   it('uses the refreshed running instance for controls immediately', async () => {
