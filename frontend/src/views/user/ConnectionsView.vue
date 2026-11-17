@@ -88,7 +88,7 @@
         <section class="metric-grid" aria-label="Tenant health">
           <article class="metric-card"><span>{{ t('connections.metrics.latency') }}</span><strong>{{ dashboard?.latency_ms != null ? `${dashboard.latency_ms} ms` : '—' }}</strong><small>{{ t('connections.metrics.latencyHint') }}</small></article>
           <article class="metric-card"><span>{{ t('connections.metrics.connections') }}</span><strong>{{ dashboard?.connected_count || 0 }}/{{ dashboard?.connection_count || 0 }}</strong><small>{{ t('connections.metrics.connectionsHint') }}</small></article>
-          <article class="metric-card"><span>{{ t('connections.metrics.activity') }}</span><strong><time v-if="lastConnectionActivity" :datetime="lastConnectionActivity" :aria-label="new Date(lastConnectionActivity).toLocaleString()" :title="new Date(lastConnectionActivity).toLocaleString()">{{ formatActivityTime(lastConnectionActivity) }}</time><template v-else>{{ t('connections.metrics.noActivity') }}</template></strong><small>{{ t('connections.metrics.activityHint') }}</small></article>
+          <article class="metric-card" data-testid="last-request-metric"><span>{{ t('connections.metrics.lastRequest') }}</span><strong><time v-if="lastModelRequest" :datetime="lastModelRequest" :aria-label="new Date(lastModelRequest).toLocaleString()" :title="new Date(lastModelRequest).toLocaleString()">{{ formatRequestTime(lastModelRequest) }}</time><template v-else-if="dashboard?.api_key">{{ t('connections.metrics.noRequests') }}</template><template v-else>—</template></strong><small>{{ t('connections.metrics.lastRequestHint') }}</small></article>
           <article class="metric-card"><span>{{ t('connections.metrics.checked') }}</span><strong>{{ dashboard?.checked_at ? formatTime(dashboard.checked_at) : '—' }}</strong><small>{{ t('connections.metrics.checkedHint') }}</small></article>
         </section>
 
@@ -545,11 +545,14 @@ function apiKeyStatus(status: string) { return t(`connections.apiKeyStatus.${sta
 function providerMark(kind: string) { const normalized = normalizedKind(kind); return normalized === 'wechat' ? '微' : normalized === 'telegram' ? 'TG' : normalized === 'gws' ? 'G' : normalized.slice(0, 2).toUpperCase() }
 function formatDate(value: string) { return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(value)) }
 function formatDateTime(value: string) { return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) }
-const lastConnectionActivity = computed(() => {
-  const value = dashboard.value?.last_used_at
+// The control plane never sees WeChat/Telegram traffic, so there is no
+// per-connection activity to show. The billing ledger's newest request for the
+// workspace key is the truthful signal, and the card copy says exactly that.
+const lastModelRequest = computed(() => {
+  const value = dashboard.value?.api_key?.last_request_at
   return value && Number.isFinite(Date.parse(value)) ? value : null
 })
-function formatActivityTime(value: string) {
+function formatRequestTime(value: string) {
   return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' }).format(new Date(value))
 }
 function formatTime(value: string) { return new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(new Date(value)) }

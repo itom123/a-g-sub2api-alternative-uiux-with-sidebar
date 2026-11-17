@@ -22,7 +22,7 @@ function instance(status: string): OpenClawInstance {
 function setup(oldState: string, currentState: string, fleetState = currentState) {
   const current = instance(currentState)
   api.lifecycle.mockResolvedValue({ instance: instance(oldState), can_create: false, can_delete: true, self_service_enabled: true })
-  const dashboard: OpenClawDashboard = { instance: current, fleet_state: fleetState, checked_at: '2026-11-01T03:00:00Z', gateway_enabled: true, connection_count: 0, connected_count: 0, usage_count: 0 }
+  const dashboard: OpenClawDashboard = { instance: current, fleet_state: fleetState, checked_at: '2026-11-01T03:00:00Z', gateway_enabled: true, connection_count: 0, connected_count: 0 }
   api.dashboard.mockResolvedValue(dashboard)
   return dashboard
 }

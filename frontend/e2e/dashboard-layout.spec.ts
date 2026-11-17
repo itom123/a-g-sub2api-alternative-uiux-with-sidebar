@@ -84,16 +84,18 @@ test('home distinguishes channel errors from empty permissions', async ({ page }
   await expect(page.getByRole('alert')).toContainText('可用分组刷新失败')
   await expect(page.getByText('暂无可用模型，请联系管理员确认分组权限。')).toHaveCount(0)
 })
-for (const lastUsed of [undefined, '2026-10-18T15:42:00Z']) {
-  test(`connection activity timestamp ${lastUsed || 'absent'}`, async ({ page }) => {
+for (const lastRequest of [undefined, '2026-10-18T15:42:00Z']) {
+  test(`last model request timestamp ${lastRequest || 'absent'}`, async ({ page }) => {
     await prepare(page, 'light')
     await page.route('**/api/v1/openclaw/lifecycle*', route => route.fulfill(fulfill({ instance, can_create: false, self_service_enabled: true })))
     await page.route('**/api/v1/openclaw/instances/7/connections*', route => route.fulfill(fulfill({ items: [] })))
-    await page.route('**/api/v1/openclaw/dashboard*', route => route.fulfill(fulfill({ instance, fleet_state: 'running', checked_at: '2026-10-19T12:00:00Z', connection_count: 0, connected_count: 0, usage_count: 999, last_used_at: lastUsed, api_key: { name: 'Billing key', status: 'active', usage_count: 999, usage_cost: 1, last_used_at: '2026-10-19T12:00:00Z' } })))
+    // last_used_at is the key's auth-time touch; the card must show the billed request time instead.
+    await page.route('**/api/v1/openclaw/dashboard*', route => route.fulfill(fulfill({ instance, fleet_state: 'running', checked_at: '2026-10-19T12:00:00Z', connection_count: 0, connected_count: 0, api_key: { name: 'Billing key', status: 'active', usage_count: 999, usage_cost: 1, last_used_at: '2026-10-19T12:00:00Z', last_request_at: lastRequest } })))
     await page.goto('/connections', { waitUntil: 'networkidle' })
-    const activity = page.locator('.metric-card').filter({ hasText: 'Latest connection activity' })
-    if (lastUsed) await expect(activity.locator('time')).toHaveAttribute('datetime', lastUsed)
-    else await expect(activity).toContainText('No activity recorded')
+    const activity = page.locator('.metric-card').filter({ hasText: 'Last model request' })
+    if (lastRequest) await expect(activity.locator('time')).toHaveAttribute('datetime', lastRequest)
+    else await expect(activity).toContainText('No requests yet')
+    await expect(activity).toContainText('not per connection')
     await expect(activity).not.toContainText('999')
     await expect(page.locator('.billing-api-stats')).toContainText('999')
     await noOverflow(page)

@@ -83,8 +83,6 @@ export interface OpenClawDashboard {
   checked_at: string
   connection_count: number
   connected_count: number
-  usage_count: number
-  last_used_at?: string
   api_key?: OpenClawAPIKey
 }
 
@@ -160,6 +158,8 @@ export interface OpenClawAPIKey {
   usage_count: number
   usage_cost: number
   last_used_at?: string
+  /** Newest billed request for this key in usage_logs (same ledger as usage_count). */
+  last_request_at?: string
 }
 
 export interface OpenClawAdminInstance extends OpenClawInstance {

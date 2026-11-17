@@ -168,8 +168,13 @@ type OpenClawAPIKey struct {
 	UsageCount int64      `json:"usage_count"`
 	UsageCost  float64    `json:"usage_cost"`
 	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
-	secret     string     `json:"-"`
-	groupID    *int64
+	// LastRequestAt is the newest billed request in usage_logs, the same
+	// ledger behind UsageCount and UsageCost. The control plane never sees
+	// channel messages, so this is workspace-wide model use, not activity of
+	// one connection.
+	LastRequestAt *time.Time `json:"last_request_at,omitempty"`
+	secret        string     `json:"-"`
+	groupID       *int64
 }
 
 type OpenClawDashboard struct {
@@ -181,8 +186,6 @@ type OpenClawDashboard struct {
 	CheckedAt         time.Time        `json:"checked_at"`
 	ConnectionCount   int              `json:"connection_count"`
 	ConnectedCount    int              `json:"connected_count"`
-	UsageCount        int64            `json:"usage_count"`
-	LastUsedAt        *time.Time       `json:"last_used_at,omitempty"`
 	APIKey            *OpenClawAPIKey  `json:"api_key,omitempty"`
 }
 
@@ -1142,16 +1145,16 @@ func (s *OpenClawService) StartDeletionWorker(interval time.Duration) {
 func (s *OpenClawService) loadInstanceAPIKey(ctx context.Context, instanceID int64) (*OpenClawAPIKey, error) {
 	var key OpenClawAPIKey
 	var groupID sql.NullInt64
-	var lastUsed sql.NullTime
+	var lastUsed, lastRequest sql.NullTime
 	err := s.db.QueryRowContext(ctx, `
 		SELECT k.id, k.name, k.status, k.quota, k.quota_used, k.group_id, k.last_used_at,
-		       COUNT(u.id), COALESCE(SUM(u.actual_cost), 0)
+		       COUNT(u.id), COALESCE(SUM(u.actual_cost), 0), MAX(u.created_at)
 		FROM openclaw_api_keys link
 		JOIN api_keys k ON k.id = link.api_key_id AND k.deleted_at IS NULL
 		LEFT JOIN usage_logs u ON u.api_key_id = k.id
 		WHERE link.instance_id = $1
 		GROUP BY k.id, k.name, k.status, k.quota, k.quota_used, k.group_id, k.last_used_at`, instanceID).
-		Scan(&key.ID, &key.Name, &key.Status, &key.Quota, &key.QuotaUsed, &groupID, &lastUsed, &key.UsageCount, &key.UsageCost)
+		Scan(&key.ID, &key.Name, &key.Status, &key.Quota, &key.QuotaUsed, &groupID, &lastUsed, &key.UsageCount, &key.UsageCost, &lastRequest)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -1160,6 +1163,9 @@ func (s *OpenClawService) loadInstanceAPIKey(ctx context.Context, instanceID int
 	}
 	if lastUsed.Valid {
 		key.LastUsedAt = &lastUsed.Time
+	}
+	if lastRequest.Valid {
+		key.LastRequestAt = &lastRequest.Time
 	}
 	if groupID.Valid {
 		value := groupID.Int64
@@ -1537,20 +1543,17 @@ func (s *OpenClawService) GetDashboard(ctx context.Context, userID int64) (OpenC
 		}
 		dashboard.APIKey = apiKey
 	}
+	// Connection usage_count/last_used_at are not reported here: nothing on
+	// the control plane observes channel messages, so they are never written.
+	// Workspace activity comes from the billing key's usage_logs instead.
 	var total, connected int
-	var usage int64
-	var lastUsed sql.NullTime
 	if err := s.db.QueryRowContext(ctx, `
-		SELECT COUNT(*), COUNT(*) FILTER (WHERE status = 'connected'), COALESCE(SUM(usage_count), 0), MAX(last_used_at)
-		FROM openclaw_connections WHERE instance_id = $1`, instance.ID).Scan(&total, &connected, &usage, &lastUsed); err != nil {
+		SELECT COUNT(*), COUNT(*) FILTER (WHERE status = 'connected')
+		FROM openclaw_connections WHERE instance_id = $1`, instance.ID).Scan(&total, &connected); err != nil {
 		return OpenClawDashboard{}, err
 	}
 	dashboard.ConnectionCount = total
 	dashboard.ConnectedCount = connected
-	dashboard.UsageCount = usage
-	if lastUsed.Valid {
-		dashboard.LastUsedAt = &lastUsed.Time
-	}
 	if dashboard.APIKey == nil && s.apiKeys != nil {
 		apiKey, keyErr := s.loadInstanceAPIKey(ctx, instance.ID)
 		if keyErr != nil {
