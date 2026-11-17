@@ -23,7 +23,7 @@ function instance(status: string): OpenClawInstance {
 function setup(oldState: string, currentState: string, fleetState = currentState) {
   const current = instance(currentState)
   api.lifecycle.mockResolvedValue({ instance: instance(oldState), can_create: false, can_delete: true, self_service_enabled: true })
-  const dashboard: OpenClawDashboard = { instance: current, fleet_state: fleetState, checked_at: '2026-11-01T03:00:00Z', gateway_enabled: true, connection_count: 0, connected_count: 0, usage_count: 0 }
+  const dashboard: OpenClawDashboard = { instance: current, fleet_state: fleetState, checked_at: '2026-11-01T03:00:00Z', gateway_enabled: true, connection_count: 0, connected_count: 0 }
   api.dashboard.mockResolvedValue(dashboard)
   return dashboard
 }
@@ -57,6 +57,29 @@ describe('Connections workspace billing', () => {
     api.dashboard.mockResolvedValue({ ...dashboard, api_key: { id: 3, name: 'Billing key', status: 'active', quota: 0, quota_used: 0, usage_count: 1, usage_cost: 1 } })
     const wrapper = await render()
     expect(wrapper.get('.billing-api-stats').text()).toContain('connections.billingApiSpent—')
+  })
+})
+
+describe('Connections workspace activity', () => {
+  const key = { id: 3, name: 'Billing key', status: 'active', quota: 0, quota_used: 0, usage_count: 4, usage_cost: 1 }
+  function activityCard(wrapper: ReturnType<typeof mount>) {
+    const card = wrapper.findAll('.metric-card').find(item => item.text().includes('connections.metrics.activity'))
+    if (!card) throw new Error('activity card missing')
+    return card
+  }
+  it('shows the workspace key\'s latest ledger request as the latest activity', async () => {
+    const dashboard = setup('running', 'running')
+    api.dashboard.mockResolvedValue({ ...dashboard, api_key: { ...key, last_used_at: '2026-11-01T02:59:00Z', last_request_at: '2026-11-01T02:58:00Z' } })
+    const card = activityCard(await render())
+    expect(card.get('time').attributes('datetime')).toBe('2026-11-01T02:58:00Z')
+    expect(card.text()).not.toContain('connections.metrics.noActivity')
+  })
+  it('says there are no requests when the ledger has none, even if the key was touched', async () => {
+    const dashboard = setup('running', 'running')
+    api.dashboard.mockResolvedValue({ ...dashboard, api_key: { ...key, usage_count: 0, last_used_at: '2026-11-01T02:59:00Z' } })
+    const card = activityCard(await render())
+    expect(card.find('time').exists()).toBe(false)
+    expect(card.text()).toContain('connections.metrics.noActivity')
   })
 })
 

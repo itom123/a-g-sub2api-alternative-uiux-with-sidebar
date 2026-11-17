@@ -139,9 +139,9 @@ export default {
       latencyHint: 'Last Claw Hub I health check',
       connections: 'Connected services',
       connectionsHint: 'Ready connections in this workspace',
-      activity: 'Latest connection activity',
-      activityHint: 'Latest recorded service use; separate from API requests',
-      noActivity: 'No activity recorded',
+      activity: 'Latest activity',
+      activityHint: 'Most recent model request from this workspace, from any chat or connection',
+      noActivity: 'No requests yet',
       checked: 'Last checked',
       checkedHint: 'Bridge status timestamp'
     },

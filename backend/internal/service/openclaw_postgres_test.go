@@ -81,7 +81,10 @@ func TestOpenClawListAdminInstancesUsageComesFromBillingLedger(t *testing.T) {
 	_, err = db.ExecContext(ctx, `
 		CREATE TEMP TABLE users (id bigint PRIMARY KEY, email text);
 		CREATE TEMP TABLE groups (id bigint PRIMARY KEY, name text, rate_multiplier numeric);
-		CREATE TEMP TABLE api_keys (id bigint PRIMARY KEY, status text, group_id bigint, deleted_at timestamptz);
+		CREATE TEMP TABLE api_keys (
+			id bigint PRIMARY KEY, name text DEFAULT 'key', status text, quota numeric DEFAULT 0,
+			quota_used numeric DEFAULT 0, group_id bigint, last_used_at timestamptz, deleted_at timestamptz
+		);
 		CREATE TEMP TABLE openclaw_instances (
 			id bigint PRIMARY KEY, user_id bigint, tenant_slug text, name text, status text,
 			worker_host text, port integer, last_error text,
@@ -98,7 +101,7 @@ func TestOpenClawListAdminInstancesUsageComesFromBillingLedger(t *testing.T) {
 		);
 		INSERT INTO users VALUES (1, 'busy@example.test'), (2, 'idle@example.test');
 		INSERT INTO groups VALUES (5, 'openai-claw', 0.3);
-		INSERT INTO api_keys VALUES (10, 'active', 5, NULL), (11, 'active', 5, NULL), (99, 'active', 5, NULL);
+		INSERT INTO api_keys (id, status, group_id) VALUES (10, 'active', 5), (11, 'active', 5), (99, 'active', 5);
 		INSERT INTO openclaw_instances (id, user_id, tenant_slug, name, status, worker_host, created_at) VALUES
 			(1, 1, 'u1-busy', 'Busy', 'running', 'default', NOW() - INTERVAL '2 days'),
 			(2, 2, 'u2-idle', 'Idle', 'running', 'default', NOW() - INTERVAL '1 day');
@@ -146,5 +149,22 @@ func TestOpenClawListAdminInstancesUsageComesFromBillingLedger(t *testing.T) {
 	}
 	if idle.RequestCount != 0 || idle.UsageCost != 0 || idle.TokenCount != 0 || idle.LastRequestAt != nil {
 		t.Fatalf("idle usage should be empty: %#v", idle)
+	}
+
+	// The customer dashboard's latest-activity card reads the same ledger.
+	service := NewOpenClawService(db, nil)
+	key, err := service.loadInstanceAPIKey(ctx, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if key == nil || key.UsageCount != 3 || key.LastRequestAt == nil || !key.LastRequestAt.Equal(*busy.LastRequestAt) {
+		t.Fatalf("busy key activity = %#v, want 3 requests last at %v", key, busy.LastRequestAt)
+	}
+	idleKey, err := service.loadInstanceAPIKey(ctx, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if idleKey == nil || idleKey.UsageCount != 0 || idleKey.LastRequestAt != nil {
+		t.Fatalf("idle key activity = %#v, want no requests", idleKey)
 	}
 }

@@ -25,7 +25,7 @@ async function mockOpenClaw(page: Page) {
     const path = url.pathname.replace(/^\/api\/v1/, '')
     const method = route.request().method()
     if (path === '/openclaw/lifecycle') return json(route, { instance, can_create: true, can_delete: true, self_service_enabled: true, hub_name: 'Claw Hub I' })
-    if (path === '/openclaw/dashboard') return json(route, { instance, fleet_state: 'running', checked_at: stamp, gateway_enabled: false, enrollment_enabled: false, connection_count: 0, connected_count: 0, usage_count: 0 })
+    if (path === '/openclaw/dashboard') return json(route, { instance, fleet_state: 'running', checked_at: stamp, gateway_enabled: false, enrollment_enabled: false, connection_count: 0, connected_count: 0 })
     if (path === '/openclaw/catalog') return json(route, { items: [
       { kind: 'wechat', title: 'WeChat', description: 'Chat with your assistant in WeChat', sort_order: 1, setup_available: true },
       { kind: 'telegram', title: 'Telegram', description: 'Chat with your assistant in Telegram', sort_order: 2, setup_available: true },

@@ -40,7 +40,7 @@ func statusInstance() OpenClawInstance {
 func expectStatusDashboardReads(mock sqlmock.Sqlmock, instance OpenClawInstance) {
 	mock.ExpectQuery(`FROM openclaw_instances WHERE user_id = \$1 ORDER BY created_at DESC`).WithArgs(int64(42)).WillReturnRows(statusInstanceRows(instance))
 	mock.ExpectQuery(`FROM openclaw_connections WHERE instance_id = \$1`).WithArgs(instance.ID).
-		WillReturnRows(sqlmock.NewRows([]string{"total", "connected", "usage", "last_used"}).AddRow(2, 1, 4, nil))
+		WillReturnRows(sqlmock.NewRows([]string{"total", "connected"}).AddRow(2, 1))
 }
 
 func TestOpenClawDashboardReturnsRefreshedInstance(t *testing.T) {

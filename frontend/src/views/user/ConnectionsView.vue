@@ -88,7 +88,7 @@
         <section class="metric-grid" aria-label="Tenant health">
           <article class="metric-card"><span>{{ t('connections.metrics.latency') }}</span><strong>{{ dashboard?.latency_ms != null ? `${dashboard.latency_ms} ms` : '—' }}</strong><small>{{ t('connections.metrics.latencyHint') }}</small></article>
           <article class="metric-card"><span>{{ t('connections.metrics.connections') }}</span><strong>{{ dashboard?.connected_count || 0 }}/{{ dashboard?.connection_count || 0 }}</strong><small>{{ t('connections.metrics.connectionsHint') }}</small></article>
-          <article class="metric-card"><span>{{ t('connections.metrics.activity') }}</span><strong><time v-if="lastConnectionActivity" :datetime="lastConnectionActivity" :aria-label="new Date(lastConnectionActivity).toLocaleString()" :title="new Date(lastConnectionActivity).toLocaleString()">{{ formatActivityTime(lastConnectionActivity) }}</time><template v-else>{{ t('connections.metrics.noActivity') }}</template></strong><small>{{ t('connections.metrics.activityHint') }}</small></article>
+          <article class="metric-card"><span>{{ t('connections.metrics.activity') }}</span><strong><time v-if="lastActivity" :datetime="lastActivity" :aria-label="new Date(lastActivity).toLocaleString()" :title="new Date(lastActivity).toLocaleString()">{{ formatActivityTime(lastActivity) }}</time><template v-else>{{ t('connections.metrics.noActivity') }}</template></strong><small>{{ t('connections.metrics.activityHint') }}</small></article>
           <article class="metric-card"><span>{{ t('connections.metrics.checked') }}</span><strong>{{ dashboard?.checked_at ? formatTime(dashboard.checked_at) : '—' }}</strong><small>{{ t('connections.metrics.checkedHint') }}</small></article>
         </section>
 
@@ -548,8 +548,10 @@ function formatCharged(usd: number) { const value = cnyCost(usd); return value =
 function providerMark(kind: string) { const normalized = normalizedKind(kind); return normalized === 'wechat' ? '微' : normalized === 'telegram' ? 'TG' : normalized === 'gws' ? 'G' : normalized.slice(0, 2).toUpperCase() }
 function formatDate(value: string) { return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(value)) }
 function formatDateTime(value: string) { return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) }
-const lastConnectionActivity = computed(() => {
-  const value = dashboard.value?.last_used_at
+// Every chat or connected-service message runs a model request through the
+// workspace's billing key, so its newest ledger entry is the latest activity.
+const lastActivity = computed(() => {
+  const value = dashboard.value?.api_key?.last_request_at
   return value && Number.isFinite(Date.parse(value)) ? value : null
 })
 function formatActivityTime(value: string) {
