@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"math"
+	"slices"
 	"testing"
 	"time"
 
@@ -123,6 +124,80 @@ func TestEnsureOpenClawGroupCreatesCanonicalPublicGroup(t *testing.T) {
 	}
 	if repo.created.IsExclusive || repo.created.Status != StatusActive || repo.created.SubscriptionType != SubscriptionTypeStandard {
 		t.Fatalf("created group is not public and active: %#v", repo.created)
+	}
+	wantModels := []string{"gpt-5.6", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-6.1-sol", "gpt-6-sol", "gpt-6-luna", "gpt-6.2-sol", "gpt-6.2-astra"}
+	if !repo.created.ModelAllowlist.Enabled || !slices.Equal(repo.created.ModelAllowlist.Models, wantModels) {
+		t.Fatalf("created model allowlist = %#v", repo.created.ModelAllowlist)
+	}
+	wantMappings := []ReasoningEffortMapping{
+		{From: "none", To: "low", MatchType: "exact", Model: "gpt-6.1-sol"},
+		{From: "minimal", To: "low", MatchType: "exact", Model: "gpt-6.1-sol"},
+		{From: "none", To: "low", MatchType: "exact", Model: "gpt-6.2-sol"},
+		{From: "minimal", To: "low", MatchType: "exact", Model: "gpt-6.2-sol"},
+		{From: "none", To: "low", MatchType: "exact", Model: "gpt-6.2-astra"},
+		{From: "minimal", To: "low", MatchType: "exact", Model: "gpt-6.2-astra"},
+	}
+	if !slices.Equal(repo.created.ReasoningEffortMappings, wantMappings) {
+		t.Fatalf("created reasoning mappings = %#v", repo.created.ReasoningEffortMappings)
+	}
+	// The create call already carries the defaults; no second write follows.
+	if repo.updated != nil && (!repo.updated.ModelAllowlist.Enabled || !slices.Equal(repo.updated.ReasoningEffortMappings, wantMappings)) {
+		t.Fatalf("follow-up repair dropped the defaults: %#v", repo.updated)
+	}
+}
+
+func TestEnsureOpenClawGroupKeepsAdministratorModelPolicy(t *testing.T) {
+	custom := []ReasoningEffortMapping{{From: "none", To: "medium", MatchType: "exact", Model: "gpt-6-sol"}}
+	for name, tc := range map[string]struct {
+		allowlist GroupModelAllowlist
+		mappings  []ReasoningEffortMapping
+	}{
+		"allowlist disabled, no mappings": {GroupModelAllowlist{Enabled: false}, nil},
+		"empty mappings slice":            {GroupModelAllowlist{Enabled: false, Models: []string{}}, []ReasoningEffortMapping{}},
+		"custom allowlist and mappings":   {GroupModelAllowlist{Enabled: true, Models: []string{"gpt-6-sol"}}, custom},
+	} {
+		t.Run(name, func(t *testing.T) {
+			repo := &openClawGroupRepoStub{byName: &Group{
+				ID: 52, Name: OpenClawBillingGroupName, Description: OpenClawBillingGroupDescription,
+				Platform: PlatformOpenAI, RateMultiplier: 0.15, Status: StatusActive,
+				SubscriptionType: SubscriptionTypeStandard, MaxReasoningEffort: "max",
+				MaxReasoningEffortOverLimit: ReasoningEffortOverLimitDowngrade,
+				ModelAllowlist:              tc.allowlist, ReasoningEffortMappings: tc.mappings,
+			}}
+			apiKeys := &APIKeyService{groupRepo: repo}
+			group, err := apiKeys.EnsureOpenClawGroup(context.Background())
+			if err != nil {
+				t.Fatalf("EnsureOpenClawGroup() error = %v", err)
+			}
+			if repo.updated != nil || repo.created != nil {
+				t.Fatalf("existing group was written: created=%#v updated=%#v", repo.created, repo.updated)
+			}
+			if group.ModelAllowlist.Enabled != tc.allowlist.Enabled || !slices.Equal(group.ModelAllowlist.Models, tc.allowlist.Models) {
+				t.Fatalf("model allowlist = %#v, want %#v", group.ModelAllowlist, tc.allowlist)
+			}
+			if !slices.Equal(group.ReasoningEffortMappings, tc.mappings) || group.RateMultiplier != 0.15 {
+				t.Fatalf("group = %#v", group)
+			}
+		})
+	}
+}
+
+func TestEnsureOpenClawGroupRepairKeepsAdministratorModelPolicy(t *testing.T) {
+	// Another field needs repair: the write must still carry the owner's policy.
+	repo := &openClawGroupRepoStub{byName: &Group{
+		ID: 52, Name: OpenClawBillingGroupName, Description: "old", Platform: PlatformOpenAI,
+		RateMultiplier: 0.15, Status: StatusActive, SubscriptionType: SubscriptionTypeStandard,
+		ModelAllowlist: GroupModelAllowlist{Enabled: false},
+	}}
+	apiKeys := &APIKeyService{groupRepo: repo}
+	if _, err := apiKeys.EnsureOpenClawGroup(context.Background()); err != nil {
+		t.Fatalf("EnsureOpenClawGroup() error = %v", err)
+	}
+	if repo.updated == nil || repo.updated.Description != OpenClawBillingGroupDescription {
+		t.Fatalf("description was not repaired: %#v", repo.updated)
+	}
+	if repo.updated.ModelAllowlist.Enabled || len(repo.updated.ModelAllowlist.Models) != 0 || len(repo.updated.ReasoningEffortMappings) != 0 {
+		t.Fatalf("repair reset the administrator's model policy: %#v", repo.updated)
 	}
 }
 

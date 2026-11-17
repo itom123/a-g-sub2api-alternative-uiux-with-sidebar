@@ -61,6 +61,8 @@ var openClawAllowedModels = []string{
 	"gpt-6.1-sol",
 	"gpt-6-sol",
 	"gpt-6-luna",
+	"gpt-6.2-sol",
+	"gpt-6.2-astra",
 }
 
 func openClawModelAllowlist() GroupModelAllowlist {
@@ -71,6 +73,10 @@ func openClawReasoningEffortMappings() []ReasoningEffortMapping {
 	return []ReasoningEffortMapping{
 		{From: "none", To: "low", MatchType: "exact", Model: "gpt-6.1-sol"},
 		{From: "minimal", To: "low", MatchType: "exact", Model: "gpt-6.1-sol"},
+		{From: "none", To: "low", MatchType: "exact", Model: "gpt-6.2-sol"},
+		{From: "minimal", To: "low", MatchType: "exact", Model: "gpt-6.2-sol"},
+		{From: "none", To: "low", MatchType: "exact", Model: "gpt-6.2-astra"},
+		{From: "minimal", To: "low", MatchType: "exact", Model: "gpt-6.2-astra"},
 	}
 }
 
