@@ -62,6 +62,16 @@ type Worker struct {
 	podmanRead func(context.Context, ...string) ([]byte, error)
 	statusDial func(context.Context, string, string) (net.Conn, error)
 	mu         sync.Mutex
+	// Telegram owner claims (telegram_owner.go). The fields below the map are
+	// test seams; zero values mean the production defaults.
+	telegramMu       sync.Mutex
+	telegramClaims   map[string]*telegramClaim
+	telegramAPIBase  string
+	telegramHTTP     *http.Client
+	telegramProbeGap time.Duration
+	claimPolicyPath  string
+	cellRun          func(context.Context, string, []byte, ...string) ([]byte, error)
+	now              func() time.Time
 }
 
 func (w *Worker) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
@@ -93,6 +103,29 @@ func (w *Worker) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	if action != "create" && action != "start" && action != "stop" && action != "delete" && action != "status" && action != "dashboard" && action != "devices" && action != "connect" && action != "configure" && action != "enrollment" {
 		http.Error(rw, `{"error":"unsupported action"}`, http.StatusBadRequest)
 		return
+	}
+	var connectRequest struct {
+		Credential string `json:"credential"`
+		Account    string `json:"account"`
+		Name       string `json:"name"`
+	}
+	var connectDecodeErr error
+	if action == "connect" {
+		// Decode now, validate after the lock (a busy worker still answers 409 first).
+		connectDecodeErr = json.NewDecoder(io.LimitReader(r.Body, 16<<10)).Decode(&connectRequest)
+		// A Telegram owner-claim poll only reads the bot's updates; it takes the
+		// global lock itself, and only for the final cell write.
+		if connectDecodeErr == nil && connectionKind == "telegram" && isTelegramClaimKey(connectRequest.Credential) {
+			ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
+			defer cancel()
+			result, err := w.pollTelegramClaim(ctx, tenant, connectRequest.Credential)
+			if err != nil {
+				http.Error(rw, `{"error":"worker operation failed; operator inspection required"}`, http.StatusBadGateway)
+				return
+			}
+			_ = json.NewEncoder(rw).Encode(result)
+			return
+		}
 	}
 	// Only status is read-only. Lifecycle/configuration commands keep the same
 	// global serialization and create-capacity protection.
@@ -128,16 +161,11 @@ func (w *Worker) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		}
 		result, err = w.gatewayDevices(ctx, tenant, request)
 	case "connect":
-		var request struct {
-			Credential string `json:"credential"`
-			Account    string `json:"account"`
-			Name       string `json:"name"`
-		}
-		if decodeErr := json.NewDecoder(io.LimitReader(r.Body, 16<<10)).Decode(&request); decodeErr != nil || (strings.TrimSpace(request.Credential) == "" && connectionKind != "wechat" && connectionKind != "gws") {
+		if connectDecodeErr != nil || (strings.TrimSpace(connectRequest.Credential) == "" && connectionKind != "wechat" && connectionKind != "gws") {
 			http.Error(rw, `{"error":"credential required"}`, http.StatusBadRequest)
 			return
 		}
-		result, err = w.connect(ctx, tenant, connectionKind, request.Credential, request.Account, request.Name)
+		result, err = w.connect(ctx, tenant, connectionKind, connectRequest.Credential, connectRequest.Account, connectRequest.Name)
 	case "configure":
 		var mapping modelMapping
 		if decodeErr := json.NewDecoder(io.LimitReader(r.Body, 64<<10)).Decode(&mapping); decodeErr != nil {
@@ -281,6 +309,13 @@ func (w *Worker) connect(ctx context.Context, tenant, kind, credential, account,
 		return Result{}, errors.New("unsupported connection")
 	}
 	credential = strings.TrimSpace(credential)
+	if isTelegramClaimKey(credential) {
+		// ServeHTTP routes claim polls before taking w.mu; polling here would deadlock the final write.
+		return Result{}, errors.New("telegram claim poll must not hold the worker lock")
+	}
+	if w.telegramClaimEnabled(tenant) {
+		return w.startTelegramClaim(ctx, tenant, credential, account, name)
+	}
 	if len(credential) < 20 || strings.ContainsAny(credential, "\r\n") {
 		return Result{}, errors.New("invalid telegram credential")
 	}

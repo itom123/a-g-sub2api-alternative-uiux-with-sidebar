@@ -78,6 +78,13 @@ export default {
     connectTelegram: 'Connect Telegram',
     telegramToken: 'Bot token from BotFather',
     telegramTokenPlaceholder: '123456789:AA…',
+    telegramOpenBot: 'Open {bot} in Telegram',
+    telegramClaimHint: 'Tap Start in the chat that opens. This links the bot to your own Telegram account, so it answers only you. This page notices it by itself.',
+    telegramClaimCodeHint: 'Telegram on another device? Scan the QR code, or send the bot this code:',
+    telegramWaiting: 'Waiting for you to tap Start in Telegram…',
+    telegramQrAlt: 'QR code that opens your bot in Telegram',
+    telegramUseOtherToken: 'Use a different bot token',
+    telegramClaimExpired: 'This link has expired. Paste the bot token again to get a new one.',
     telegramSetup: 'Create a bot with BotFather, paste its token here, and the Claw Hub I bridge will install and enable OpenClaw’s Telegram plugin inside this workspace.',
     siteBotHint: 'This connects a bot of your own to this workspace. To check your balance and usage in Telegram, use Telegram in the sidebar instead.',
     gwsSetup: 'Google Workspace opens a private OAuth consent flow for this tenant. After approval, paste the code from the redirect page here.',
@@ -207,7 +214,7 @@ export default {
         description: 'Connect a Telegram bot to this workspace.',
         setupTitle: 'Connect a Telegram bot',
         setupDescription: 'Telegram uses a bot token created in BotFather.',
-        steps: 'Create or choose a bot in BotFather.|Paste the bot token into the secure setup form.|Send the bot a message and approve the pairing request.'
+        steps: 'Create or choose a bot in BotFather.|Paste the bot token into the secure setup form.|Open the bot in Telegram and tap Start; it then answers only you.'
       },
       gws: {
         title: 'Google Workspace',
