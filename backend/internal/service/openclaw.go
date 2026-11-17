@@ -134,18 +134,16 @@ type OpenClawAccessRequest struct {
 }
 
 type OpenClawConnection struct {
-	ID           int64      `json:"id"`
-	InstanceID   int64      `json:"instance_id"`
-	Kind         string     `json:"kind"`
-	Status       string     `json:"status"`
-	Label        string     `json:"label"`
-	UsageCount   int64      `json:"usage_count"`
-	LastUsedAt   *time.Time `json:"last_used_at,omitempty"`
-	CreatedAt    time.Time  `json:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at"`
-	SetupURL     string     `json:"setup_url,omitempty"`
-	SetupKey     string     `json:"setup_key,omitempty"`
-	SetupMessage string     `json:"setup_message,omitempty"`
+	ID           int64     `json:"id"`
+	InstanceID   int64     `json:"instance_id"`
+	Kind         string    `json:"kind"`
+	Status       string    `json:"status"`
+	Label        string    `json:"label"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	SetupURL     string    `json:"setup_url,omitempty"`
+	SetupKey     string    `json:"setup_key,omitempty"`
+	SetupMessage string    `json:"setup_message,omitempty"`
 }
 
 type OpenClawConnectionKindInfo struct {
@@ -1348,7 +1346,7 @@ func (s *OpenClawService) ListConnections(ctx context.Context, userID, instanceI
 		return nil, err
 	}
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, instance_id, kind, status, label, usage_count, last_used_at, created_at, updated_at
+		SELECT id, instance_id, kind, status, label, created_at, updated_at
 		FROM openclaw_connections WHERE instance_id = $1 ORDER BY created_at ASC`, instanceID)
 	if err != nil {
 		return nil, err
@@ -1357,7 +1355,7 @@ func (s *OpenClawService) ListConnections(ctx context.Context, userID, instanceI
 	var connections []OpenClawConnection
 	for rows.Next() {
 		var connection OpenClawConnection
-		if err := rows.Scan(&connection.ID, &connection.InstanceID, &connection.Kind, &connection.Status, &connection.Label, &connection.UsageCount, &connection.LastUsedAt, &connection.CreatedAt, &connection.UpdatedAt); err != nil {
+		if err := rows.Scan(&connection.ID, &connection.InstanceID, &connection.Kind, &connection.Status, &connection.Label, &connection.CreatedAt, &connection.UpdatedAt); err != nil {
 			return nil, err
 		}
 		connections = append(connections, connection)
@@ -1385,9 +1383,9 @@ func (s *OpenClawService) CreateConnection(ctx context.Context, userID, instance
 	}
 	var existing OpenClawConnection
 	existingErr := s.db.QueryRowContext(ctx, `
-		SELECT id, instance_id, kind, status, label, usage_count, last_used_at, created_at, updated_at
+		SELECT id, instance_id, kind, status, label, created_at, updated_at
 		FROM openclaw_connections WHERE instance_id = $1 AND kind = $2 ORDER BY id ASC LIMIT 1`, instanceID, kind).Scan(
-		&existing.ID, &existing.InstanceID, &existing.Kind, &existing.Status, &existing.Label, &existing.UsageCount, &existing.LastUsedAt, &existing.CreatedAt, &existing.UpdatedAt)
+		&existing.ID, &existing.InstanceID, &existing.Kind, &existing.Status, &existing.Label, &existing.CreatedAt, &existing.UpdatedAt)
 	if existingErr == nil && existing.Status == "connected" {
 		return existing, nil
 	}
@@ -1416,14 +1414,14 @@ func (s *OpenClawService) CreateConnection(ctx context.Context, userID, instance
 		err = s.db.QueryRowContext(ctx, `
 			UPDATE openclaw_connections SET status = $1, label = $2, updated_at = NOW()
 			WHERE id = $3
-			RETURNING id, instance_id, kind, status, label, usage_count, last_used_at, created_at, updated_at`, status, label, existing.ID).Scan(
-			&connection.ID, &connection.InstanceID, &connection.Kind, &connection.Status, &connection.Label, &connection.UsageCount, &connection.LastUsedAt, &connection.CreatedAt, &connection.UpdatedAt)
+			RETURNING id, instance_id, kind, status, label, created_at, updated_at`, status, label, existing.ID).Scan(
+			&connection.ID, &connection.InstanceID, &connection.Kind, &connection.Status, &connection.Label, &connection.CreatedAt, &connection.UpdatedAt)
 	} else {
 		err = s.db.QueryRowContext(ctx, `
 			INSERT INTO openclaw_connections (instance_id, kind, status, label)
 			VALUES ($1, $2, $3, $4)
-			RETURNING id, instance_id, kind, status, label, usage_count, last_used_at, created_at, updated_at`, instanceID, kind, status, label).Scan(
-			&connection.ID, &connection.InstanceID, &connection.Kind, &connection.Status, &connection.Label, &connection.UsageCount, &connection.LastUsedAt, &connection.CreatedAt, &connection.UpdatedAt)
+			RETURNING id, instance_id, kind, status, label, created_at, updated_at`, instanceID, kind, status, label).Scan(
+			&connection.ID, &connection.InstanceID, &connection.Kind, &connection.Status, &connection.Label, &connection.CreatedAt, &connection.UpdatedAt)
 	}
 	if err != nil {
 		return OpenClawConnection{}, err
@@ -1444,11 +1442,11 @@ func (s *OpenClawService) CompleteConnection(ctx context.Context, userID, instan
 	}
 	var connection OpenClawConnection
 	err = s.db.QueryRowContext(ctx, `
-		SELECT c.id, c.instance_id, c.kind, c.status, c.label, c.usage_count, c.last_used_at, c.created_at, c.updated_at
+		SELECT c.id, c.instance_id, c.kind, c.status, c.label, c.created_at, c.updated_at
 		FROM openclaw_connections c
 		JOIN openclaw_instances i ON i.id = c.instance_id AND i.user_id = $1
 		WHERE c.id = $2 AND c.instance_id = $3`, userID, connectionID, instanceID).Scan(
-		&connection.ID, &connection.InstanceID, &connection.Kind, &connection.Status, &connection.Label, &connection.UsageCount, &connection.LastUsedAt, &connection.CreatedAt, &connection.UpdatedAt)
+		&connection.ID, &connection.InstanceID, &connection.Kind, &connection.Status, &connection.Label, &connection.CreatedAt, &connection.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return OpenClawConnection{}, ErrOpenClawConnectionNotFound
 	}
@@ -1475,8 +1473,8 @@ func (s *OpenClawService) CompleteConnection(ctx context.Context, userID, instan
 	err = s.db.QueryRowContext(ctx, `
 		UPDATE openclaw_connections SET status = $1, updated_at = NOW()
 		WHERE id = $2 AND instance_id = $3
-		RETURNING id, instance_id, kind, status, label, usage_count, last_used_at, created_at, updated_at`, status, connectionID, instanceID).Scan(
-		&connection.ID, &connection.InstanceID, &connection.Kind, &connection.Status, &connection.Label, &connection.UsageCount, &connection.LastUsedAt, &connection.CreatedAt, &connection.UpdatedAt)
+		RETURNING id, instance_id, kind, status, label, created_at, updated_at`, status, connectionID, instanceID).Scan(
+		&connection.ID, &connection.InstanceID, &connection.Kind, &connection.Status, &connection.Label, &connection.CreatedAt, &connection.UpdatedAt)
 	if err != nil {
 		return OpenClawConnection{}, err
 	}

@@ -65,8 +65,6 @@ export interface OpenClawConnection {
   kind: OpenClawConnectionKind
   status: string
   label: string
-  usage_count: number
-  last_used_at?: string
   created_at: string
   updated_at: string
   setup_url?: string

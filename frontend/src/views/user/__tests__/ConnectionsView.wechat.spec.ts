@@ -26,7 +26,7 @@ const wechatKind: OpenClawConnectionKindInfo = { kind: 'wechat', title: 'WeChat'
 const telegramKind: OpenClawConnectionKindInfo = { kind: 'telegram', title: 'Telegram', setup_available: true } as OpenClawConnectionKindInfo
 
 function conn(over: Partial<OpenClawConnection> = {}): OpenClawConnection {
-  return { id: 5, instance_id: 7, kind: 'wechat', status: 'pending', label: '', usage_count: 0, created_at: '2026-11-01T01:00:00Z', updated_at: '2026-11-01T01:00:00Z', ...over }
+  return { id: 5, instance_id: 7, kind: 'wechat', status: 'pending', label: '', created_at: '2026-11-01T01:00:00Z', updated_at: '2026-11-01T01:00:00Z', ...over }
 }
 function deferred<T>() {
   let resolve!: (value: T) => void
