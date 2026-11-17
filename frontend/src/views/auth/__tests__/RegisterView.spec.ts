@@ -364,4 +364,158 @@ describe('RegisterView', () => {
     )
     expect(showErrorMock).not.toHaveBeenCalled()
   })
+
+  describe('invitation-only sign-up never ignores a click', () => {
+    const invitationOnly = {
+      ...publicSettings,
+      turnstile_enabled: false,
+      invitation_code_enabled: true
+    }
+
+    async function fillForm(wrapper: ReturnType<typeof mountRegister>, code: string) {
+      await wrapper.get('#email').setValue('invitee@example.com')
+      await wrapper.get('#password').setValue('secret-123')
+      await wrapper.get('#confirmPassword').setValue('secret-123')
+      await wrapper.get('#invitation_code').setValue(code)
+    }
+
+    async function submit(wrapper: ReturnType<typeof mountRegister>) {
+      await wrapper.get('form').trigger('submit.prevent')
+      await flushPromises()
+    }
+
+    it('submits a code typed just before clicking without waiting for the debounce', async () => {
+      getPublicSettingsMock.mockResolvedValueOnce(invitationOnly)
+      const wrapper = mountRegister()
+      await flushPromises()
+      await fillForm(wrapper, 'INVITE-1')
+      await submit(wrapper)
+
+      expect(validateInvitationCodeMock).toHaveBeenCalledOnce()
+      expect(validateInvitationCodeMock).toHaveBeenCalledWith('INVITE-1')
+      expect(registerMock).toHaveBeenCalledWith(
+        expect.objectContaining({ email: 'invitee@example.com', invitation_code: 'INVITE-1' })
+      )
+      expect(pushMock).toHaveBeenCalledWith('/dashboard')
+    })
+
+    it('shows why a rejected code stops the submit, on every click', async () => {
+      getPublicSettingsMock.mockResolvedValueOnce(invitationOnly)
+      validateInvitationCodeMock.mockResolvedValue({ valid: false, error_code: 'INVITATION_CODE_USED' })
+      const wrapper = mountRegister()
+      await flushPromises()
+      await fillForm(wrapper, 'USED-CODE')
+
+      await submit(wrapper)
+      expect(wrapper.get('[data-testid="register-error"]').text()).toContain('auth.invitationCodeInvalid')
+      expect(showErrorMock).toHaveBeenCalledTimes(1)
+
+      // The same rejected code clicked again: no repeat check, but visible feedback again.
+      await submit(wrapper)
+      expect(validateInvitationCodeMock).toHaveBeenCalledOnce()
+      expect(wrapper.get('[data-testid="register-error"]').text()).toContain('auth.invitationCodeInvalid')
+      expect(showErrorMock).toHaveBeenCalledTimes(2)
+      expect(registerMock).not.toHaveBeenCalled()
+
+      // Typing a new code clears the stale message.
+      await wrapper.get('#invitation_code').setValue('NEW-CODE')
+      expect(wrapper.find('[data-testid="register-error"]').exists()).toBe(false)
+    })
+
+    it('lets the server decide when the code check is rate limited', async () => {
+      getPublicSettingsMock.mockResolvedValueOnce(invitationOnly)
+      validateInvitationCodeMock.mockRejectedValue({ status: 429, message: 'Too many requests' })
+      const wrapper = mountRegister()
+      await flushPromises()
+      await fillForm(wrapper, 'FRIEND42')
+      await submit(wrapper)
+
+      expect(wrapper.find('[data-testid="invitation-check-unavailable"]').exists()).toBe(true)
+      expect(wrapper.get('#invitation_code').classes()).not.toContain('border-red-500')
+      expect(registerMock).toHaveBeenCalledWith(
+        expect.objectContaining({ invitation_code: 'FRIEND42' })
+      )
+    })
+
+    it('shows the localized reason when the server still rejects the code', async () => {
+      getPublicSettingsMock.mockResolvedValueOnce(invitationOnly)
+      validateInvitationCodeMock.mockRejectedValue({ status: 429 })
+      registerMock.mockRejectedValueOnce({
+        reason: 'INVITATION_CODE_INVALID',
+        message: 'invalid or used invitation code'
+      })
+      const wrapper = mountRegister()
+      await flushPromises()
+      await fillForm(wrapper, 'BOGUS')
+      await submit(wrapper)
+
+      expect(showErrorMock).toHaveBeenCalledWith('auth.invitationCodeInvalid')
+      expect(wrapper.get('[data-testid="register-error"]').text()).toContain('auth.invitationCodeInvalid')
+      expect(pushMock).not.toHaveBeenCalled()
+    })
+
+    it('waits for the check started by typing instead of ignoring the click', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      try {
+        getPublicSettingsMock.mockResolvedValueOnce(invitationOnly)
+        let answer!: (result: { valid: boolean }) => void
+        validateInvitationCodeMock.mockReturnValueOnce(
+          new Promise((resolve) => {
+            answer = resolve
+          })
+        )
+        const wrapper = mountRegister()
+        await flushPromises()
+        await fillForm(wrapper, 'SLOW-CODE')
+        vi.advanceTimersByTime(500) // the debounced check is now in flight
+
+        await wrapper.get('form').trigger('submit.prevent')
+        await flushPromises()
+        expect(registerMock).not.toHaveBeenCalled()
+        expect((wrapper.get('button[type="submit"]').element as HTMLButtonElement).disabled).toBe(true)
+
+        answer({ valid: true })
+        await flushPromises()
+
+        expect(validateInvitationCodeMock).toHaveBeenCalledOnce()
+        expect(registerMock).toHaveBeenCalledWith(
+          expect.objectContaining({ invitation_code: 'SLOW-CODE' })
+        )
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('ignores a slow answer for a code the user has since replaced', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      try {
+        getPublicSettingsMock.mockResolvedValueOnce(invitationOnly)
+        let answerOld!: (result: { valid: boolean }) => void
+        validateInvitationCodeMock
+          .mockReturnValueOnce(
+            new Promise((resolve) => {
+              answerOld = resolve
+            })
+          )
+          .mockResolvedValueOnce({ valid: false, error_code: 'INVITATION_CODE_NOT_FOUND' })
+        const wrapper = mountRegister()
+        await flushPromises()
+        await fillForm(wrapper, 'OLD-CODE')
+        vi.advanceTimersByTime(500)
+        await wrapper.get('#invitation_code').setValue('TYPO-CODE')
+        vi.advanceTimersByTime(500)
+        await flushPromises()
+
+        answerOld({ valid: true })
+        await flushPromises()
+
+        expect(wrapper.text()).not.toContain('auth.invitationCodeValid')
+        await submit(wrapper)
+        expect(registerMock).not.toHaveBeenCalled()
+        expect(wrapper.get('[data-testid="register-error"]').text()).toContain('auth.invitationCodeInvalid')
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+  })
 })

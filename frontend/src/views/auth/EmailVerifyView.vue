@@ -105,6 +105,17 @@
           />
         </div>
 
+        <!-- Why the last attempt failed; stays until the next attempt -->
+        <div
+          v-if="errorMessage"
+          role="alert"
+          data-testid="email-verify-error"
+          class="flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-400"
+        >
+          <Icon name="exclamationCircle" size="sm" class="mt-0.5 flex-shrink-0" />
+          <span>{{ errorMessage }}</span>
+        </div>
+
         <!-- Submit Button -->
         <button
           type="submit"
@@ -658,6 +669,7 @@ async function handleVerify(): Promise<void> {
   errorMessage.value = ''
 
   if (!validateForm()) {
+    errorMessage.value = errors.value.code
     return
   }
 
@@ -784,11 +796,15 @@ function buildEmailSuffixNotAllowedMessage(): string {
 }
 
 function buildRegistrationErrorMessage(error: unknown, fallback: string): string {
-  if (extractApiErrorCode(error) === 'EMAIL_DOMAIN_REGISTRATION_LIMIT') {
-    return t('auth.emailDomainRegistrationLimit')
-  }
-  if (extractApiErrorCode(error) === 'EMAIL_BLOCKED') {
-    return t('auth.errors.EMAIL_BLOCKED')
+  switch (extractApiErrorCode(error)) {
+    case 'EMAIL_DOMAIN_REGISTRATION_LIMIT':
+      return t('auth.emailDomainRegistrationLimit')
+    case 'EMAIL_BLOCKED':
+      return t('auth.errors.EMAIL_BLOCKED')
+    case 'INVITATION_CODE_REQUIRED':
+      return t('auth.invitationCodeRequired')
+    case 'INVITATION_CODE_INVALID':
+      return t('auth.invitationCodeInvalid')
   }
   return buildAuthErrorMessage(error, { fallback })
 }

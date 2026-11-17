@@ -980,6 +980,36 @@ describe("admin SettingsView payment visible method controls", () => {
     );
   });
 
+  it.each([
+    [{ registration_enabled: false, affiliate_enabled: true }, "registrationOff"],
+    [{ registration_enabled: true, affiliate_enabled: false }, "adminCodesOnly"],
+    [{ registration_enabled: true, affiliate_enabled: true }, "ready"],
+  ])(
+    "tells the admin which invitation codes admit new users (%j)",
+    async (switches, status) => {
+      getSettings.mockResolvedValueOnce({
+        ...baseSettingsResponse,
+        ...switches,
+        invitation_code_enabled: true,
+      });
+      const wrapper = mountView();
+      await flushPromises();
+      await openSecurityTab(wrapper);
+
+      expect(wrapper.get('[data-testid="invitation-code-status"]').text()).toBe(
+        `admin.settings.registration.invitationCodeStatus.${status}`,
+      );
+    },
+  );
+
+  it("hides the invitation code status while invitation-only sign-up is off", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+    await openSecurityTab(wrapper);
+
+    expect(wrapper.find('[data-testid="invitation-code-status"]').exists()).toBe(false);
+  });
+
   it("disables passkey sign-in when the RP configuration is unavailable", async () => {
     getSettings.mockResolvedValueOnce({
       ...baseSettingsResponse,

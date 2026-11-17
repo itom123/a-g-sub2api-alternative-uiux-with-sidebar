@@ -164,7 +164,14 @@
               </span>
             </div>
           </transition>
-          <p v-if="affiliateEnabled && !invitationValidation.valid" class="input-hint">
+          <p
+            v-if="invitationValidation.unavailable"
+            class="input-hint"
+            data-testid="invitation-check-unavailable"
+          >
+            {{ t('auth.invitationCodeCheckUnavailable') }}
+          </p>
+          <p v-else-if="affiliateEnabled && !invitationValidation.valid" class="input-hint">
             {{ t('auth.invitationCodeReferralHint') }}
           </p>
         </div>
@@ -236,6 +243,9 @@
               </span>
             </div>
           </transition>
+          <p v-if="promoValidation.unavailable" class="input-hint" data-testid="promo-check-unavailable">
+            {{ t('auth.promoCodeCheckUnavailable') }}
+          </p>
         </div>
 
         <!-- Turnstile Widget -->
@@ -255,6 +265,17 @@
             @expire="onTurnstileExpire"
             @error="onTurnstileError"
           />
+        </div>
+
+        <!-- Why the last submit stopped; stays until the next attempt -->
+        <div
+          v-if="errorMessage"
+          role="alert"
+          data-testid="register-error"
+          class="flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-400"
+        >
+          <Icon name="exclamationCircle" size="sm" class="mt-0.5 flex-shrink-0" />
+          <span>{{ errorMessage }}</span>
         </div>
 
         <LoginAgreementPrompt
@@ -484,24 +505,56 @@ const captchaEnabled = computed(
     (turnstileEnabled.value && Boolean(turnstileSiteKey.value)) || actionCaptchaEnabled.value
 )
 
-// Promo code validation
+// Runs code checks so that only the latest one counts: a slower response for an
+// older value never overwrites the result for what is in the field now.
+function createLatestCheck() {
+  let seq = 0
+  let current: Promise<void> | null = null
+  return {
+    cancel(): void {
+      seq++
+      current = null
+    },
+    run(task: (isCurrent: () => boolean) => Promise<void>): Promise<void> {
+      const id = ++seq
+      const isCurrent = () => id === seq
+      const check = task(isCurrent).finally(() => {
+        if (isCurrent()) current = null
+      })
+      current = check
+      return check
+    },
+    pending(): Promise<void> | null {
+      return current
+    }
+  }
+}
+
+// Promo code validation. `unavailable` means the check itself could not run
+// (rate limit, network, server error); it says nothing about the code.
 const promoValidating = ref<boolean>(false)
 const promoValidation = reactive({
   valid: false,
   invalid: false,
+  unavailable: false,
   bonusAmount: null as number | null,
   message: ''
 })
 let promoValidateTimeout: ReturnType<typeof setTimeout> | null = null
+const promoCheck = createLatestCheck()
+let promoCheckedCode = ''
 
-// Invitation code validation
+// Invitation code validation (same states as the promo code)
 const invitationValidating = ref<boolean>(false)
 const invitationValidation = reactive({
   valid: false,
   invalid: false,
+  unavailable: false,
   message: ''
 })
 let invitationValidateTimeout: ReturnType<typeof setTimeout> | null = null
+const invitationCheck = createLatestCheck()
+let invitationCheckedCode = ''
 
 const formData = reactive({
   email: '',
@@ -704,57 +757,88 @@ function rejectLoginAgreement(): void {
 
 // ==================== Promo Code Validation ====================
 
+function clearPromoValidateTimeout(): void {
+  if (promoValidateTimeout) {
+    clearTimeout(promoValidateTimeout)
+    promoValidateTimeout = null
+  }
+}
+
 function handlePromoCodeInput(): void {
   const code = formData.promo_code.trim()
 
-  // Clear previous validation
+  // Clear previous validation and drop any check for the old value
+  clearPromoValidateTimeout()
+  promoCheck.cancel()
+  promoCheckedCode = ''
+  promoValidating.value = false
   promoValidation.valid = false
   promoValidation.invalid = false
+  promoValidation.unavailable = false
   promoValidation.bonusAmount = null
   promoValidation.message = ''
+  errorMessage.value = ''
 
   if (!code) {
-    promoValidating.value = false
     return
   }
 
   // Debounce validation
-  if (promoValidateTimeout) {
-    clearTimeout(promoValidateTimeout)
-  }
-
   promoValidateTimeout = setTimeout(() => {
-    validatePromoCodeDebounced(code)
+    promoValidateTimeout = null
+    void validatePromoCodeDebounced(code)
   }, 500)
 }
 
-async function validatePromoCodeDebounced(code: string): Promise<void> {
-  if (!code.trim()) return
+function validatePromoCodeDebounced(code: string): Promise<void> {
+  if (!code.trim()) return Promise.resolve()
 
   promoValidating.value = true
 
-  try {
-    const result = await validatePromoCode(code)
+  return promoCheck.run(async (isCurrent) => {
+    try {
+      const result = await validatePromoCode(code)
+      if (!isCurrent()) return
 
-    if (result.valid) {
-      promoValidation.valid = true
-      promoValidation.invalid = false
-      promoValidation.bonusAmount = result.bonus_amount || 0
-      promoValidation.message = ''
-    } else {
+      promoCheckedCode = code
+      promoValidation.unavailable = false
+      if (result.valid) {
+        promoValidation.valid = true
+        promoValidation.invalid = false
+        promoValidation.bonusAmount = result.bonus_amount || 0
+        promoValidation.message = ''
+      } else {
+        promoValidation.valid = false
+        promoValidation.invalid = true
+        promoValidation.bonusAmount = null
+        // 根据错误码显示对应的翻译
+        promoValidation.message = getPromoErrorMessage(result.error_code)
+      }
+    } catch (error) {
+      if (!isCurrent()) return
+      // The check could not run, so the code is neither valid nor invalid yet.
+      // Registration ignores a promo code the server rejects, so this never blocks.
+      console.error('Failed to validate promo code:', error)
+      promoCheckedCode = code
       promoValidation.valid = false
-      promoValidation.invalid = true
+      promoValidation.invalid = false
+      promoValidation.unavailable = true
       promoValidation.bonusAmount = null
-      // 根据错误码显示对应的翻译
-      promoValidation.message = getPromoErrorMessage(result.error_code)
+      promoValidation.message = ''
+    } finally {
+      if (isCurrent()) promoValidating.value = false
     }
-  } catch (error) {
-    console.error('Failed to validate promo code:', error)
-    promoValidation.valid = false
-    promoValidation.invalid = true
-    promoValidation.message = t('auth.promoCodeInvalid')
-  } finally {
-    promoValidating.value = false
+  })
+}
+
+// Waits for a promo check still running and checks once more a code that has
+// no definite answer yet (never checked, or the last check could not run).
+async function settlePromoCheck(code: string): Promise<void> {
+  clearPromoValidateTimeout()
+  await promoCheck.pending()
+  const answered = promoCheckedCode === code && (promoValidation.valid || promoValidation.invalid)
+  if (!answered) {
+    await validatePromoCodeDebounced(code)
   }
 }
 
@@ -777,50 +861,84 @@ function getPromoErrorMessage(errorCode?: string): string {
 
 // ==================== Invitation Code Validation ====================
 
+function clearInvitationValidateTimeout(): void {
+  if (invitationValidateTimeout) {
+    clearTimeout(invitationValidateTimeout)
+    invitationValidateTimeout = null
+  }
+}
+
 function handleInvitationCodeInput(): void {
   const code = formData.invitation_code.trim()
 
-  // Clear previous validation
+  // Clear previous validation and drop any check for the old value
+  clearInvitationValidateTimeout()
+  invitationCheck.cancel()
+  invitationCheckedCode = ''
+  invitationValidating.value = false
   invitationValidation.valid = false
   invitationValidation.invalid = false
+  invitationValidation.unavailable = false
   invitationValidation.message = ''
   errors.invitation_code = ''
+  errorMessage.value = ''
 
   if (!code) {
     return
   }
 
   // Debounce validation
-  if (invitationValidateTimeout) {
-    clearTimeout(invitationValidateTimeout)
-  }
-
   invitationValidateTimeout = setTimeout(() => {
-    validateInvitationCodeDebounced(code)
+    invitationValidateTimeout = null
+    void validateInvitationCodeDebounced(code)
   }, 500)
 }
 
-async function validateInvitationCodeDebounced(code: string): Promise<void> {
+function validateInvitationCodeDebounced(code: string): Promise<void> {
   invitationValidating.value = true
 
-  try {
-    const result = await validateInvitationCode(code)
+  return invitationCheck.run(async (isCurrent) => {
+    try {
+      const result = await validateInvitationCode(code)
+      if (!isCurrent()) return
 
-    if (result.valid) {
-      invitationValidation.valid = true
-      invitationValidation.invalid = false
-      invitationValidation.message = ''
-    } else {
+      invitationCheckedCode = code
+      invitationValidation.unavailable = false
+      if (result.valid) {
+        invitationValidation.valid = true
+        invitationValidation.invalid = false
+        invitationValidation.message = ''
+      } else {
+        invitationValidation.valid = false
+        invitationValidation.invalid = true
+        invitationValidation.message = getInvitationErrorMessage(result.error_code)
+      }
+    } catch {
+      if (!isCurrent()) return
+      // The check could not run (for example the check endpoint's per-IP rate
+      // limit, which visitors behind one shared address hit together). That says
+      // nothing about the code, so it must not block sign-up: the server checks
+      // the code again when the account is created.
+      invitationCheckedCode = code
       invitationValidation.valid = false
-      invitationValidation.invalid = true
-      invitationValidation.message = getInvitationErrorMessage(result.error_code)
+      invitationValidation.invalid = false
+      invitationValidation.unavailable = true
+      invitationValidation.message = ''
+    } finally {
+      if (isCurrent()) invitationValidating.value = false
     }
-  } catch {
-    invitationValidation.valid = false
-    invitationValidation.invalid = true
-    invitationValidation.message = t('auth.invitationCodeInvalid')
-  } finally {
-    invitationValidating.value = false
+  })
+}
+
+// Waits for an invitation check still running and checks once more a code that
+// has no definite answer yet (never checked, or the last check could not run).
+async function settleInvitationCheck(code: string): Promise<void> {
+  clearInvitationValidateTimeout()
+  await invitationCheck.pending()
+  const answered =
+    invitationCheckedCode === code && (invitationValidation.valid || invitationValidation.invalid)
+  if (!answered) {
+    await validateInvitationCodeDebounced(code)
   }
 }
 
@@ -1008,59 +1126,82 @@ function validateForm(): boolean {
 
 // ==================== Form Handlers ====================
 
+// Shows why a submit stopped: inline until the next attempt, and as a toast.
+// The validation watcher already toasts a message that has just appeared in
+// validationToastMessage, so the toast is skipped then; a click must never end
+// with nothing on screen, but should not raise the same toast twice either.
+function stopSubmit(message: string, toastBefore: string): void {
+  if (!message) return
+  errorMessage.value = message
+  const watcherToasts = message === validationToastMessage.value && message !== toastBefore
+  if (!watcherToasts) {
+    appStore.showError(message)
+  }
+}
+
+// Waits for promo and invitation checks still in flight (or still debounced)
+// instead of giving up on the click. Only a definite "invalid" answer stops the
+// submit; when a check could not run, the server decides at registration.
+async function codesAllowSubmit(): Promise<boolean> {
+  const promoCode = formData.promo_code.trim()
+  if (promoCode) {
+    const toastBefore = validationToastMessage.value
+    await settlePromoCheck(promoCode)
+    if (promoValidation.invalid) {
+      stopSubmit(promoValidation.message || t('auth.promoCodeInvalidCannotRegister'), toastBefore)
+      return false
+    }
+  }
+
+  const invitationCode = formData.invitation_code.trim()
+  if (invitationCodeEnabled.value && invitationCode) {
+    const toastBefore = validationToastMessage.value
+    await settleInvitationCheck(invitationCode)
+    if (invitationValidation.invalid) {
+      stopSubmit(
+        invitationValidation.message || t('auth.invitationCodeInvalidCannotRegister'),
+        toastBefore
+      )
+      return false
+    }
+  }
+
+  return true
+}
+
 async function handleRegister(): Promise<void> {
+  if (isLoading.value) return
+
   // Clear previous error
   errorMessage.value = ''
 
   // Validate form
+  const toastBeforeValidation = validationToastMessage.value
   if (!validateForm()) {
+    // The agreement gate explains itself with its own warning and modal.
+    if (!agreementGateActive.value) {
+      stopSubmit(validationToastMessage.value, toastBeforeValidation)
+    }
     return
   }
 
-  // Check promo code validation status
-  if (formData.promo_code.trim()) {
-    // If promo code is being validated, wait
-    if (promoValidating.value) {
-      errorMessage.value = t('auth.promoCodeValidating')
-      return
-    }
-    // If promo code is invalid, block submission
-    if (promoValidation.invalid) {
-      errorMessage.value = t('auth.promoCodeInvalidCannotRegister')
-      return
-    }
-  }
-
-  // Check invitation code validation status (if enabled and code provided)
-  if (invitationCodeEnabled.value) {
-    // If still validating, wait
-    if (invitationValidating.value) {
-      errorMessage.value = t('auth.invitationCodeValidating')
-      return
-    }
-    // If invitation code is invalid, block submission
-    if (invitationValidation.invalid) {
-      errorMessage.value = t('auth.invitationCodeInvalidCannotRegister')
-      return
-    }
-    // If invitation code is required but not validated yet
-    if (formData.invitation_code.trim() && !invitationValidation.valid) {
-      errorMessage.value = t('auth.invitationCodeValidating')
-      // Trigger validation
-      await validateInvitationCodeDebounced(formData.invitation_code.trim())
-      if (!invitationValidation.valid) {
-        errorMessage.value = t('auth.invitationCodeInvalidCannotRegister')
-        return
-      }
-    }
-  }
-
-  if (!(await acquireActionProof())) {
-    return
-  }
-
+  // Busy from here on, so a second click cannot start a parallel submit while
+  // the code checks or the captcha are still pending.
   isLoading.value = true
+  try {
+    if (!(await codesAllowSubmit())) {
+      return
+    }
+    if (!(await acquireActionProof())) {
+      return
+    }
+    await submitRegistration()
+  } finally {
+    isLoading.value = false
+  }
+}
 
+async function submitRegistration(): Promise<void> {
   try {
     const affCode = formData.aff_code.trim() || loadAffiliateReferralCode()
     if (affCode) {
@@ -1119,16 +1260,19 @@ async function handleRegister(): Promise<void> {
     if (captchaEnabled.value) {
       resetCaptchaProof()
     }
-    isLoading.value = false
   }
 }
 
 function buildRegistrationErrorMessage(error: unknown, fallback: string): string {
-  if (extractApiErrorCode(error) === 'EMAIL_DOMAIN_REGISTRATION_LIMIT') {
-    return t('auth.emailDomainRegistrationLimit')
-  }
-  if (extractApiErrorCode(error) === 'EMAIL_BLOCKED') {
-    return t('auth.errors.EMAIL_BLOCKED')
+  switch (extractApiErrorCode(error)) {
+    case 'EMAIL_DOMAIN_REGISTRATION_LIMIT':
+      return t('auth.emailDomainRegistrationLimit')
+    case 'EMAIL_BLOCKED':
+      return t('auth.errors.EMAIL_BLOCKED')
+    case 'INVITATION_CODE_REQUIRED':
+      return t('auth.invitationCodeRequired')
+    case 'INVITATION_CODE_INVALID':
+      return t('auth.invitationCodeInvalid')
   }
   return buildAuthErrorMessage(error, { fallback })
 }
