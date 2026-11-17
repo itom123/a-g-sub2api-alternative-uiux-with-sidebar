@@ -10,10 +10,10 @@ const SETUP_URL = 'https://liteapp.weixin.qq.com/q/7GiQu1?qrcode=0123456789abcde
 const stamp = '2026-11-10T09:00:00Z'
 const instance = { id: 1, tenant_slug: 'u42', name: 'Workspace', status: 'running', worker_host: 'default', created_at: stamp, updated_at: stamp }
 const pending = {
-  id: 7, instance_id: 1, kind: 'wechat', status: 'pending', label: '', usage_count: 0, created_at: stamp, updated_at: stamp,
+  id: 7, instance_id: 1, kind: 'wechat', status: 'pending', label: '', created_at: stamp, updated_at: stamp,
   setup_url: SETUP_URL, setup_key: 'main', setup_message: '用手机微信扫描以下二维码，以继续连接：',
 }
-const connected = { id: 7, instance_id: 1, kind: 'wechat', status: 'connected', label: '', usage_count: 0, created_at: stamp, updated_at: stamp }
+const connected = { id: 7, instance_id: 1, kind: 'wechat', status: 'connected', label: '', created_at: stamp, updated_at: stamp }
 
 async function mockOpenClaw(page: Page) {
   let completeCalls = 0

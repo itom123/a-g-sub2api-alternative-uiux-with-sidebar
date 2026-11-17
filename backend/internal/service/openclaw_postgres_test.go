@@ -93,7 +93,7 @@ func TestOpenClawListAdminInstancesUsageComesFromBillingLedger(t *testing.T) {
 			last_latency_ms integer, last_seen_at timestamptz
 		);
 		CREATE TEMP TABLE openclaw_api_keys (instance_id bigint PRIMARY KEY, api_key_id bigint);
-		CREATE TEMP TABLE openclaw_connections (id bigint PRIMARY KEY, instance_id bigint, status text, usage_count bigint DEFAULT 0, last_used_at timestamptz);
+		CREATE TEMP TABLE openclaw_connections (id bigint PRIMARY KEY, instance_id bigint, status text);
 		CREATE TEMP TABLE usage_logs (
 			id bigint PRIMARY KEY, api_key_id bigint, actual_cost numeric(20,10),
 			input_tokens int, output_tokens int, cache_creation_tokens int, cache_read_tokens int,
@@ -106,7 +106,7 @@ func TestOpenClawListAdminInstancesUsageComesFromBillingLedger(t *testing.T) {
 			(1, 1, 'u1-busy', 'Busy', 'running', 'default', NOW() - INTERVAL '2 days'),
 			(2, 2, 'u2-idle', 'Idle', 'running', 'default', NOW() - INTERVAL '1 day');
 		INSERT INTO openclaw_api_keys VALUES (1, 10), (2, 11);
-		INSERT INTO openclaw_connections VALUES (1, 1, 'connected', 0, NULL), (2, 1, 'pending', 0, NULL);
+		INSERT INTO openclaw_connections VALUES (1, 1, 'connected'), (2, 1, 'pending');
 		INSERT INTO usage_logs VALUES
 			(1, 10, 20.00, 1000, 200, 0, 5000, NOW() - INTERVAL '30 days'),
 			(2, 10, 30.00, 2000, 300, 100, 0, NOW() - INTERVAL '20 days'),
