@@ -13,8 +13,10 @@ import (
 	_ "github.com/lib/pq"
 )
 
-// Migration 264 drops openclaw_connections.usage_count and last_used_at,
-// which nothing ever wrote. Every connection query must work without them.
+// openclaw_connections.usage_count and last_used_at were never written and
+// are being retired: this release stops reading them, and a later, separately
+// reviewed migration drops them. Every connection query must therefore work
+// both with the columns (today's schema, and after a rollback) and without.
 
 type connectFleetStub struct {
 	OpenClawFleetClient
@@ -68,10 +70,10 @@ func exerciseOpenClawConnections(t *testing.T, ctx context.Context, service *Ope
 	}
 }
 
-func TestOpenClawConnectionQueriesNeverReadDroppedUsageColumns(t *testing.T) {
+func TestOpenClawConnectionQueriesNeverReadRetiredUsageColumns(t *testing.T) {
 	rejectDropped := sqlmock.QueryMatcherFunc(func(expected, actual string) error {
 		if strings.Contains(actual, "usage_count") || strings.Contains(actual, "last_used_at") {
-			return fmt.Errorf("query reads a column dropped by migration 264: %s", actual)
+			return fmt.Errorf("query reads a retired openclaw_connections column: %s", actual)
 		}
 		return sqlmock.QueryMatcherRegexp.Match(expected, actual)
 	})
@@ -117,44 +119,53 @@ func TestOpenClawConnectionQueriesNeverReadDroppedUsageColumns(t *testing.T) {
 }
 
 // SQL mocks only see query text. This runs the same flow against PostgreSQL
-// with openclaw_connections as it stands after 246, 247 and 264.
-func TestOpenClawConnectionQueriesAfterUsageColumnDropPostgres(t *testing.T) {
+// with openclaw_connections as created by 246 and 247 (columns present) and as
+// it will be once the retired columns are dropped.
+func TestOpenClawConnectionQueriesWithAndWithoutUsageColumnsPostgres(t *testing.T) {
 	dsn := os.Getenv("OPENCLAW_TEST_DATABASE_URL")
 	if dsn == "" {
 		t.Skip("OPENCLAW_TEST_DATABASE_URL is required for the PostgreSQL regression")
 	}
-	db, err := sql.Open("postgres", dsn)
-	if err != nil {
-		t.Fatal(err)
+	for name, usageColumns := range map[string]string{
+		"current-schema": `usage_count BIGINT NOT NULL DEFAULT 0, last_used_at TIMESTAMPTZ NULL,`,
+		"after-drop":     ``,
+	} {
+		t.Run(name, func(t *testing.T) {
+			db, err := sql.Open("postgres", dsn)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = db.Close() }()
+			// One connection keeps the temporary tables visible to the service
+			// query; pg_temp shadows any application tables of the same name.
+			db.SetMaxOpenConns(1)
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancel()
+			_, err = db.ExecContext(ctx, `
+				CREATE TEMP TABLE openclaw_instances (
+					id bigint PRIMARY KEY, user_id bigint NOT NULL, tenant_slug text, name text, status text,
+					worker_host text, port integer, last_error text,
+					created_at timestamptz DEFAULT NOW(), updated_at timestamptz DEFAULT NOW(),
+					deletion_requested_at timestamptz, deletion_scheduled_at timestamptz
+				);
+				CREATE TEMP TABLE openclaw_connections (
+					id BIGSERIAL PRIMARY KEY,
+					instance_id BIGINT NOT NULL REFERENCES openclaw_instances(id) ON DELETE CASCADE,
+					kind VARCHAR(32) NOT NULL,
+					status VARCHAR(32) NOT NULL DEFAULT 'pending',
+					label VARCHAR(100) NOT NULL DEFAULT '',
+					metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+					`+usageColumns+`
+					created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+					updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+					UNIQUE (instance_id, kind, label)
+				);
+				INSERT INTO openclaw_instances (id, user_id, tenant_slug, name, status, worker_host)
+				VALUES (7, 42, 'u42-0123456789ab', 'Workspace', 'running', 'default');`)
+			if err != nil {
+				t.Fatal(err)
+			}
+			exerciseOpenClawConnections(t, ctx, NewOpenClawService(db, &connectFleetStub{states: []string{"pending", "pending", "connected"}}))
+		})
 	}
-	defer func() { _ = db.Close() }()
-	// One connection keeps the temporary tables visible to the service query;
-	// pg_temp shadows any application tables of the same name.
-	db.SetMaxOpenConns(1)
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-	_, err = db.ExecContext(ctx, `
-		CREATE TEMP TABLE openclaw_instances (
-			id bigint PRIMARY KEY, user_id bigint NOT NULL, tenant_slug text, name text, status text,
-			worker_host text, port integer, last_error text,
-			created_at timestamptz DEFAULT NOW(), updated_at timestamptz DEFAULT NOW(),
-			deletion_requested_at timestamptz, deletion_scheduled_at timestamptz
-		);
-		CREATE TEMP TABLE openclaw_connections (
-			id BIGSERIAL PRIMARY KEY,
-			instance_id BIGINT NOT NULL REFERENCES openclaw_instances(id) ON DELETE CASCADE,
-			kind VARCHAR(32) NOT NULL,
-			status VARCHAR(32) NOT NULL DEFAULT 'pending',
-			label VARCHAR(100) NOT NULL DEFAULT '',
-			metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			UNIQUE (instance_id, kind, label)
-		);
-		INSERT INTO openclaw_instances (id, user_id, tenant_slug, name, status, worker_host)
-		VALUES (7, 42, 'u42-0123456789ab', 'Workspace', 'running', 'default');`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	exerciseOpenClawConnections(t, ctx, NewOpenClawService(db, &connectFleetStub{states: []string{"pending", "pending", "connected"}}))
 }
