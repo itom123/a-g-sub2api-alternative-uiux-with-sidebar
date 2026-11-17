@@ -6,6 +6,14 @@
     <Input id="disabled" model-value="Unavailable" label="Disabled field" disabled />
     <TextArea id="notes" v-model="notes" label="Notes" placeholder="Additional context" />
     <Select v-model="choice" :options="options" searchable />
+    <Select v-model="group" :options="groupOptions" aria-label="Group" searchable>
+      <template #selected="{ option }">
+        <GroupBadge v-if="option" :name="String(option.label)" platform="anthropic" :rate-multiplier="Number(option.rate)" />
+      </template>
+      <template #option="{ option, selected }">
+        <GroupOptionItem :name="String(option.label)" platform="anthropic" :rate-multiplier="Number(option.rate)" :description="String(option.description)" :selected="selected" peak-rate-enabled peak-start="20:00" peak-end="23:00" :peak-rate-multiplier="1.5" />
+      </template>
+    </Select>
     <Toggle v-model="enabled" />
     <DateRangePicker start-date="2026-01-01" end-date="2026-01-07" />
     <button class="btn btn-primary" @click="show = true"><span class="text-sm bg-transparent"><Icon name="plus" size="sm" /> Open dialog</span></button>
@@ -33,6 +41,8 @@ import Input from '../src/components/common/Input.vue'
 import TextArea from '../src/components/common/TextArea.vue'
 import Select from '../src/components/common/Select.vue'
 import Toggle from '../src/components/common/Toggle.vue'
+import GroupBadge from '../src/components/common/GroupBadge.vue'
+import GroupOptionItem from '../src/components/common/GroupOptionItem.vue'
 import DateRangePicker from '../src/components/common/DateRangePicker.vue'
 import BaseDialog from '../src/components/common/BaseDialog.vue'
 import HelpTooltip from '../src/components/common/HelpTooltip.vue'
@@ -43,9 +53,14 @@ import { useAppStore } from '../src/stores/app'
 const name = ref('Theme verification')
 const notes = ref('A readable text area')
 const choice = ref('one')
+const group = ref(1)
 const enabled = ref(false)
 const show = ref(false)
 const legacy = ref(false)
 const store = useAppStore()
 const options = [{ value: 'one', label: 'First option' }, { value: 'two', label: 'Second option' }]
+const groupOptions = [
+  { value: 1, label: 'Primary group', rate: 0.25, description: 'Selected group description.' },
+  { value: 2, label: 'Secondary group', rate: 0.2, description: 'Another group description.' },
+]
 </script>
