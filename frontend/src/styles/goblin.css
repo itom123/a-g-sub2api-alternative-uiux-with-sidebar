@@ -145,6 +145,9 @@ html.dark { --ag-paper: #000000; --ag-ink: #ffffff; --ag-paper-rgb: 0 0 0; --ag-
 :root body :is(.select-trigger, .select-dropdown-portal, .select-option, .select-option-group, .select-option-focused, .select-search-input) { background: var(--ag-paper) !important; color: var(--ag-ink) !important; }
 :root body .select-option-selected { background: var(--ag-ink) !important; color: var(--ag-paper) !important; }
 :root body .select-option-selected * { color: inherit !important; }
+/* Pills and badges nested in a selected option sit on its ink fill: drop their paper fill and draw their rules in paper, so rates and labels never turn paper-on-paper. */
+:root body .select-option-selected [class*="bg-"] { background-color: transparent !important; }
+:root body .select-option-selected *:not([class~="border-transparent"]) { border-color: var(--ag-paper) !important; }
 :root body .chip-tinted { color: var(--ag-ink) !important; background: var(--ag-paper) !important; }
 :root body .chip-tinted-active { color: var(--ag-paper) !important; background: var(--ag-ink) !important; }
 :root body .chip-tinted-active * { color: inherit !important; }
