@@ -72,12 +72,13 @@ func (f *fakeTelegram) serve(rw http.ResponseWriter, r *http.Request) {
 			fail(f.updatesCode)
 			return
 		}
-		offset := int64(params["offset"].(float64))
+		rawOffset, _ := params["offset"].(float64)
+		offset := int64(rawOffset)
 		f.offsets = append(f.offsets, offset)
 		var out []map[string]any
 		var keep []map[string]any
 		for _, u := range f.updates {
-			if int64(u["update_id"].(int)) >= offset {
+			if id, _ := u["update_id"].(int); int64(id) >= offset {
 				out = append(out, u)
 				keep = append(keep, u)
 			}
@@ -422,7 +423,10 @@ func TestTelegramClaimTypedCodeAndConfirmation(t *testing.T) {
 	if err != nil || got.State != "connected" {
 		t.Fatalf("result = %+v, %v", got, err)
 	}
-	if len(tg.sent) != 1 || tg.sent[0]["text"] != telegramConfirmZH || int64(tg.sent[0]["chat_id"].(float64)) != tgOwner {
+	if len(tg.sent) != 1 {
+		t.Fatalf("sent = %v", tg.sent)
+	}
+	if chatID, _ := tg.sent[0]["chat_id"].(float64); tg.sent[0]["text"] != telegramConfirmZH || int64(chatID) != tgOwner {
 		t.Fatalf("sent = %v", tg.sent)
 	}
 }
