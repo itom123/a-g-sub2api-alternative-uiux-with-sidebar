@@ -203,7 +203,12 @@ export default {
         promoCode: 'Promo Code',
         promoCodeHint: 'Allow users to use promo codes during registration',
         invitationCode: 'Invitation Code Registration',
-        invitationCodeHint: 'When enabled, users must enter a valid invitation code to register',
+        invitationCodeHint: 'When enabled, new users need an invitation code to sign up',
+        invitationCodeStatus: {
+          registrationOff: 'Registration is turned off, so nobody can sign up, even with an invitation code. Turn on "Enable Registration" first.',
+          adminCodesOnly: 'Only admin-issued invitation codes work right now (create them under Redeem Codes with the type "Invitation"). Turn on the affiliate program to let every user invite friends with their own code.',
+          ready: "Accepted now: admin-issued invitation codes (single use) and every user's own code from the Affiliate page (reusable; that user becomes the new user's inviter).",
+        },
         passwordReset: 'Password Reset',
         passwordResetHint: 'Allow users to reset their password via email',
         frontendUrl: 'Frontend URL',

@@ -203,7 +203,12 @@ export default {
         promoCode: '优惠码',
         promoCodeHint: '允许用户在注册时使用优惠码',
         invitationCode: '邀请码注册',
-        invitationCodeHint: '开启后，用户注册时需要填写有效的邀请码',
+        invitationCodeHint: '开启后，新用户必须填写邀请码才能注册',
+        invitationCodeStatus: {
+          registrationOff: '「开放注册」已关闭，持有邀请码也无法注册。请先开启「开放注册」。',
+          adminCodesOnly: '目前只有管理员发放的邀请码可用（在「兑换码」中生成，类型选“邀请码”）。开启「邀请返利」后，每个用户都能用自己的邀请码邀请好友注册。',
+          ready: '当前可用：管理员发放的邀请码（一码一用），以及每位用户在「邀请返利」页的“我的邀请码”（可重复使用，该用户自动成为新用户的邀请人）。',
+        },
         passwordReset: '忘记密码',
         passwordResetHint: '允许用户通过邮箱重置密码',
         frontendUrl: '前端地址',

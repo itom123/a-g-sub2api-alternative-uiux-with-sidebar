@@ -1458,6 +1458,19 @@
                 </div>
                 <Toggle v-model="form.invitation_code_enabled" />
               </div>
+              <!-- Which invitation codes admit a new user right now -->
+              <p
+                v-if="form.invitation_code_enabled"
+                data-testid="invitation-code-status"
+                class="-mt-2 text-sm"
+                :class="
+                  invitationCodeStatus === 'ready'
+                    ? 'text-gray-500 dark:text-gray-400'
+                    : 'text-amber-600 dark:text-amber-400'
+                "
+              >
+                {{ t(`admin.settings.registration.invitationCodeStatus.${invitationCodeStatus}`) }}
+              </p>
               <!-- Password Reset - Only show when email verification is enabled -->
               <div
                 v-if="form.email_verify_enabled"
@@ -9762,6 +9775,15 @@ const form = reactive<SettingsForm>({
   affiliate_enabled: false,
   // Allow user view error requests
   allow_user_view_error_requests: false,
+});
+
+// Invitation-only sign-up accepts an admin-issued invitation code, and, while
+// the affiliate program is on, any active user's own invitation code. Tell the
+// admin which of those currently lets someone in.
+const invitationCodeStatus = computed<"registrationOff" | "adminCodesOnly" | "ready">(() => {
+  if (!form.registration_enabled) return "registrationOff";
+  if (!form.affiliate_enabled) return "adminCodesOnly";
+  return "ready";
 });
 
 // Mirrors the server's payment subject for a 100 CNY top-up (buildPaymentSubject).

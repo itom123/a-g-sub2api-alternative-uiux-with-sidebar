@@ -320,6 +320,8 @@ export default {
     invitationCodeValidating: 'Validating invitation code...',
     invitationCodeInvalidCannotRegister: 'Invalid invitation code. Please check and try again',
     invitationCodeReferralHint: "An invitation code or a friend's affiliate code both work",
+    invitationCodeCheckUnavailable: "Couldn't check the invitation code right now. You can still continue; it is checked when your account is created.",
+    promoCodeCheckUnavailable: "Couldn't check the promo code right now. You can still continue; it is applied when your account is created if it is valid.",
     oauthOrContinue: 'or continue with others',
     linuxdo: {
       signIn: 'Continue with Linux.do',

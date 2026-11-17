@@ -113,6 +113,15 @@ single-use; a referral code is reusable and never consumes one. Codes of disable
 The register page and the OAuth invitation prompts prefill the invitation field with the referral code the visitor
 arrived with, and the invitation check endpoint reports a referral code as valid.
 
+The register page never ignores a click. Upstream gave up silently when the invitation or promo code check was still
+running or had failed, and treated a check that could not run (the check endpoint's per-IP limit of 10/min, which
+visitors behind one shared address exhaust together, or a network error) as "invalid". Here a submit waits for a
+check still in flight, re-checks a code that has no definite answer, and stops only on a definite "invalid" answer,
+showing the reason inline and as a toast. When the check cannot run, the submit goes ahead and the server, which
+enforces the code at registration anyway, decides. A slower answer for an older value never overwrites the current
+one. The admin settings show, under the invitation switch, which codes admit new users right now (none while
+registration is off; admin codes only while the affiliate program is off; both otherwise).
+
 **Hook points in upstream-owned files:**
 
 | File | Hook |
@@ -122,6 +131,9 @@ arrived with, and the invitation check endpoint reports a referral code as valid
 | `backend/internal/service/affiliate_service.go` | `LookupInviterByCode`. |
 | `backend/internal/handler/auth_handler.go` (`ValidateInvitationCode`) | Falls back to `IsAffiliateInvitationCode`. |
 | `frontend/src/views/auth/RegisterView.vue`, `PendingOAuthCreateAccountForm.vue`, the OAuth callback views, `frontend/src/utils/oauthAffiliate.ts`, zh/en i18n | Prefill via `loadReferralInvitationCode`; the `auth.invitationCodeReferralHint` hint. |
+| `frontend/src/views/auth/RegisterView.vue` | `handleRegister` → `codesAllowSubmit` (`settlePromoCheck` / `settleInvitationCheck`) → `submitRegistration`; `stopSubmit` and the `register-error` banner; the `unavailable` validation state; `createLatestCheck`. Keep these over upstream's early returns. |
+| `frontend/src/views/auth/EmailVerifyView.vue` | The `email-verify-error` banner; localized `INVITATION_CODE_*` errors. |
+| `frontend/src/views/admin/SettingsView.vue`, zh/en `admin/settings.ts` | `invitationCodeStatus` and the `invitation-code-status` line under the invitation switch. |
 
 **Invariants checked by `fork-guard`:** the hooks above are present, and the tests in
 `backend/internal/service/auth_service_referral_invitation_test.go` and

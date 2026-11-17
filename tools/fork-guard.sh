@@ -124,6 +124,9 @@ require_text backend/internal/service/auth_service.go "s.resolveSignupInvitation
 require_text backend/internal/service/auth_oauth_email_flow.go "s.resolveSignupInvitation(ctx, invitationCode, affiliateCode, s.loadOAuthRegistrationInvitation)" "OAuth sign-up accepts referral codes as invitations"
 require_text backend/internal/handler/auth_handler.go "h.authService.IsAffiliateInvitationCode(" "invitation check endpoint accepts referral codes"
 require_text frontend/src/views/auth/RegisterView.vue "prefillInvitationFromReferral(syncAffiliateReferralCode())" "register page fills the invitation field from the invite link"
+require_text frontend/src/views/auth/RegisterView.vue "await settleInvitationCheck(invitationCode)" "register page waits for the invitation check instead of ignoring the click"
+require_text frontend/src/views/auth/RegisterView.vue 'data-testid="register-error"' "register page shows why a submit stopped"
+require_text frontend/src/views/admin/SettingsView.vue 'data-testid="invitation-code-status"' "admin settings say which invitation codes admit new users"
 
 if [[ "${1:-}" == "--static-only" ]]; then
 	echo

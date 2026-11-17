@@ -319,6 +319,8 @@ export default {
     invitationCodeValidating: '正在验证邀请码...',
     invitationCodeInvalidCannotRegister: '邀请码无效，请检查后重试',
     invitationCodeReferralHint: '可填写管理员发放的邀请码，或好友分享的邀请码',
+    invitationCodeCheckUnavailable: '暂时无法校验邀请码，可以继续注册，创建账户时会再次校验。',
+    promoCodeCheckUnavailable: '暂时无法校验优惠码，可以继续注册，创建账户时如有效会自动使用。',
     oauthOrContinue: '或使用其他继续',
     linuxdo: {
       signIn: '使用 Linux.do 登录',
