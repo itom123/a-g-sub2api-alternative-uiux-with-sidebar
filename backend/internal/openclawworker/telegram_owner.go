@@ -11,7 +11,8 @@ package openclawworker
 //  2. The console polls with the returned setup key. The worker reads the bot's
 //     updates until a private chat sends /start <code> (or just the code).
 //  3. One config patch writes the token and the owner allowlist together, the same
-//     shape as u1/u13, so the channel's first start is already in allowlist mode.
+//     shape as the hand-configured cells, so the channel's first start is already
+//     in allowlist mode.
 //
 // The behaviour is gated per tenant by a JSON file read on every request; a
 // missing or invalid file keeps the old connect path.

@@ -229,7 +229,7 @@ func TestTelegramPolicyGate(t *testing.T) {
 		{"missing file", "", false},
 		{"invalid json", "{", false},
 		{"off", `{"all":false,"tenants":[]}`, false},
-		{"other tenant", `{"tenants":["u1-b79b636c9411"]}`, false},
+		{"other tenant", `{"tenants":["u2-0123456789ab"]}`, false},
 		{"listed tenant", `{"tenants":["` + tgTenant + `"]}`, true},
 		{"all", `{"all":true}`, true},
 	}
