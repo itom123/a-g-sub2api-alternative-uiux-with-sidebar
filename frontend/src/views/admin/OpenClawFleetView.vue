@@ -16,6 +16,7 @@
         <article v-for="metric in metrics" :key="metric.label" class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-dark-700 dark:bg-dark-800">
           <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ metric.label }}</p>
           <p class="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">{{ metric.value }}</p>
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ metric.hint }}</p>
         </article>
       </div>
 
@@ -23,7 +24,10 @@
         <div class="border-b border-gray-200 px-4 py-4 dark:border-dark-700">
           <h2 class="font-semibold text-gray-900 dark:text-white">Customer workspaces</h2>
           <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">View openai-龙虾 pricing, key binding, model policy, usage, and bridge health. Set group pricing in Group Management.</p>
-          <input v-model="search" class="input mt-3 w-full max-w-md" placeholder="Search user or workspace" />
+          <div class="mt-3 flex flex-wrap items-center gap-3">
+            <input v-model="search" class="input w-full max-w-md" placeholder="Search user or workspace" />
+            <div class="w-full sm:w-auto sm:min-w-[180px]"><Select v-model="sortKey" :options="sortOptions" aria-label="Sort workspaces" /></div>
+          </div>
         </div>
         <div v-if="loading" class="p-8 text-center text-sm text-gray-500">Loading fleet…</div>
         <div v-else-if="!filteredItems.length" class="p-8 text-center text-sm text-gray-500">No matching customer workspaces.</div>
@@ -39,7 +43,15 @@
                 <td data-label="State" class="whitespace-nowrap px-4 py-4"><span class="rounded-full border px-2 py-1 text-xs">{{ item.status }}</span></td>
                 <td data-label="Billing" class="whitespace-nowrap px-4 py-4"><div class="font-medium">{{ item.billing_group || 'Unbound' }}</div><div class="text-xs text-gray-500">x{{ item.billing_rate.toFixed(2) }} · {{ item.api_key_status || 'no key' }}</div></td>
                 <td data-label="Models" class="max-w-sm px-4 py-4"><ul v-if="item.mapping_enabled" class="fleet-models text-xs"><li v-for="model in item.allowed_models" :key="model">{{ model }}</li><li v-if="!item.allowed_models.length">No allowed models</li></ul><div v-else class="text-xs">Mapping not configured</div><div class="mt-1 text-xs text-gray-500">Default: {{ item.default_model || '—' }}</div></td>
-                <td data-label="Usage" class="whitespace-nowrap px-4 py-4"><div>{{ item.usage_count }} calls</div><div class="text-xs text-gray-500">${{ item.usage_cost.toFixed(4) }}</div></td>
+                <td data-label="Usage" class="whitespace-nowrap px-4 py-4">
+                  <div v-if="item.request_count" class="fleet-usage">
+                    <div><strong class="fleet-usage-cost">{{ money(item.usage_cost) }}</strong> <span class="text-xs text-gray-500">billed</span></div>
+                    <div>{{ plural(item.request_count, 'request') }} · {{ formatCompactNumber(item.token_count) }} tokens</div>
+                    <div class="text-xs text-gray-500">Last 7 days: {{ plural(item.requests_7d, 'request') }} · {{ money(item.usage_cost_7d) }}</div>
+                    <div v-if="item.last_request_at" class="text-xs text-gray-500">Last call <time :datetime="item.last_request_at" :title="formatDate(item.last_request_at)">{{ formatRelativeTime(item.last_request_at) }}</time></div>
+                  </div>
+                  <div v-else class="text-xs text-gray-500">No API calls yet</div>
+                </td>
                 <td data-label="Deletion" class="whitespace-nowrap px-4 py-4 text-xs text-gray-500">{{ item.deletion_scheduled_at ? `Queued for ${formatDate(item.deletion_scheduled_at)}` : '—' }}</td>
                 <td data-label="Action" class="whitespace-nowrap px-4 py-4 text-right"><div class="flex justify-end gap-2"><button class="btn btn-secondary btn-sm" :disabled="reconcileBusy === item.id" @click="reconcile(item)">{{ reconcileBusy === item.id ? 'Repairing…' : 'Repair OpenClaw binding' }}</button><button class="btn btn-secondary btn-sm" :disabled="policyBusy === item.user_id" @click="setSelfService(item.user_id, false)">{{ policyBusy === item.user_id ? 'Saving…' : 'Disable self-service' }}</button><button v-if="!item.deletion_scheduled_at" class="btn btn-danger btn-sm" @click="remove(item)">Queue delete</button><span v-else class="text-xs text-gray-500">Queued</span></div></td>
               </tr>
@@ -78,6 +90,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import Select from '@/components/common/Select.vue'
+import { cnyCost } from '@/utils/currency'
+import { formatCompactNumber, formatRelativeTime } from '@/utils/format'
 import { deleteAdminOpenClawInstance, listAdminOpenClawAccessRequests, listAdminOpenClawInstances, reconcileAdminOpenClawInstance, reviewAdminOpenClawAccessRequest, setAdminOpenClawAccessPolicy, type OpenClawAccessRequest, type OpenClawAdminInstance } from '@/api/openclaw'
 
 const items = ref<OpenClawAdminInstance[]>([])
@@ -88,17 +103,49 @@ const search = ref('')
 const decisionBusy = ref<number | null>(null)
 const policyBusy = ref<number | null>(null)
 const reconcileBusy = ref<number | null>(null)
-const metrics = computed(() => [
-  { label: 'Workspaces', value: items.value.length },
-  { label: 'Running', value: items.value.filter(item => item.status === 'ready' || item.status === 'running').length },
-  { label: 'Connected services', value: items.value.reduce((sum, item) => sum + item.connected_count, 0) },
-  { label: 'Recorded usage', value: items.value.reduce((sum, item) => sum + item.usage_count, 0) },
-])
+type SortKey = 'newest' | 'spend' | 'requests' | 'recent'
+const sortKey = ref<SortKey>('newest')
+const sortOptions: { value: SortKey; label: string }[] = [
+  { value: 'newest', label: 'Newest first' },
+  { value: 'spend', label: 'Highest spend' },
+  { value: 'requests', label: 'Most requests' },
+  { value: 'recent', label: 'Recently active' },
+]
+const metrics = computed(() => {
+  const totals = items.value.reduce((sum, item) => ({
+    running: sum.running + (item.status === 'ready' || item.status === 'running' ? 1 : 0),
+    connections: sum.connections + item.connection_count,
+    connected: sum.connected + item.connected_count,
+    requests: sum.requests + item.request_count,
+    requests7d: sum.requests7d + item.requests_7d,
+    cost: sum.cost + item.usage_cost,
+    cost7d: sum.cost7d + item.usage_cost_7d,
+  }), { running: 0, connections: 0, connected: 0, requests: 0, requests7d: 0, cost: 0, cost7d: 0 })
+  return [
+    { label: 'Workspaces', value: count(items.value.length), hint: `${count(totals.running)} running` },
+    { label: 'Connected services', value: count(totals.connected), hint: `${count(totals.connections)} configured` },
+    { label: 'API requests', value: count(totals.requests), hint: `${count(totals.requests7d)} in the last 7 days` },
+    { label: 'Billed', value: money(totals.cost), hint: `${money(totals.cost7d)} in the last 7 days` },
+  ]
+})
 const filteredItems = computed(() => {
   const query = search.value.trim().toLowerCase()
-  if (!query) return items.value
-  return items.value.filter(item => [item.user_email, item.name, item.tenant_slug, item.billing_group].some(value => value.toLowerCase().includes(query)))
+  const matches = query ? items.value.filter(item => [item.user_email, item.name, item.tenant_slug, item.billing_group].some(value => value.toLowerCase().includes(query))) : items.value
+  if (sortKey.value === 'newest') return matches
+  const lastRequest = (item: OpenClawAdminInstance) => (item.last_request_at ? Date.parse(item.last_request_at) : 0) || 0
+  const rank: Record<Exclude<SortKey, 'newest'>, (item: OpenClawAdminInstance) => number> = {
+    spend: item => item.usage_cost,
+    requests: item => item.request_count,
+    recent: lastRequest,
+  }
+  const score = rank[sortKey.value]
+  return [...matches].sort((a, b) => score(b) - score(a))
 })
+
+function count(value: number) { return value.toLocaleString() }
+function plural(value: number, noun: string) { return `${count(value)} ${noun}${value === 1 ? '' : 's'}` }
+// Ledger amounts are USD; the console displays CNY like every other billing view.
+function money(usd: number) { const value = cnyCost(usd); return value === '-' ? '—' : `¥${value}` }
 
 async function load() {
   loading.value = true
@@ -147,6 +194,8 @@ onMounted(load)
 .fleet-table td { vertical-align: top; }
 .fleet-table td[data-label="Models"] { min-width: 240px; max-width: 340px; }
 .fleet-models { display: grid; gap: 6px; }
+.fleet-usage { display: grid; gap: 2px; }
+.fleet-usage-cost { font-weight: 600; font-variant-numeric: tabular-nums; }
 .fleet-models li { padding: 4px 6px; border: 1px solid var(--ag-rule); overflow-wrap: anywhere; }
 .fleet-table td[data-label="Models"] > div { overflow-wrap: anywhere; }
 .fleet-table td[data-label="Action"] > div { flex-wrap: wrap; }

@@ -25,6 +25,8 @@ FRONTEND_CRITICAL_VITEST := \
 	src/api/__tests__/tokenRefresh.spec.ts \
 	src/api/__tests__/keys.bulkUpdate.spec.ts \
 	src/api/__tests__/groups.openclaw.spec.ts \
+	src/views/admin/__tests__/OpenClawFleetView.usage.spec.ts \
+	src/views/user/__tests__/ConnectionsView.status.spec.ts \
 	src/components/__tests__/TurnstileWidget.spec.ts \
 	src/components/common/__tests__/HelpTooltip.spec.ts \
 	src/composables/__tests__/useModelWhitelist.spec.ts \

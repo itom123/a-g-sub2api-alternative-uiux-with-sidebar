@@ -168,8 +168,12 @@ type OpenClawAPIKey struct {
 	UsageCount int64      `json:"usage_count"`
 	UsageCost  float64    `json:"usage_cost"`
 	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
-	secret     string     `json:"-"`
-	groupID    *int64
+	// LastRequestAt is the newest billed request in usage_logs. Every message a
+	// connected service handles runs a model request through this key, so it
+	// is the workspace's truthful latest-activity signal.
+	LastRequestAt *time.Time `json:"last_request_at,omitempty"`
+	secret        string     `json:"-"`
+	groupID       *int64
 }
 
 type OpenClawDashboard struct {
@@ -181,28 +185,32 @@ type OpenClawDashboard struct {
 	CheckedAt         time.Time        `json:"checked_at"`
 	ConnectionCount   int              `json:"connection_count"`
 	ConnectedCount    int              `json:"connected_count"`
-	UsageCount        int64            `json:"usage_count"`
-	LastUsedAt        *time.Time       `json:"last_used_at,omitempty"`
 	APIKey            *OpenClawAPIKey  `json:"api_key,omitempty"`
 }
 
 type OpenClawAdminInstance struct {
 	OpenClawInstance
-	UserID          int64      `json:"user_id"`
-	UserEmail       string     `json:"user_email"`
-	BillingGroup    string     `json:"billing_group"`
-	BillingRate     float64    `json:"billing_rate"`
-	APIKeyStatus    string     `json:"api_key_status"`
-	UsageCost       float64    `json:"usage_cost"`
-	AllowedModels   []string   `json:"allowed_models"`
-	DefaultModel    string     `json:"default_model"`
-	MappingEnabled  bool       `json:"mapping_enabled"`
-	ConnectionCount int        `json:"connection_count"`
-	ConnectedCount  int        `json:"connected_count"`
-	UsageCount      int64      `json:"usage_count"`
-	LastUsedAt      *time.Time `json:"last_used_at,omitempty"`
-	LatencyMS       *int       `json:"latency_ms,omitempty"`
-	LastSeenAt      *time.Time `json:"last_seen_at,omitempty"`
+	UserID          int64    `json:"user_id"`
+	UserEmail       string   `json:"user_email"`
+	BillingGroup    string   `json:"billing_group"`
+	BillingRate     float64  `json:"billing_rate"`
+	APIKeyStatus    string   `json:"api_key_status"`
+	AllowedModels   []string `json:"allowed_models"`
+	DefaultModel    string   `json:"default_model"`
+	MappingEnabled  bool     `json:"mapping_enabled"`
+	ConnectionCount int      `json:"connection_count"`
+	ConnectedCount  int      `json:"connected_count"`
+	// API usage is read from usage_logs for the workspace's linked billing
+	// key, the same ledger that charges the customer, so request counts and
+	// spend always describe the same set of calls.
+	RequestCount  int64      `json:"request_count"`
+	UsageCost     float64    `json:"usage_cost"`
+	TokenCount    int64      `json:"token_count"`
+	Requests7d    int64      `json:"requests_7d"`
+	UsageCost7d   float64    `json:"usage_cost_7d"`
+	LastRequestAt *time.Time `json:"last_request_at,omitempty"`
+	LatencyMS     *int       `json:"latency_ms,omitempty"`
+	LastSeenAt    *time.Time `json:"last_seen_at,omitempty"`
 }
 
 // OpenClawFleetClient is the narrow server-side boundary to the UK02 fleet
@@ -1142,16 +1150,16 @@ func (s *OpenClawService) StartDeletionWorker(interval time.Duration) {
 func (s *OpenClawService) loadInstanceAPIKey(ctx context.Context, instanceID int64) (*OpenClawAPIKey, error) {
 	var key OpenClawAPIKey
 	var groupID sql.NullInt64
-	var lastUsed sql.NullTime
+	var lastUsed, lastRequest sql.NullTime
 	err := s.db.QueryRowContext(ctx, `
 		SELECT k.id, k.name, k.status, k.quota, k.quota_used, k.group_id, k.last_used_at,
-		       COUNT(u.id), COALESCE(SUM(u.actual_cost), 0)
+		       COUNT(u.id), COALESCE(SUM(u.actual_cost), 0), MAX(u.created_at)
 		FROM openclaw_api_keys link
 		JOIN api_keys k ON k.id = link.api_key_id AND k.deleted_at IS NULL
 		LEFT JOIN usage_logs u ON u.api_key_id = k.id
 		WHERE link.instance_id = $1
 		GROUP BY k.id, k.name, k.status, k.quota, k.quota_used, k.group_id, k.last_used_at`, instanceID).
-		Scan(&key.ID, &key.Name, &key.Status, &key.Quota, &key.QuotaUsed, &groupID, &lastUsed, &key.UsageCount, &key.UsageCost)
+		Scan(&key.ID, &key.Name, &key.Status, &key.Quota, &key.QuotaUsed, &groupID, &lastUsed, &key.UsageCount, &key.UsageCost, &lastRequest)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -1160,6 +1168,9 @@ func (s *OpenClawService) loadInstanceAPIKey(ctx context.Context, instanceID int
 	}
 	if lastUsed.Valid {
 		key.LastUsedAt = &lastUsed.Time
+	}
+	if lastRequest.Valid {
+		key.LastRequestAt = &lastRequest.Time
 	}
 	if groupID.Valid {
 		value := groupID.Int64
@@ -1537,20 +1548,16 @@ func (s *OpenClawService) GetDashboard(ctx context.Context, userID int64) (OpenC
 		}
 		dashboard.APIKey = apiKey
 	}
+	// Activity comes from the billing key (APIKey.LastRequestAt), not from
+	// openclaw_connections usage columns, which nothing records.
 	var total, connected int
-	var usage int64
-	var lastUsed sql.NullTime
 	if err := s.db.QueryRowContext(ctx, `
-		SELECT COUNT(*), COUNT(*) FILTER (WHERE status = 'connected'), COALESCE(SUM(usage_count), 0), MAX(last_used_at)
-		FROM openclaw_connections WHERE instance_id = $1`, instance.ID).Scan(&total, &connected, &usage, &lastUsed); err != nil {
+		SELECT COUNT(*), COUNT(*) FILTER (WHERE status = 'connected')
+		FROM openclaw_connections WHERE instance_id = $1`, instance.ID).Scan(&total, &connected); err != nil {
 		return OpenClawDashboard{}, err
 	}
 	dashboard.ConnectionCount = total
 	dashboard.ConnectedCount = connected
-	dashboard.UsageCount = usage
-	if lastUsed.Valid {
-		dashboard.LastUsedAt = &lastUsed.Time
-	}
 	if dashboard.APIKey == nil && s.apiKeys != nil {
 		apiKey, keyErr := s.loadInstanceAPIKey(ctx, instance.ID)
 		if keyErr != nil {
@@ -1691,13 +1698,26 @@ func (s *OpenClawService) ListAdminInstances(ctx context.Context) ([]OpenClawAdm
 		       COALESCE((SELECT g.name FROM openclaw_api_keys link JOIN api_keys k ON k.id = link.api_key_id AND k.deleted_at IS NULL LEFT JOIN groups g ON g.id = k.group_id WHERE link.instance_id = i.id LIMIT 1), ''),
 		       COALESCE((SELECT g.rate_multiplier FROM openclaw_api_keys link JOIN api_keys k ON k.id = link.api_key_id AND k.deleted_at IS NULL JOIN groups g ON g.id = k.group_id WHERE link.instance_id = i.id LIMIT 1), 0),
 		       COALESCE((SELECT k.status FROM openclaw_api_keys link JOIN api_keys k ON k.id = link.api_key_id AND k.deleted_at IS NULL WHERE link.instance_id = i.id LIMIT 1), ''),
-		       COALESCE((SELECT SUM(ul.actual_cost) FROM openclaw_api_keys link JOIN usage_logs ul ON ul.api_key_id = link.api_key_id WHERE link.instance_id = i.id), 0),
-		       COUNT(c.id), COUNT(c.id) FILTER (WHERE c.status = 'connected'),
-		       COALESCE(SUM(c.usage_count), 0), MAX(c.last_used_at)
+		       conn.total, conn.connected,
+		       api.request_count, api.cost, api.token_count, api.requests_7d, api.cost_7d, api.last_request_at
 		FROM openclaw_instances i
 		JOIN users u ON u.id = i.user_id
-		LEFT JOIN openclaw_connections c ON c.instance_id = i.id
-		GROUP BY i.id, u.email ORDER BY i.created_at DESC`)
+		CROSS JOIN LATERAL (
+		       SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE c.status = 'connected') AS connected
+		       FROM openclaw_connections c WHERE c.instance_id = i.id
+		) conn
+		CROSS JOIN LATERAL (
+		       SELECT COUNT(ul.id) AS request_count,
+		              COALESCE(SUM(ul.actual_cost), 0) AS cost,
+		              COALESCE(SUM(ul.input_tokens::bigint + ul.output_tokens + ul.cache_creation_tokens + ul.cache_read_tokens), 0) AS token_count,
+		              COUNT(ul.id) FILTER (WHERE ul.created_at >= NOW() - INTERVAL '7 days') AS requests_7d,
+		              COALESCE(SUM(ul.actual_cost) FILTER (WHERE ul.created_at >= NOW() - INTERVAL '7 days'), 0) AS cost_7d,
+		              MAX(ul.created_at) AS last_request_at
+		       FROM openclaw_api_keys link
+		       JOIN usage_logs ul ON ul.api_key_id = link.api_key_id
+		       WHERE link.instance_id = i.id
+		) api
+		ORDER BY i.created_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -1707,15 +1727,14 @@ func (s *OpenClawService) ListAdminInstances(ctx context.Context) ([]OpenClawAdm
 		var item OpenClawAdminInstance
 		var port, latency sql.NullInt64
 		var billingGroup, apiKeyStatus sql.NullString
-		var billingRate, usageCost sql.NullFloat64
-		var requestedAt, scheduledAt, lastSeen, lastUsed sql.NullTime
-		if err := rows.Scan(&item.ID, &item.TenantSlug, &item.Name, &item.Status, &item.WorkerHost, &port, &item.LastError, &item.CreatedAt, &item.UpdatedAt, &requestedAt, &scheduledAt, &item.UserID, &item.UserEmail, &latency, &lastSeen, &billingGroup, &billingRate, &apiKeyStatus, &usageCost, &item.ConnectionCount, &item.ConnectedCount, &item.UsageCount, &lastUsed); err != nil {
+		var billingRate sql.NullFloat64
+		var requestedAt, scheduledAt, lastSeen, lastRequest sql.NullTime
+		if err := rows.Scan(&item.ID, &item.TenantSlug, &item.Name, &item.Status, &item.WorkerHost, &port, &item.LastError, &item.CreatedAt, &item.UpdatedAt, &requestedAt, &scheduledAt, &item.UserID, &item.UserEmail, &latency, &lastSeen, &billingGroup, &billingRate, &apiKeyStatus, &item.ConnectionCount, &item.ConnectedCount, &item.RequestCount, &item.UsageCost, &item.TokenCount, &item.Requests7d, &item.UsageCost7d, &lastRequest); err != nil {
 			return nil, err
 		}
 		item.BillingGroup = billingGroup.String
 		item.BillingRate = billingRate.Float64
 		item.APIKeyStatus = apiKeyStatus.String
-		item.UsageCost = usageCost.Float64
 		item.AllowedModels = append([]string(nil), openClawAllowedModels...)
 		item.DefaultModel = "gpt-5.6-sol"
 		_, item.MappingEnabled, _ = configuredOpenClawModelMapping(strings.Repeat("x", 32))
@@ -1736,8 +1755,8 @@ func (s *OpenClawService) ListAdminInstances(ctx context.Context) ([]OpenClawAdm
 		if scheduledAt.Valid {
 			item.DeletionScheduledAt = &scheduledAt.Time
 		}
-		if lastUsed.Valid {
-			item.LastUsedAt = &lastUsed.Time
+		if lastRequest.Valid {
+			item.LastRequestAt = &lastRequest.Time
 		}
 		items = append(items, item)
 	}

@@ -40,7 +40,7 @@ async function tick(ms = 0) { await vi.advanceTimersByTimeAsync(ms) }
 async function render(existing: OpenClawConnection[] = []) {
   const instance: OpenClawInstance = { id: 7, tenant_slug: 'u42', name: 'Workspace', status: 'running', worker_host: 'default', created_at: '2026-11-01T01:00:00Z', updated_at: '2026-11-01T02:00:00Z' }
   api.lifecycle.mockResolvedValue({ instance, can_create: false, can_delete: true, self_service_enabled: true })
-  api.dashboard.mockResolvedValue({ instance, fleet_state: 'running', checked_at: '2026-11-01T03:00:00Z', gateway_enabled: true, connection_count: 0, connected_count: 0, usage_count: 0 })
+  api.dashboard.mockResolvedValue({ instance, fleet_state: 'running', checked_at: '2026-11-01T03:00:00Z', gateway_enabled: true, connection_count: 0, connected_count: 0 })
   api.kinds.mockResolvedValue([wechatKind, telegramKind])
   api.connections.mockResolvedValue(existing)
   const wrapper = mount(ConnectionsView, { global: { stubs: {
