@@ -56,7 +56,7 @@ async function open(wrapper: ReturnType<typeof mount>) {
 }
 function labels(wrapper: ReturnType<typeof mount>) { return wrapper.findAll('.dialog-actions button').map(b => b.text()) }
 async function submitToken(wrapper: ReturnType<typeof mount>) {
-  await wrapper.get('#telegram-token').setValue('123456789:AAH-token')
+  await wrapper.get('#telegram-token').setValue('123456:TEST-TOKEN')
   const connect = wrapper.findAll('.dialog-actions button').find(b => b.text() === 'connections.connectTelegram')
   if (!connect) throw new Error('no connect button: ' + labels(wrapper).join(' | '))
   await connect.trigger('click')
@@ -73,11 +73,11 @@ afterEach(() => { wrappers.splice(0).forEach(w => w.unmount()); vi.useRealTimers
 describe('Telegram owner claim', () => {
   it('shows the Start link, QR code and code, then reports the bound owner', async () => {
     api.create.mockResolvedValue(pending())
-    api.complete.mockResolvedValueOnce(pending()).mockResolvedValueOnce(conn({ status: 'connected', setup_message: 'Connected: @testbugbot now answers only Lady @ladyblue.' }))
+    api.complete.mockResolvedValueOnce(pending()).mockResolvedValueOnce(conn({ status: 'connected', setup_message: 'Connected: @testbugbot now answers only Ada @ada_example.' }))
     const wrapper = await render([])
     await open(wrapper)
     await submitToken(wrapper)
-    expect(api.create).toHaveBeenCalledWith(7, 'telegram', '', '123456789:AAH-token')
+    expect(api.create).toHaveBeenCalledWith(7, 'telegram', '', '123456:TEST-TOKEN')
 
     const box = wrapper.get('[data-testid="telegram-claim"]')
     expect(box.get('[data-testid="telegram-open-bot"]').attributes('href')).toBe(START_URL)
@@ -94,7 +94,7 @@ describe('Telegram owner claim', () => {
     expect(wrapper.find('[data-testid="telegram-notice"]').exists()).toBe(false)
     await tick(2500)
     expect(api.complete).toHaveBeenCalledTimes(2)
-    expect(wrapper.get('[data-testid="telegram-owner"]').text()).toContain('Lady @ladyblue')
+    expect(wrapper.get('[data-testid="telegram-owner"]').text()).toContain('Ada @ada_example')
     expect(wrapper.find('[data-testid="telegram-claim"]').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('connections.setupPrepared')
     await tick(10000)
