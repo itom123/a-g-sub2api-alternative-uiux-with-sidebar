@@ -78,6 +78,13 @@ export default {
     connectTelegram: '连接 Telegram',
     telegramToken: 'BotFather 机器人令牌',
     telegramTokenPlaceholder: '123456789:AA…',
+    telegramOpenBot: '在 Telegram 打开 {bot}',
+    telegramClaimHint: '在打开的对话里点「开始」(Start)。这样机器人会绑定你自己的 Telegram 账号，只回复你。本页面会自动检测。',
+    telegramClaimCodeHint: 'Telegram 在另一台设备上？扫描二维码，或把这个代码发给机器人：',
+    telegramWaiting: '正在等待你在 Telegram 里点「开始」…',
+    telegramQrAlt: '在 Telegram 打开你的机器人的二维码',
+    telegramUseOtherToken: '换一个机器人令牌',
+    telegramClaimExpired: '这个链接已过期。请重新粘贴机器人令牌，获取新的链接。',
     telegramSetup: '先在 BotFather 创建机器人并复制令牌。提交后，Claw Hub I 桥接会在此工作区内安装并启用 OpenClaw Telegram 插件。',
     siteBotHint: '此处是把你自己的机器人接入此工作区。如需在 Telegram 中查询余额和用量，请改用侧边栏的「Telegram」。',
     gwsSetup: 'Google Workspace 会为此租户打开独立的 OAuth 授权流程。授权后，把重定向页面中的代码粘贴到这里。',
@@ -207,7 +214,7 @@ export default {
         description: '将 Telegram 机器人连接到此工作区。',
         setupTitle: '连接 Telegram 机器人',
         setupDescription: 'Telegram 使用 BotFather 创建的机器人令牌。',
-        steps: '在 BotFather 创建或选择机器人。|在安全设置表单中粘贴机器人令牌。|给机器人发消息并批准配对请求。'
+        steps: '在 BotFather 创建或选择机器人。|在安全设置表单中粘贴机器人令牌。|在 Telegram 打开机器人并点「开始」，之后它只回复你。'
       },
       gws: {
         title: 'Google Workspace',

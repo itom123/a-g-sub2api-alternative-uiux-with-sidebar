@@ -179,9 +179,27 @@
           <p v-else>{{ t('connections.genericSetup') }}</p>
         </div>
         <div v-if="setupAvailable(activeKind)" class="telegram-form">
-          <template v-if="normalizedKind(activeKind.kind) === 'telegram' && (!activeConnection || activeConnection.status !== 'connected')">
-            <label class="field-label" for="telegram-token">{{ t('connections.telegramToken') }}</label>
-            <input id="telegram-token" v-model="telegramToken" class="field-input" type="password" autocomplete="off" :placeholder="t('connections.telegramTokenPlaceholder')" />
+          <template v-if="normalizedKind(activeKind.kind) === 'telegram'">
+            <div v-if="telegramClaimActive && activeConnection" class="wechat-login-box" data-testid="telegram-claim">
+              <div v-if="telegramQrDataUrl" class="wechat-qr-tile">
+                <img class="wechat-qr-img telegram-qr-img" :src="telegramQrDataUrl" width="200" height="200" :alt="t('connections.telegramQrAlt')" />
+              </div>
+              <a class="btn btn-primary" :href="activeConnection.setup_url" target="_blank" rel="noopener" data-testid="telegram-open-bot">{{ t('connections.telegramOpenBot', { bot: telegramClaimBot }) }}</a>
+              <p class="setup-note">{{ t('connections.telegramClaimHint') }}</p>
+              <p v-if="telegramClaimCode" class="setup-note">{{ t('connections.telegramClaimCodeHint') }} <code class="telegram-claim-code" data-testid="telegram-claim-code">{{ telegramClaimCode }}</code></p>
+              <p v-if="telegramPolling" class="wechat-waiting" role="status" aria-live="polite" data-testid="telegram-waiting"><span class="wechat-spinner" aria-hidden="true"></span>{{ t('connections.telegramWaiting') }}</p>
+              <p class="wechat-links">
+                <button type="button" class="wechat-link wechat-link-button" data-testid="telegram-restart" @click="restartTelegramClaim">{{ t('connections.telegramUseOtherToken') }}</button>
+              </p>
+            </div>
+            <template v-else-if="!activeConnection || activeConnection.status !== 'connected'">
+              <label class="field-label" for="telegram-token">{{ t('connections.telegramToken') }}</label>
+              <input id="telegram-token" v-model="telegramToken" class="field-input" type="password" autocomplete="off" :placeholder="t('connections.telegramTokenPlaceholder')" />
+            </template>
+            <p v-if="telegramNotice && activeConnection?.status !== 'connected'" class="setup-note" role="status" data-testid="telegram-notice">{{ telegramNotice }}</p>
+            <p v-if="telegramExpired && activeConnection?.status !== 'connected'" class="setup-note" role="status">{{ t('connections.telegramClaimExpired') }}</p>
+            <p v-if="telegramError" class="field-error" role="alert">{{ telegramError }}</p>
+            <p v-if="telegramOwnerMessage && activeConnection?.status === 'connected'" class="setup-success" data-testid="telegram-owner">{{ telegramOwnerMessage }}</p>
           </template>
           <template v-else-if="normalizedKind(activeKind.kind) === 'wechat'">
             <div v-if="activeConnection?.setup_url && activeConnection.status !== 'connected'" class="wechat-login-box">
@@ -211,12 +229,12 @@
             <input v-if="activeConnection?.setup_key" id="google-code" v-model="googleCode" class="field-input" type="text" autocomplete="off" :placeholder="t('connections.gwsCodePlaceholder')" />
             <p v-if="activeConnection?.status === 'connected'" class="setup-success">{{ t('connections.gwsConnected') }}</p>
           </template>
-          <p v-if="setupPrepared && normalizedKind(activeKind.kind) === 'telegram'" class="setup-success">{{ t('connections.setupPrepared') }}</p>
+          <p v-if="setupPrepared && !telegramOwnerMessage && normalizedKind(activeKind.kind) === 'telegram'" class="setup-success">{{ t('connections.setupPrepared') }}</p>
         </div>
         <p v-else class="setup-note">{{ t('connections.providerUnavailable', { provider: activeKind.title }) }}</p>
         <div class="dialog-actions">
           <button type="button" class="btn btn-secondary" @click="showConnectionModal = false">{{ t('connections.close') }}</button>
-          <button v-if="setupAvailable(activeKind) && (!activeConnection || activeConnection.status !== 'connected') && !(isWechat && wechatPolling)" type="button" class="btn btn-primary" :disabled="preparingConnection || (normalizedKind(activeKind.kind) === 'telegram' && !telegramToken.trim()) || (normalizedKind(activeKind.kind) === 'gws' && !!activeConnection?.setup_key && !googleCode.trim())" @click="isWechat ? wechatPrimary() : prepareConnection()">
+          <button v-if="setupAvailable(activeKind) && (!activeConnection || activeConnection.status !== 'connected') && !(isWechat && wechatPolling) && !telegramClaimActive" type="button" class="btn btn-primary" :disabled="preparingConnection || (normalizedKind(activeKind.kind) === 'telegram' && !telegramToken.trim()) || (normalizedKind(activeKind.kind) === 'gws' && !!activeConnection?.setup_key && !googleCode.trim())" @click="isWechat ? wechatPrimary() : prepareConnection()">
             {{ isWechat ? wechatPrimaryLabel : preparingConnection ? t('connections.connecting') : normalizedKind(activeKind.kind) === 'gws' && activeConnection?.setup_key ? t('connections.gwsComplete') : normalizedKind(activeKind.kind) === 'gws' ? t('connections.gwsStart') : t('connections.connectTelegram') }}
           </button>
           <button v-if="activeConnection" type="button" class="btn btn-danger" :disabled="deletingConnection" @click="removeConnection(activeConnection)">
@@ -387,11 +405,14 @@ async function remove(target: OpenClawInstance) {
 }
 function openConnection(kind: OpenClawConnectionKindInfo) {
   stopWechatDetect()
+  stopTelegramClaim()
   activeKind.value = kind; telegramToken.value = ''; googleCode.value = ''; setupPrepared.value = false
   wechatExpired.value = false; wechatError.value = ''; wechatNotice.value = ''
+  telegramExpired.value = false; telegramError.value = ''; telegramNotice.value = ''; telegramOwnerMessage.value = ''
   showConnectionModal.value = true
   const existing = connectionFor(kind.kind)
   if (normalizedKind(kind.kind) === 'wechat' && existing?.setup_key && existing.status !== 'connected') startWechatDetect()
+  if (normalizedKind(kind.kind) === 'telegram' && existing?.setup_key && existing.setup_url && existing.status !== 'connected') startTelegramClaim(existing.setup_message || '')
 }
 function normalizedKind(kind: string) { return kind.trim().toLowerCase() }
 function connectionFor(kind: string) {
@@ -416,8 +437,104 @@ async function prepareConnection() {
     telegramToken.value = ''
     googleCode.value = ''
     setupPrepared.value = connection.status === 'connected'
+    // With the owner claim on, the worker answers a Telegram token with a Start link to open in Telegram.
+    if (kind === 'telegram' && connection.status !== 'connected' && connection.setup_key && connection.setup_url) {
+      telegramExpired.value = false
+      telegramNotice.value = ''
+      telegramError.value = ''
+      startTelegramClaim(connection.setup_message || '')
+    }
   } catch (err: any) { error.value = err?.message || t('connections.connectFailed') }
   finally { preparingConnection.value = false }
+}
+// ---- Telegram: the owner opens the bot and taps Start, so the bot answers only that account ----
+const TELEGRAM_CHECK_GAP_MS = 2500
+const TELEGRAM_CLAIM_LIFETIME_MS = 15 * 60 * 1000
+const telegramPolling = ref(false)
+const telegramExpired = ref(false)
+const telegramError = ref('')
+const telegramNotice = ref('')
+const telegramOwnerMessage = ref('')
+const telegramQrDataUrl = ref('')
+const isTelegram = computed(() => !!activeKind.value && normalizedKind(activeKind.value.kind) === 'telegram')
+const telegramClaimActive = computed(() => isTelegram.value && !telegramExpired.value && !!activeConnection.value
+  && activeConnection.value.status !== 'connected' && !!activeConnection.value.setup_key && !!activeConnection.value.setup_url)
+const telegramClaimUrl = computed(() => telegramClaimActive.value ? activeConnection.value?.setup_url || '' : '')
+const telegramClaimBot = computed(() => {
+  try { return '@' + new URL(telegramClaimUrl.value).pathname.replace(/^\/+/, '') } catch { return '' }
+})
+const telegramClaimCode = computed(() => {
+  try {
+    const code = new URL(telegramClaimUrl.value).searchParams.get('start') || ''
+    return code.length === 10 ? `${code.slice(0, 5)}-${code.slice(5)}` : code
+  } catch { return '' }
+})
+let telegramGeneration = 0
+let telegramStartedAt = 0
+let telegramStartMessage = ''
+let telegramQrSeq = 0
+
+watch(telegramClaimUrl, async (url) => {
+  const seq = ++telegramQrSeq
+  if (!url) { telegramQrDataUrl.value = ''; return }
+  try {
+    const dataUrl = await QRCode.toDataURL(url, WECHAT_QR_OPTIONS)
+    if (seq === telegramQrSeq) telegramQrDataUrl.value = dataUrl
+  } catch {
+    // The "Open in Telegram" button stays available.
+    if (seq === telegramQrSeq) telegramQrDataUrl.value = ''
+  }
+}, { immediate: true })
+
+function replaceConnection(connection: OpenClawConnection) {
+  const index = connections.value.findIndex(item => item.id === connection.id)
+  if (index >= 0) connections.value.splice(index, 1, connection)
+  else connections.value = [...connections.value, connection]
+}
+function stopTelegramClaim() {
+  telegramGeneration++
+  telegramPolling.value = false
+}
+function startTelegramClaim(startMessage: string) {
+  const generation = ++telegramGeneration
+  telegramStartedAt = Date.now()
+  telegramStartMessage = startMessage
+  telegramPolling.value = true
+  void telegramClaimLoop(generation)
+}
+function restartTelegramClaim() {
+  stopTelegramClaim()
+  const current = activeConnection.value
+  if (current) replaceConnection({ ...current, setup_key: undefined, setup_url: undefined, setup_message: undefined })
+  telegramNotice.value = ''
+  telegramExpired.value = false
+}
+async function telegramClaimLoop(generation: number) {
+  try {
+    while (generation === telegramGeneration) {
+      await new Promise<void>(resolve => setTimeout(resolve, TELEGRAM_CHECK_GAP_MS))
+      if (generation !== telegramGeneration) return
+      const current = activeKind.value && instance.value ? connectionFor(activeKind.value.kind) : undefined
+      if (!showConnectionModal.value || !instance.value || !current?.setup_key || current.status === 'connected') return
+      if (Date.now() - telegramStartedAt >= TELEGRAM_CLAIM_LIFETIME_MS) { telegramExpired.value = true; return }
+      const result = await completeOpenClawConnection(instance.value.id, current.id, current.setup_key)
+      if (generation !== telegramGeneration) return
+      replaceConnection(result)
+      if (result.status === 'connected') {
+        setupPrepared.value = true
+        telegramNotice.value = ''
+        telegramOwnerMessage.value = result.setup_message || ''
+        return
+      }
+      // The worker's standard prompt is shown through i18n; anything else (busy bot, expiry, finishing) is a notice.
+      telegramNotice.value = result.setup_message && result.setup_message !== telegramStartMessage ? result.setup_message : ''
+      if (!result.setup_key) return
+    }
+  } catch (err: any) {
+    if (generation === telegramGeneration) telegramError.value = err?.message || t('connections.connectFailed')
+  } finally {
+    if (generation === telegramGeneration) telegramPolling.value = false
+  }
 }
 // ---- WeChat: in-dialog QR code and automatic scan detection ----
 const WECHAT_CHECK_GAP_MS = 2000
@@ -530,8 +647,8 @@ function wechatPrimary() {
   else void createWechatQr()
 }
 function newWechatQr() { void createWechatQr() }
-watch(showConnectionModal, (open) => { if (!open) stopWechatDetect() })
-onBeforeUnmount(stopWechatDetect)
+watch(showConnectionModal, (open) => { if (!open) { stopWechatDetect(); stopTelegramClaim() } })
+onBeforeUnmount(() => { stopWechatDetect(); stopTelegramClaim() })
 async function removeConnection(connection: OpenClawConnection) {
   if (!instance.value) return
   deletingConnection.value = true
@@ -638,6 +755,7 @@ onMounted(load)
 .wechat-spinner { width: 14px; height: 14px; flex: 0 0 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: connections-spin .8s linear infinite; }
 .wechat-link:focus-visible { outline: 2px solid #a33c2d; outline-offset: 2px; }
 .setup-success { margin: 0; border-left: 3px solid #28704d; padding: 10px 12px; font-size: 13px; line-height: 1.5; }
+.telegram-claim-code { display: inline-block; margin-top: 4px; padding: 2px 8px; border: 1px solid var(--ag-ink); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 15px; letter-spacing: .12em; user-select: all; }
 @keyframes connections-spin { to { transform: rotate(360deg); } }
 @keyframes connections-progress { 0% { transform: translateX(-120%); } 100% { transform: translateX(380%); } }
 @media (max-width: 840px) { .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .provision-panel { grid-template-columns: 1fr; } .provision-eta { grid-column: auto; margin: -10px 0 0; } }
