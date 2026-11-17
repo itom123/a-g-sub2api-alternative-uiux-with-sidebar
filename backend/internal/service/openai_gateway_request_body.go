@@ -1497,7 +1497,7 @@ func normalizeOpenAIOAuthResponsesCompatibilityBody(body []byte) ([]byte, bool, 
 }
 
 func normalizeGPT6ResponsesSampling(body []byte, model string) ([]byte, bool, error) {
-	if (!openai.IsGPT6SolOrLunaModelSpelling(model) && !openai.IsGPT61SolModelSpelling(model)) || gjson.GetBytes(body, "reasoning.effort").String() == "none" {
+	if (!openai.IsGPT6SolOrLunaModelSpelling(model) && !openai.IsGPT61SolModelSpelling(model) && openai.GPT62ModelID(model) == "") || gjson.GetBytes(body, "reasoning.effort").String() == "none" {
 		return body, false, nil
 	}
 	out := body
@@ -2188,6 +2188,14 @@ func openAIFastPolicySettingsFromContext(ctx context.Context) *OpenAIFastPolicyS
 	return nil
 }
 
+// openAIModelSupportsUltrafast reports whether OpenAI offers the Ultrafast
+// service tier for the model. It is the single source for the Ultrafast
+// billing multiplier.
+func openAIModelSupportsUltrafast(model string) bool {
+	normalized := normalizeKnownOpenAICodexModel(model)
+	return isOpenAIGPT6AstraModel(normalized) || normalized == "gpt-6.1-sol" || normalized == "gpt-6.2-sol" || normalized == "gpt-6.2-astra"
+}
+
 func openAIGroupForcesFast(ctx context.Context, account *Account) bool {
 	if ctx == nil || account == nil || account.Platform != PlatformOpenAI {
 		return false
@@ -2761,7 +2769,7 @@ func validateGPT61CompatRequest(body []byte, model string) error {
 }
 
 func validateGPT61RawEffort(body []byte, model string) error {
-	if !openai.IsGPT61SolModelSpelling(model) && !openai.IsGPT61TerraModelSpelling(model) {
+	if !openai.IsGPT61SolModelSpelling(model) && !openai.IsGPT61TerraModelSpelling(model) && openai.GPT62ModelID(model) == "" {
 		return nil
 	}
 	for _, path := range []string{"reasoning.effort", "reasoning_effort", "output_config.effort"} {
