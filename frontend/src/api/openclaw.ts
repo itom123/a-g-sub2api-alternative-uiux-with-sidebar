@@ -168,14 +168,18 @@ export interface OpenClawAdminInstance extends OpenClawInstance {
   billing_group: string
   billing_rate: number
   api_key_status: string
-  usage_cost: number
   allowed_models: string[]
   default_model: string
   mapping_enabled: boolean
   connection_count: number
   connected_count: number
-  usage_count: number
-  last_used_at?: string
+  /** API usage from the billing ledger (usage_logs) of the workspace key. */
+  request_count: number
+  usage_cost: number
+  token_count: number
+  requests_7d: number
+  usage_cost_7d: number
+  last_request_at?: string
   last_latency_ms?: number
   last_seen_at?: string
 }

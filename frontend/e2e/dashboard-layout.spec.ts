@@ -3,7 +3,7 @@ import { prepare, settings } from './fixtures'
 
 const instance = { id: 7, tenant_slug: 'fixture-workspace', name: 'Example workspace', status: 'running', created_at: '2026-10-01T09:00:00Z', updated_at: '2026-10-01T09:00:00Z' }
 const models = ['example-model-with-a-very-long-identifier-'.repeat(3), 'reasoning-model', 'coding-model', 'general-model']
-const fleet = { ...instance, user_id: 1, user_email: 'long-workspace-owner@example.test', billing_group: 'OpenClaw', billing_rate: .3, api_key_status: 'active', connection_count: 2, connected_count: 1, usage_cost: 1.5, usage_count: 999, allowed_models: models, default_model: models[0], mapping_enabled: true }
+const fleet = { ...instance, user_id: 1, user_email: 'long-workspace-owner@example.test', billing_group: 'OpenClaw', billing_rate: .3, api_key_status: 'active', connection_count: 2, connected_count: 1, request_count: 999_999, usage_cost: 1234.5, token_count: 987_654_321, requests_7d: 12_345, usage_cost_7d: 99.5, last_request_at: '2026-10-19T09:00:00Z', allowed_models: models, default_model: models[0], mapping_enabled: true }
 const fulfill = (data: unknown) => ({ json: { code: 0, data } })
 async function noOverflow(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true)
