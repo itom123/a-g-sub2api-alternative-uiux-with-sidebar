@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"strconv"
@@ -78,17 +77,6 @@ func openClawReasoningEffortMappings() []ReasoningEffortMapping {
 		{From: "none", To: "low", MatchType: "exact", Model: "gpt-6.2-astra"},
 		{From: "minimal", To: "low", MatchType: "exact", Model: "gpt-6.2-astra"},
 	}
-}
-
-func isOpenClawAllowedModel(model string) bool {
-	model = strings.ToLower(strings.TrimSpace(model))
-	model = strings.TrimPrefix(model, "openai/")
-	for _, allowed := range openClawAllowedModels {
-		if model == allowed {
-			return true
-		}
-	}
-	return false
 }
 
 type OpenClawInstance struct {
@@ -194,16 +182,26 @@ type OpenClawDashboard struct {
 
 type OpenClawAdminInstance struct {
 	OpenClawInstance
-	UserID          int64    `json:"user_id"`
-	UserEmail       string   `json:"user_email"`
-	BillingGroup    string   `json:"billing_group"`
-	BillingRate     float64  `json:"billing_rate"`
-	APIKeyStatus    string   `json:"api_key_status"`
-	AllowedModels   []string `json:"allowed_models"`
-	DefaultModel    string   `json:"default_model"`
-	MappingEnabled  bool     `json:"mapping_enabled"`
-	ConnectionCount int      `json:"connection_count"`
-	ConnectedCount  int      `json:"connected_count"`
+	UserID       int64   `json:"user_id"`
+	UserEmail    string  `json:"user_email"`
+	BillingGroup string  `json:"billing_group"`
+	BillingRate  float64 `json:"billing_rate"`
+	APIKeyStatus string  `json:"api_key_status"`
+	// The models come from the billing group's live model allowlist (see
+	// openClawSupportedModels), the same set the gateway admits for the key.
+	AllowedModels  []string `json:"allowed_models"`
+	DefaultModel   string   `json:"default_model"`
+	ModelsSource   string   `json:"models_source"`
+	MappingEnabled bool     `json:"mapping_enabled"`
+	MappingError   string   `json:"mapping_error,omitempty"`
+	// ModelSync says whether the cell already holds this model list.
+	ModelSync     string     `json:"model_sync,omitempty"`
+	ModelSyncedAt *time.Time `json:"model_synced_at,omitempty"`
+	// Connections lists every service row, so the fleet can show which
+	// services are connected and which set-ups were never finished.
+	Connections     []OpenClawAdminConnection `json:"connections"`
+	ConnectionCount int                       `json:"connection_count"`
+	ConnectedCount  int                       `json:"connected_count"`
 	// API usage is read from usage_logs for the workspace's linked billing
 	// key, the same ledger that charges the customer, so request counts and
 	// spend always describe the same set of calls.
@@ -215,6 +213,14 @@ type OpenClawAdminInstance struct {
 	LastRequestAt *time.Time `json:"last_request_at,omitempty"`
 	LatencyMS     *int       `json:"latency_ms,omitempty"`
 	LastSeenAt    *time.Time `json:"last_seen_at,omitempty"`
+}
+
+type OpenClawAdminConnection struct {
+	Kind      string    `json:"kind"`
+	Title     string    `json:"title"`
+	Status    string    `json:"status"`
+	Label     string    `json:"label"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // OpenClawFleetClient is the narrow server-side boundary to the UK02 fleet
@@ -473,9 +479,10 @@ func (c *CommandOpenClawFleetClient) Configure(ctx context.Context, tenant strin
 }
 
 type OpenClawService struct {
-	db      *sql.DB
-	fleet   OpenClawFleetClient
-	apiKeys *APIKeyService
+	db        *sql.DB
+	fleet     OpenClawFleetClient
+	apiKeys   *APIKeyService
+	modelSync openClawModelSync
 }
 
 func NewOpenClawService(db *sql.DB, fleet OpenClawFleetClient) *OpenClawService {
@@ -780,7 +787,7 @@ func (s *OpenClawService) CreateInstance(ctx context.Context, userID int64, name
 			return OpenClawInstance{}, fmt.Errorf("create openclaw billing key: %w", keyErr)
 		}
 	}
-	mapping, mappingEnabled, mappingErr := configuredOpenClawModelMapping(func() string {
+	mapping, mappingEnabled, mappingErr := s.workspaceModelMapping(ctx, func() string {
 		if billingKey != nil {
 			return billingKey.secret
 		}
@@ -830,6 +837,9 @@ func (s *OpenClawService) CreateInstance(ctx context.Context, userID int64, name
 			instance.Status = "error"
 			instance.LastError = configErr.Error()
 			return instance, nil
+		}
+		if billingKey != nil {
+			s.recordModelSync(instance.TenantSlug, mapping, billingKey.ID, nil)
 		}
 	}
 	if result.Port > 0 {
@@ -946,7 +956,7 @@ func (s *OpenClawService) ProvisionInstance(ctx context.Context, userID, instanc
 		if keyErr != nil {
 			return OpenClawInstance{}, fmt.Errorf("load openclaw billing key: %w", keyErr)
 		}
-		mapping, mappingEnabled, err = configuredOpenClawModelMapping(fullKey.Key)
+		mapping, mappingEnabled, err = s.workspaceModelMapping(ctx, fullKey.Key)
 		if err != nil {
 			return OpenClawInstance{}, fmt.Errorf("configure OpenClaw model mapping: %w", err)
 		}
@@ -973,6 +983,7 @@ func (s *OpenClawService) ProvisionInstance(ctx context.Context, userID, instanc
 			_, _ = s.db.ExecContext(ctx, `UPDATE openclaw_instances SET status = 'error', last_error = $1, updated_at = NOW() WHERE id = $2 AND user_id = $3`, configErr.Error(), instanceID, userID)
 			return OpenClawInstance{}, fmt.Errorf("configure OpenClaw model mapping: %w", configErr)
 		}
+		s.recordModelSync(instance.TenantSlug, mapping, billingKey.ID, nil)
 	}
 	if result.Port > 0 {
 		_, err = s.db.ExecContext(ctx, `UPDATE openclaw_instances SET status = 'ready', port = $1, last_error = NULL, updated_at = NOW() WHERE id = $2 AND user_id = $3`, result.Port, instanceID, userID)
@@ -1253,80 +1264,6 @@ func (s *OpenClawService) ensureInstanceAPIKey(ctx context.Context, userID, inst
 		public.secret = key.Key
 	}
 	return public, nil
-}
-
-func configuredOpenClawModelMapping(apiKey string) (OpenClawModelMapping, bool, error) {
-	baseURL := strings.TrimRight(strings.TrimSpace(os.Getenv("OPENCLAW_MODEL_GATEWAY_BASE_URL")), "/")
-	raw := strings.TrimSpace(os.Getenv("OPENCLAW_MODEL_MAPPING_JSON"))
-	if baseURL == "" && raw == "" {
-		return OpenClawModelMapping{}, false, nil
-	}
-	parsed, err := url.Parse(baseURL)
-	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
-		return OpenClawModelMapping{}, false, errors.New("OPENCLAW_MODEL_GATEWAY_BASE_URL must be an http(s) URL")
-	}
-	if len(apiKey) < 20 {
-		return OpenClawModelMapping{}, false, errors.New("workspace API key is unavailable for model mapping")
-	}
-	var payload struct {
-		DefaultModel string               `json:"default_model"`
-		Models       []OpenClawModelAlias `json:"models"`
-	}
-	if raw == "" {
-		payload.DefaultModel = "gpt-5.6-sol"
-		for _, model := range openClawAllowedModels {
-			payload.Models = append(payload.Models, OpenClawModelAlias{Alias: model, Model: model})
-		}
-	} else if err := json.Unmarshal([]byte(raw), &payload); err != nil {
-		return OpenClawModelMapping{}, false, fmt.Errorf("OPENCLAW_MODEL_MAPPING_JSON is invalid: %w", err)
-	}
-	if len(payload.Models) != len(openClawAllowedModels) {
-		return OpenClawModelMapping{}, false, fmt.Errorf("OpenClaw mapping must contain exactly %d approved models", len(openClawAllowedModels))
-	}
-	seenModels := make(map[string]struct{}, len(payload.Models))
-	seenAliases := make(map[string]struct{}, len(payload.Models))
-	for _, model := range payload.Models {
-		if strings.TrimSpace(model.Alias) == "" || strings.TrimSpace(model.Model) == "" || len([]rune(model.Alias)) > 100 || len([]rune(model.Model)) > 200 {
-			return OpenClawModelMapping{}, false, errors.New("OpenClaw model aliases must contain non-empty names under the configured limits")
-		}
-		alias := strings.TrimSpace(model.Alias)
-		target := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(model.Model)), "openai/")
-		if !isOpenClawAllowedModel(alias) {
-			return OpenClawModelMapping{}, false, fmt.Errorf("OpenClaw model alias %q is not approved", model.Alias)
-		}
-		if !isOpenClawAllowedModel(target) {
-			return OpenClawModelMapping{}, false, fmt.Errorf("OpenClaw model %q is not approved", model.Model)
-		}
-		if _, exists := seenAliases[alias]; exists {
-			return OpenClawModelMapping{}, false, fmt.Errorf("OpenClaw model alias %q is duplicated", alias)
-		}
-		seenAliases[alias] = struct{}{}
-		seenModels[target] = struct{}{}
-	}
-	for _, model := range openClawAllowedModels {
-		if _, ok := seenModels[model]; !ok {
-			return OpenClawModelMapping{}, false, fmt.Errorf("OpenClaw mapping is missing approved model %q", model)
-		}
-	}
-	if payload.DefaultModel == "" {
-		payload.DefaultModel = payload.Models[0].Alias
-	}
-	defaultFound := false
-	for _, model := range payload.Models {
-		if model.Alias == payload.DefaultModel {
-			defaultFound = true
-			break
-		}
-	}
-	if !defaultFound {
-		return OpenClawModelMapping{}, false, errors.New("OpenClaw default_model must match an approved alias")
-	}
-	return OpenClawModelMapping{
-		GatewayURL:   baseURL,
-		APIKey:       apiKey,
-		DefaultModel: payload.DefaultModel,
-		Models:       payload.Models,
-	}, true, nil
 }
 
 func (s *OpenClawService) deleteInstanceAPIKey(ctx context.Context, userID, instanceID int64) error {
@@ -1699,17 +1636,20 @@ func (s *OpenClawService) ListAdminInstances(ctx context.Context) ([]OpenClawAdm
 		SELECT i.id, i.tenant_slug, i.name, i.status, i.worker_host, i.port, COALESCE(i.last_error, ''),
 		       i.created_at, i.updated_at, i.deletion_requested_at, i.deletion_scheduled_at,
 		       i.user_id, u.email, i.last_latency_ms, i.last_seen_at,
-		       COALESCE((SELECT g.name FROM openclaw_api_keys link JOIN api_keys k ON k.id = link.api_key_id AND k.deleted_at IS NULL LEFT JOIN groups g ON g.id = k.group_id WHERE link.instance_id = i.id LIMIT 1), ''),
-		       COALESCE((SELECT g.rate_multiplier FROM openclaw_api_keys link JOIN api_keys k ON k.id = link.api_key_id AND k.deleted_at IS NULL JOIN groups g ON g.id = k.group_id WHERE link.instance_id = i.id LIMIT 1), 0),
-		       COALESCE((SELECT k.status FROM openclaw_api_keys link JOIN api_keys k ON k.id = link.api_key_id AND k.deleted_at IS NULL WHERE link.instance_id = i.id LIMIT 1), ''),
-		       conn.total, conn.connected,
+		       bk.api_key_id, COALESCE(bk.group_name, ''), COALESCE(bk.rate_multiplier, 0), COALESCE(bk.key_status, ''),
+		       bk.group_id, bk.model_allowlist, COALESCE(bk.default_mapped_model, ''),
 		       api.request_count, api.cost, api.token_count, api.requests_7d, api.cost_7d, api.last_request_at
 		FROM openclaw_instances i
 		JOIN users u ON u.id = i.user_id
-		CROSS JOIN LATERAL (
-		       SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE c.status = 'connected') AS connected
-		       FROM openclaw_connections c WHERE c.instance_id = i.id
-		) conn
+		LEFT JOIN LATERAL (
+		       SELECT k.id AS api_key_id, k.status AS key_status, g.id AS group_id, g.name AS group_name,
+		              g.rate_multiplier, g.model_allowlist, g.default_mapped_model
+		       FROM openclaw_api_keys link
+		       JOIN api_keys k ON k.id = link.api_key_id AND k.deleted_at IS NULL
+		       LEFT JOIN groups g ON g.id = k.group_id
+		       WHERE link.instance_id = i.id
+		       LIMIT 1
+		) bk ON TRUE
 		CROSS JOIN LATERAL (
 		       SELECT COUNT(ul.id) AS request_count,
 		              COALESCE(SUM(ul.actual_cost), 0) AS cost,
@@ -1727,21 +1667,32 @@ func (s *OpenClawService) ListAdminInstances(ctx context.Context) ([]OpenClawAdm
 	}
 	defer func() { _ = rows.Close() }()
 	var items []OpenClawAdminInstance
+	index := make(map[int64]int)
 	for rows.Next() {
 		var item OpenClawAdminInstance
-		var port, latency sql.NullInt64
-		var billingGroup, apiKeyStatus sql.NullString
-		var billingRate sql.NullFloat64
+		var port, latency, apiKeyID, groupID sql.NullInt64
+		var allowlistJSON []byte
+		var defaultMapped string
 		var requestedAt, scheduledAt, lastSeen, lastRequest sql.NullTime
-		if err := rows.Scan(&item.ID, &item.TenantSlug, &item.Name, &item.Status, &item.WorkerHost, &port, &item.LastError, &item.CreatedAt, &item.UpdatedAt, &requestedAt, &scheduledAt, &item.UserID, &item.UserEmail, &latency, &lastSeen, &billingGroup, &billingRate, &apiKeyStatus, &item.ConnectionCount, &item.ConnectedCount, &item.RequestCount, &item.UsageCost, &item.TokenCount, &item.Requests7d, &item.UsageCost7d, &lastRequest); err != nil {
+		if err := rows.Scan(&item.ID, &item.TenantSlug, &item.Name, &item.Status, &item.WorkerHost, &port, &item.LastError, &item.CreatedAt, &item.UpdatedAt, &requestedAt, &scheduledAt, &item.UserID, &item.UserEmail, &latency, &lastSeen,
+			&apiKeyID, &item.BillingGroup, &item.BillingRate, &item.APIKeyStatus, &groupID, &allowlistJSON, &defaultMapped,
+			&item.RequestCount, &item.UsageCost, &item.TokenCount, &item.Requests7d, &item.UsageCost7d, &lastRequest); err != nil {
 			return nil, err
 		}
-		item.BillingGroup = billingGroup.String
-		item.BillingRate = billingRate.Float64
-		item.APIKeyStatus = apiKeyStatus.String
-		item.AllowedModels = append([]string(nil), openClawAllowedModels...)
-		item.DefaultModel = "gpt-5.6-sol"
-		_, item.MappingEnabled, _ = configuredOpenClawModelMapping(strings.Repeat("x", 32))
+		var group *Group
+		var allowlistErr error
+		if groupID.Valid {
+			group = &Group{ID: groupID.Int64, Name: item.BillingGroup, DefaultMappedModel: defaultMapped}
+			if len(allowlistJSON) > 0 {
+				allowlistErr = json.Unmarshal(allowlistJSON, &group.ModelAllowlist)
+			}
+		}
+		item.applyModelPolicy(group, apiKeyID, &s.modelSync)
+		if allowlistErr != nil {
+			// One unreadable group must not hide the whole fleet.
+			item.MappingError = fmt.Sprintf("model allowlist of group %d is unreadable: %v", groupID.Int64, allowlistErr)
+		}
+		item.Connections = []OpenClawAdminConnection{}
 		if port.Valid {
 			value := int(port.Int64)
 			item.Port = &value
@@ -1762,9 +1713,71 @@ func (s *OpenClawService) ListAdminInstances(ctx context.Context) ([]OpenClawAdm
 		if lastRequest.Valid {
 			item.LastRequestAt = &lastRequest.Time
 		}
+		index[item.ID] = len(items)
 		items = append(items, item)
 	}
-	return items, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(items) == 0 {
+		return items, nil
+	}
+	connections, err := s.db.QueryContext(ctx, `
+		SELECT c.instance_id, c.kind, COALESCE(cat.title, c.kind), c.status, c.label, c.updated_at
+		FROM openclaw_connections c
+		LEFT JOIN openclaw_connection_catalog cat ON cat.kind = c.kind
+		ORDER BY c.instance_id, COALESCE(cat.sort_order, 1000), c.kind, c.id`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = connections.Close() }()
+	for connections.Next() {
+		var instanceID int64
+		var connection OpenClawAdminConnection
+		if err := connections.Scan(&instanceID, &connection.Kind, &connection.Title, &connection.Status, &connection.Label, &connection.UpdatedAt); err != nil {
+			return nil, err
+		}
+		position, ok := index[instanceID]
+		if !ok {
+			continue
+		}
+		item := &items[position]
+		item.Connections = append(item.Connections, connection)
+		item.ConnectionCount++
+		if connection.Status == "connected" {
+			item.ConnectedCount++
+		}
+	}
+	return items, connections.Err()
+}
+
+// applyModelPolicy fills the model fields from the workspace key's group, the
+// same source the cell mapping and the gateway use.
+func (item *OpenClawAdminInstance) applyModelPolicy(group *Group, apiKeyID sql.NullInt64, syncState *openClawModelSync) {
+	models, defaultModel, source := openClawSupportedModels(group)
+	item.AllowedModels = models
+	item.DefaultModel = defaultModel
+	item.ModelsSource = source
+	if item.AllowedModels == nil {
+		item.AllowedModels = []string{}
+	}
+	mapping, enabled, err := configuredOpenClawModelMapping(strings.Repeat("x", 32), group)
+	item.MappingEnabled = enabled
+	if err != nil {
+		item.MappingError = err.Error()
+		return
+	}
+	if !enabled {
+		return
+	}
+	item.AllowedModels = item.AllowedModels[:0]
+	for _, model := range mapping.Models {
+		item.AllowedModels = append(item.AllowedModels, model.Alias)
+	}
+	item.DefaultModel = mapping.DefaultModel
+	if apiKeyID.Valid && item.DeletionScheduledAt == nil {
+		item.ModelSync, item.ModelSyncedAt = syncState.state(item.TenantSlug, openClawMappingFingerprint(mapping, apiKeyID.Int64))
+	}
 }
 
 func (s *OpenClawService) DeleteInstanceAdmin(ctx context.Context, instanceID int64) (OpenClawInstance, error) {
@@ -1805,7 +1818,7 @@ func (s *OpenClawService) ReconcileInstanceAdmin(ctx context.Context, instanceID
 			if keyErr != nil {
 				return OpenClawInstance{}, keyErr
 			}
-			mapping, enabled, mappingErr := configuredOpenClawModelMapping(fullKey.Key)
+			mapping, enabled, mappingErr := s.workspaceModelMapping(ctx, fullKey.Key)
 			if mappingErr != nil {
 				return OpenClawInstance{}, mappingErr
 			}
@@ -1814,7 +1827,9 @@ func (s *OpenClawService) ReconcileInstanceAdmin(ctx context.Context, instanceID
 				if !ok {
 					return OpenClawInstance{}, errors.New("OpenClaw worker does not support model mapping")
 				}
-				if err := configurator.Configure(ctx, instance.TenantSlug, mapping); err != nil {
+				err := configurator.Configure(ctx, instance.TenantSlug, mapping)
+				s.recordModelSync(instance.TenantSlug, mapping, billingKey.ID, err)
+				if err != nil {
 					return OpenClawInstance{}, err
 				}
 			}

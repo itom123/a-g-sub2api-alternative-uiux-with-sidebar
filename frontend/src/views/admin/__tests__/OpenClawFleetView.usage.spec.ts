@@ -27,6 +27,10 @@ const SelectStub = defineComponent({
   </select>`,
 })
 
+function connection(kind: string, title: string, status: string, label = '') {
+  return { kind, title, status, label, updated_at: '2026-11-10T00:00:00Z' }
+}
+
 function workspace(overrides: Partial<OpenClawAdminInstance> = {}): OpenClawAdminInstance {
   return {
     id: 1,
@@ -43,7 +47,10 @@ function workspace(overrides: Partial<OpenClawAdminInstance> = {}): OpenClawAdmi
     api_key_status: 'active',
     allowed_models: ['gpt-5.6-sol'],
     default_model: 'gpt-5.6-sol',
+    models_source: 'group',
     mapping_enabled: true,
+    model_sync: 'synced',
+    connections: [connection('wechat', 'WeChat', 'pending')],
     connection_count: 1,
     connected_count: 0,
     request_count: 0,
@@ -61,6 +68,7 @@ const busy = workspace({
   name: 'Busy workspace',
   user_id: 2,
   user_email: 'busy@example.test',
+  connections: [connection('wechat', 'WeChat', 'pending'), connection('telegram', 'Telegram', 'connected', 'Support bot')],
   connection_count: 2,
   connected_count: 1,
   request_count: 1284,
@@ -115,10 +123,62 @@ describe('OpenClaw fleet usage', () => {
 
     expect(cards).toEqual([
       'Workspaces | 2 | 2 running',
-      'Connected services | 1 | 3 configured',
+      'Connected services | 1 | 2 set-ups not finished',
       'API requests | 1,284 | 1 in the last 7 days',
       'Billed | ¥363.74 | ¥14.00 in the last 7 days',
     ])
+  })
+
+  it('counts only finished set-ups in workspaces that still serve customers', async () => {
+    const queued = workspace({
+      id: 3,
+      tenant_slug: 'u3-gone',
+      name: 'Queued workspace',
+      deletion_scheduled_at: '2026-11-20T00:00:00Z',
+      connections: [connection('telegram', 'Telegram', 'connected'), connection('gws', 'Google Workspace', 'pending')],
+      connection_count: 2,
+      connected_count: 1,
+    })
+    const finished = workspace({ id: 4, tenant_slug: 'u4-done', name: 'Finished', connections: [connection('telegram', 'Telegram', 'connected')] })
+    listInstances.mockResolvedValue([queued, finished])
+    const wrapper = await mountFleet()
+    const card = wrapper.findAll('article')[1].findAll('p').map(line => line.text()).join(' | ')
+    expect(card).toBe('Connected services | 1 | All set-ups finished')
+
+    listInstances.mockResolvedValue([workspace({ connections: [] })])
+    const empty = await mountFleet()
+    expect(empty.findAll('article')[1].text()).toContain('No services set up yet')
+  })
+
+  it('lists every service of a workspace with its set-up state', async () => {
+    const wrapper = await mountFleet()
+    const cells = wrapper.findAll('td[data-label="Services"]').map(cell => cell.findAll('li').map(item => item.findAll('span').map(part => part.text()).join(' ')))
+    expect(cells[0]).toEqual(['WeChat Set-up not finished'])
+    expect(cells[1]).toEqual(['WeChat Set-up not finished', 'Telegram · Support bot Connected'])
+
+    listInstances.mockResolvedValue([workspace({ connections: [] })])
+    const empty = await mountFleet()
+    expect(empty.find('td[data-label="Services"]').text()).toBe('No services')
+  })
+
+  it('shows the billing group\'s models and whether the workspace holds them', async () => {
+    listInstances.mockResolvedValue([
+      workspace({ allowed_models: ['gpt-6.2-sol', 'gpt-5.6-sol'], default_model: 'gpt-6.2-sol', model_sync: 'pending' }),
+      workspace({ id: 5, models_source: 'defaults', mapping_enabled: false, model_sync: undefined }),
+      workspace({ id: 6, mapping_enabled: false, mapping_error: 'OPENCLAW_MODEL_GATEWAY_BASE_URL must be an http(s) URL', model_sync: undefined }),
+      workspace({ id: 7, model_sync: 'failed' }),
+    ])
+    const wrapper = await mountFleet()
+    const [pending, defaults, broken, failed] = wrapper.findAll('td[data-label="Models"]').map(cell => [
+      ...cell.findAll('li').map(item => item.text()),
+      ...cell.findAll('td > div').map(line => line.text()),
+    ].join(' | '))
+    expect(pending).toBe("gpt-6.2-sol | gpt-5.6-sol | Default: gpt-6.2-sol | From the openai-claw group's model allowlist | Updating the workspace…")
+    expect(defaults).toContain('Built-in defaults: the group allows every model')
+    expect(defaults).toContain('Not sent to the workspace: model mapping is off')
+    expect(broken).toContain('Model mapping error: OPENCLAW_MODEL_GATEWAY_BASE_URL must be an http(s) URL')
+    expect(failed).toContain('Workspace update failed; retrying')
+    expect(wrapper.text()).not.toContain('Mapping not configured')
   })
 
   it('sorts workspaces by spend so heavy users surface first', async () => {

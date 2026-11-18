@@ -105,6 +105,13 @@ require_text "$ocw/worker.go" "cellStatus(" "worker dispatches the status action
 require_text "$ocw/worker.go" "finishWeChatWait(" "WeChat login finishes through finishWeChatWait"
 require_text "$ocw/worker.go" "startWeChatChannelIfStopped(" "WeChat login restarts a stopped channel without a gateway reload"
 
+# 10. OpenClaw models follow the billing group (docs/fork/CUSTOMIZATIONS.md, section 10).
+if [[ -f backend/internal/service/openclaw_models.go ]]; then ok "present: backend/internal/service/openclaw_models.go"; else fail "fork-owned file present: backend/internal/service/openclaw_models.go"; fi
+require_text backend/internal/service/openclaw_models.go "func openClawSupportedModels(group *Group)" "workspace models come from the billing group"
+require_text backend/internal/service/openclaw.go "s.workspaceModelMapping(ctx," "cell mapping is built from the billing group"
+require_text backend/internal/service/wire.go "svc.StartModelSyncWorker(" "group model changes reach live cells"
+require_text frontend/src/views/admin/OpenClawFleetView.vue 'data-label="Services"' "fleet lists each workspace's services"
+
 # 7. No upstream tutorial or branding (docs/fork/CUSTOMIZATIONS.md, section 7).
 for f in frontend/src/composables/useOnboardingTour.ts frontend/src/stores/onboarding.ts frontend/src/components/Guide frontend/src/styles/onboarding.css frontend/src/components/common/ProxyAdBanner.vue; do
 	if [[ -e "$f" ]]; then fail "tutorial and upstream ad removed ($f is back)"; else ok "absent: $f"; fi
@@ -161,6 +168,8 @@ else
 		backend/internal/handler/usage_handler_user_insights_test.go
 		# 6. OpenClaw pricing
 		backend/internal/service/openclaw_billing_lock_test.go
+		# 10. OpenClaw models follow the billing group
+		backend/internal/service/openclaw_models_test.go
 		# 8. Referral codes as invitations
 		backend/internal/service/auth_service_referral_invitation_test.go
 		# 9. OpenClaw worker cell status and WeChat login
@@ -215,6 +224,7 @@ else
 		src/components/user/dashboard/insights/__tests__/aggregate.spec.ts \
 		src/components/user/dashboard/__tests__/UserDashboardSubscriptions.spec.ts \
 		src/views/admin/__tests__/SubscriptionsView.usageColumns.spec.ts \
+		src/views/admin/__tests__/OpenClawFleetView.usage.spec.ts \
 		src/views/auth/__tests__/RegisterView.spec.ts); then
 		ok "frontend guard specs"
 	else
