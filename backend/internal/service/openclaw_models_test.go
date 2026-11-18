@@ -71,7 +71,9 @@ func expectSyncCells(mock sqlmock.Sqlmock, cells ...syncCell) {
 }
 
 // storedSync captures the JSON written to the settings row.
-type storedSync struct{ value map[string]openClawModelSyncRecord }
+type storedSync struct {
+	value map[string]openClawModelSyncRecord
+}
 
 func (c *storedSync) Match(v driver.Value) bool {
 	raw, ok := v.(string)
