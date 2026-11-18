@@ -111,6 +111,10 @@ require_text backend/internal/service/openclaw_models.go "func openClawSupported
 require_text backend/internal/service/openclaw.go "s.workspaceModelMapping(ctx," "cell mapping is built from the billing group"
 require_text backend/internal/service/wire.go "svc.StartModelSyncWorker(" "group model changes reach live cells"
 require_text frontend/src/views/admin/OpenClawFleetView.vue 'data-label="Services"' "fleet lists each workspace's services"
+require_text backend/internal/service/openclaw_models.go 'openClawModelSyncSetting = "openclaw_cell_model_sync"' "delivered model lists survive restarts, so a deploy rewrites no cell"
+require_text backend/internal/service/openclaw_models.go "s.apiKeys.findOpenClawGroup(ctx)" "the background pass never creates or repairs the group"
+require_text backend/internal/service/openclaw_models.go 'os.Getenv("OPENCLAW_MODEL_SYNC_ENABLED")) == "1"' "the background model sync stays opt-in"
+require_text frontend/src/views/user/ConnectionsView.vue 'data-testid="services-metric"' "customer card counts the services the workspace offers"
 
 # 7. No upstream tutorial or branding (docs/fork/CUSTOMIZATIONS.md, section 7).
 for f in frontend/src/composables/useOnboardingTour.ts frontend/src/stores/onboarding.ts frontend/src/components/Guide frontend/src/styles/onboarding.css frontend/src/components/common/ProxyAdBanner.vue; do
@@ -225,6 +229,7 @@ else
 		src/components/user/dashboard/__tests__/UserDashboardSubscriptions.spec.ts \
 		src/views/admin/__tests__/SubscriptionsView.usageColumns.spec.ts \
 		src/views/admin/__tests__/OpenClawFleetView.usage.spec.ts \
+		src/views/user/__tests__/ConnectionsView.status.spec.ts \
 		src/views/auth/__tests__/RegisterView.spec.ts); then
 		ok "frontend guard specs"
 	else

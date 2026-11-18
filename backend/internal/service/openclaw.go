@@ -839,7 +839,7 @@ func (s *OpenClawService) CreateInstance(ctx context.Context, userID int64, name
 			return instance, nil
 		}
 		if billingKey != nil {
-			s.recordModelSync(instance.TenantSlug, mapping, billingKey.ID, nil)
+			s.recordModelSync(ctx, instance.TenantSlug, mapping, billingKey.ID, nil)
 		}
 	}
 	if result.Port > 0 {
@@ -983,7 +983,7 @@ func (s *OpenClawService) ProvisionInstance(ctx context.Context, userID, instanc
 			_, _ = s.db.ExecContext(ctx, `UPDATE openclaw_instances SET status = 'error', last_error = $1, updated_at = NOW() WHERE id = $2 AND user_id = $3`, configErr.Error(), instanceID, userID)
 			return OpenClawInstance{}, fmt.Errorf("configure OpenClaw model mapping: %w", configErr)
 		}
-		s.recordModelSync(instance.TenantSlug, mapping, billingKey.ID, nil)
+		s.recordModelSync(ctx, instance.TenantSlug, mapping, billingKey.ID, nil)
 	}
 	if result.Port > 0 {
 		_, err = s.db.ExecContext(ctx, `UPDATE openclaw_instances SET status = 'ready', port = $1, last_error = NULL, updated_at = NOW() WHERE id = $2 AND user_id = $3`, result.Port, instanceID, userID)
@@ -1632,6 +1632,11 @@ func openClawGatewayEnabled(userID int64) bool {
 }
 
 func (s *OpenClawService) ListAdminInstances(ctx context.Context) ([]OpenClawAdminInstance, error) {
+	// Read before the main query holds a connection. The sync records are
+	// informational here; a read failure only leaves cells shown as not
+	// confirmed.
+	_ = s.ensureModelSyncLoaded(ctx)
+	autoSync := openClawModelSyncEnabled()
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT i.id, i.tenant_slug, i.name, i.status, i.worker_host, i.port, COALESCE(i.last_error, ''),
 		       i.created_at, i.updated_at, i.deletion_requested_at, i.deletion_scheduled_at,
@@ -1687,7 +1692,7 @@ func (s *OpenClawService) ListAdminInstances(ctx context.Context) ([]OpenClawAdm
 				allowlistErr = json.Unmarshal(allowlistJSON, &group.ModelAllowlist)
 			}
 		}
-		item.applyModelPolicy(group, apiKeyID, &s.modelSync)
+		item.applyModelPolicy(group, apiKeyID, &s.modelSync, autoSync)
 		if allowlistErr != nil {
 			// One unreadable group must not hide the whole fleet.
 			item.MappingError = fmt.Sprintf("model allowlist of group %d is unreadable: %v", groupID.Int64, allowlistErr)
@@ -1753,7 +1758,7 @@ func (s *OpenClawService) ListAdminInstances(ctx context.Context) ([]OpenClawAdm
 
 // applyModelPolicy fills the model fields from the workspace key's group, the
 // same source the cell mapping and the gateway use.
-func (item *OpenClawAdminInstance) applyModelPolicy(group *Group, apiKeyID sql.NullInt64, syncState *openClawModelSync) {
+func (item *OpenClawAdminInstance) applyModelPolicy(group *Group, apiKeyID sql.NullInt64, syncState *openClawModelSync, autoSync bool) {
 	models, defaultModel, source := openClawSupportedModels(group)
 	item.AllowedModels = models
 	item.DefaultModel = defaultModel
@@ -1776,7 +1781,7 @@ func (item *OpenClawAdminInstance) applyModelPolicy(group *Group, apiKeyID sql.N
 	}
 	item.DefaultModel = mapping.DefaultModel
 	if apiKeyID.Valid && item.DeletionScheduledAt == nil {
-		item.ModelSync, item.ModelSyncedAt = syncState.state(item.TenantSlug, openClawMappingFingerprint(mapping, apiKeyID.Int64))
+		item.ModelSync, item.ModelSyncedAt = syncState.state(item.TenantSlug, openClawMappingFingerprint(mapping, apiKeyID.Int64), autoSync)
 	}
 }
 
@@ -1828,7 +1833,7 @@ func (s *OpenClawService) ReconcileInstanceAdmin(ctx context.Context, instanceID
 					return OpenClawInstance{}, errors.New("OpenClaw worker does not support model mapping")
 				}
 				err := configurator.Configure(ctx, instance.TenantSlug, mapping)
-				s.recordModelSync(instance.TenantSlug, mapping, billingKey.ID, err)
+				s.recordModelSync(ctx, instance.TenantSlug, mapping, billingKey.ID, err)
 				if err != nil {
 					return OpenClawInstance{}, err
 				}

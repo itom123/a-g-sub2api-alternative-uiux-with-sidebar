@@ -179,13 +179,22 @@ function count(value: number) { return value.toLocaleString() }
 function connectionsOf(item: OpenClawAdminInstance): OpenClawAdminConnection[] { return item.connections ?? [] }
 function connectionStatus(status: string) { return status === 'connected' ? 'Connected' : status === 'pending' ? 'Set-up not finished' : status }
 function modelsSource(item: OpenClawAdminInstance) {
-  return item.models_source === 'group' ? `From the ${item.billing_group || 'billing'} group's model allowlist` : 'Built-in defaults: the group allows every model'
+  if (item.models_source === 'group') return `From the ${item.billing_group || 'billing'} group's model allowlist`
+  if (item.models_source === 'fallback') return `Built-in defaults: the ${item.billing_group || 'billing'} group's allowlist names no model a workspace can offer`
+  return 'Built-in defaults: the group allows every model'
 }
 function modelSyncClass(state: string) {
-  return state === 'synced' ? 'text-green-700 dark:text-green-300' : state === 'failed' ? 'text-red-700 dark:text-red-300' : 'text-gray-500'
+  if (state === 'synced') return 'text-green-700 dark:text-green-300'
+  if (state === 'failed') return 'text-red-700 dark:text-red-300'
+  if (state === 'unconfirmed') return 'text-amber-700 dark:text-amber-300'
+  return 'text-gray-500'
 }
 function modelSyncLabel(state: string) {
-  return state === 'synced' ? 'Workspace up to date' : state === 'failed' ? 'Workspace update failed; retrying' : 'Updating the workspace…'
+  if (state === 'synced') return 'Workspace up to date'
+  if (state === 'failed') return 'Workspace update failed; retrying'
+  // The background sync is off by default: say what sends the models instead of implying an update is coming.
+  if (state === 'unconfirmed') return 'Not confirmed in the workspace: Repair OpenClaw binding sends these models'
+  return 'Updating the workspace…'
 }
 function plural(value: number, noun: string) { return `${count(value)} ${noun}${value === 1 ? '' : 's'}` }
 // Ledger amounts are USD; the console displays CNY like every other billing view.
