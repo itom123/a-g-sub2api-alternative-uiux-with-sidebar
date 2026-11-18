@@ -611,10 +611,12 @@ func (s *PaymentService) dispatchPaymentFulfillmentNotification(o *dbent.Payment
 }
 
 func (s *PaymentService) sendBalanceRechargeSuccessNotification(ctx context.Context, o *dbent.PaymentOrder) error {
-	currentBalance := ""
+	// o.Amount is the credit added to the ledger, so like user.Balance it is USD.
+	money := s.cnyDisplayMoney(ctx)
+	currentBalance := "-"
 	if s.userRepo != nil {
 		if user, err := s.userRepo.GetByID(ctx, o.UserID); err == nil && user != nil {
-			currentBalance = fmt.Sprintf("%.2f", user.Balance)
+			currentBalance = money.format(user.Balance)
 		}
 	}
 	return s.notificationEmailService.Send(ctx, NotificationEmailSendInput{
@@ -625,11 +627,18 @@ func (s *PaymentService) sendBalanceRechargeSuccessNotification(ctx context.Cont
 		SourceType:     "payment_order",
 		SourceID:       strconv.FormatInt(o.ID, 10),
 		Variables: map[string]string{
-			"recharge_amount": fmt.Sprintf("%.2f", o.Amount),
+			"recharge_amount": money.format(o.Amount),
 			"current_balance": currentBalance,
 			"order_id":        strconv.FormatInt(o.ID, 10),
 		},
 	})
+}
+
+func (s *PaymentService) cnyDisplayMoney(ctx context.Context) cnyDisplayMoney {
+	if s.configService == nil {
+		return 0
+	}
+	return loadCNYDisplayMoney(ctx, s.configService.settingRepo)
 }
 
 func (s *PaymentService) sendSubscriptionPurchaseSuccessNotification(ctx context.Context, o *dbent.PaymentOrder) error {
