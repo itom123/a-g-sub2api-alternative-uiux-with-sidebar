@@ -25,7 +25,7 @@ type tgSettingRepoFake struct {
 }
 
 func newTGSettingRepoFake() *tgSettingRepoFake {
-	return &tgSettingRepoFake{values: map[string]string{SettingKeySiteName: "TestSite"}}
+	return &tgSettingRepoFake{values: map[string]string{SettingKeySiteName: "TestSite", SettingSubscriptionUSDToCNYRate: "7"}}
 }
 
 func (r *tgSettingRepoFake) Get(ctx context.Context, key string) (*Setting, error) {
@@ -499,8 +499,8 @@ func TestTelegramCommands(t *testing.T) {
 		text   string
 		want   string
 	}{
-		{100, "/balance", "Balance: $12.50"},
-		{100, "/usage", "Today: 1,234 requests · 2.50M tokens · $1.50"},
+		{100, "/balance", "Balance: ¥87.50"},
+		{100, "/usage", "Today: 1,234 requests · 2.50M tokens · ¥10.50"},
 		{100, "/keys", "no API keys"},
 		{100, "/report", "admins only"},
 		{100, "/help", "/balance"},
@@ -702,7 +702,7 @@ func TestTelegramNotifications(t *testing.T) {
 	require.Contains(t, f.api.sentTo(100)[0], "https://example.com/pay")
 
 	f.tg.NotifyAccountQuota(ctx, "acct-1", "anthropic", quotaDimDaily, 80, 100)
-	require.Contains(t, f.api.sentTo(200)[0], "Daily quota: $80.00 used of $100.00, $20.00 left")
+	require.Contains(t, f.api.sentTo(200)[0], "Daily quota: ¥560.00 used of ¥700.00, ¥140.00 left")
 	require.Len(t, f.api.sentTo(100), 1, "users do not get admin alerts")
 
 	value := 12.0
@@ -740,7 +740,68 @@ func TestBalanceNotifyCrossingReachesTelegram(t *testing.T) {
 	// 12 -> 8 crosses below 10.
 	s.CheckBalanceAfterDeduction(context.Background(), &User{ID: 1, BalanceNotifyEnabled: true}, 12, 4)
 	require.Eventually(t, func() bool { return len(f.api.sentTo(100)) == 1 }, 2*time.Second, 10*time.Millisecond)
-	require.Contains(t, f.api.sentTo(100)[0], "Balance: $8.00")
+	require.Contains(t, f.api.sentTo(100)[0], "Balance: ¥56.00")
+}
+
+func TestTelegramMoneyMatchesWebsiteConversion(t *testing.T) {
+	money := telegramMoney(6.671915)
+	require.Equal(t, "¥83.40", money.format(12.5))
+	require.Equal(t, "¥0.00", money.format(0))
+	require.Equal(t, "¥-6.67", money.format(-1))
+	require.Equal(t, "-", telegramMoney(0).format(12.5))
+}
+
+func TestTelegramMessagesNeverShowDollars(t *testing.T) {
+	f := newTGFixture(t)
+	f.enable(t)
+	f.bindings.link(1, 100, "zh", false)
+	f.bindings.link(2, 200, "zh", true)
+	ctx := context.Background()
+	money := f.tg.money(ctx)
+	expires := time.Date(2027, 1, 2, 0, 0, 0, 0, time.UTC)
+
+	f.tg.NotifyBalanceLow(ctx, 1, 0.5, 5, "")
+	f.tg.NotifyAccountQuota(ctx, "acct-1", "anthropic", quotaDimDaily, 80, 100)
+	messages := append(f.api.sentTo(100), f.api.sentTo(200)...)
+	require.Len(t, messages, 2)
+	for _, lang := range []string{"zh", "en"} {
+		messages = append(messages,
+			telegramBalanceText(lang, money, &User{Balance: 12.5}, nil),
+			telegramUsageText(lang, money, &usagestats.UserDashboardStats{TodayActualCost: 1.5, TotalActualCost: 9}),
+			telegramKeysText(lang, money, []APIKey{
+				{Name: "limited", Quota: 10, QuotaUsed: 2.5, ExpiresAt: &expires},
+				{Name: "open", QuotaUsed: 1},
+			}, 2),
+			telegramDailyReportText(lang, "TestSite", "2026-11-18", money, &usagestats.DashboardStats{TodayActualCost: 3, TodayAccountCost: 2}),
+		)
+	}
+	for _, message := range messages {
+		require.Contains(t, message, "¥", message)
+		require.NotContains(t, message, "$", message)
+	}
+}
+
+func TestTelegramWithoutUsableRateNeverFallsBackToDollars(t *testing.T) {
+	for _, stored := range []string{"", "0", "-1", "20", "NaN", "not-a-rate"} {
+		t.Run("stored="+stored, func(t *testing.T) {
+			f := newTGFixture(t)
+			rt := f.enable(t)
+			f.bindings.link(1, 100, "en", false)
+			require.NoError(t, f.settings.Set(context.Background(), SettingSubscriptionUSDToCNYRate, stored))
+
+			for _, cmd := range []string{"/balance", "/usage", "/keys"} {
+				f.bot.handleUpdate(rt, privateMessage(100, cmd))
+				replies := f.api.sentTo(100)
+				require.Contains(t, replies[len(replies)-1], "try again later", cmd)
+			}
+
+			f.tg.NotifyBalanceLow(context.Background(), 1, 0.5, 5, "")
+			replies := f.api.sentTo(100)
+			alert := replies[len(replies)-1]
+			require.Contains(t, alert, "your balance is low")
+			require.NotContains(t, alert, "$")
+		})
+	}
 }
 
 func TestOpsAlertTelegramSkipsRulesWithNotificationsOff(t *testing.T) {

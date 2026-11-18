@@ -49,14 +49,26 @@ func formatTelegramTokens(v int64) string {
 	}
 }
 
-func formatTelegramUSD(v float64) string { return fmt.Sprintf("$%.2f", v) }
+// telegramMoney shows ledger amounts, which stay in USD, as the same yuan
+// figures the website shows. Its value is CNY per USD. Without a usable rate it
+// shows "-" like the website, never a dollar amount or a guessed price.
+type telegramMoney float64
+
+func (m telegramMoney) available() bool { return m > 0 }
+
+func (m telegramMoney) format(usd float64) string {
+	if !m.available() {
+		return "-"
+	}
+	return fmt.Sprintf("¥%.2f", usd*float64(m))
+}
 
 // ─── Notifications ───
 
-func telegramBalanceLowText(lang, site string, balance, threshold float64, rechargeURL string) string {
+func telegramBalanceLowText(lang, site string, money telegramMoney, balance, threshold float64, rechargeURL string) string {
 	text := tgText(lang,
-		fmt.Sprintf("⚠️ %s: your balance is low\nBalance: %s (alert below %s)", site, formatTelegramUSD(balance), formatTelegramUSD(threshold)),
-		fmt.Sprintf("⚠️ %s：余额不足\n当前余额：%s（低于 %s 提醒）", site, formatTelegramUSD(balance), formatTelegramUSD(threshold)),
+		fmt.Sprintf("⚠️ %s: your balance is low\nBalance: %s (alert below %s)", site, money.format(balance), money.format(threshold)),
+		fmt.Sprintf("⚠️ %s：余额不足\n当前余额：%s（低于 %s 提醒）", site, money.format(balance), money.format(threshold)),
 	)
 	if rechargeURL != "" {
 		text += tgText(lang, "\nTop up: ", "\n充值：") + rechargeURL
@@ -76,16 +88,16 @@ func telegramQuotaDimLabel(lang, dim string) string {
 	return dim
 }
 
-func telegramAccountQuotaText(lang, site, accountName, platform, dim string, used, limit float64) string {
+func telegramAccountQuotaText(lang, site string, money telegramMoney, accountName, platform, dim string, used, limit float64) string {
 	remaining := limit - used
 	if remaining < 0 {
 		remaining = 0
 	}
 	return tgText(lang,
 		fmt.Sprintf("⚠️ %s: account quota alert\nAccount: %s (%s)\n%s: %s used of %s, %s left",
-			site, accountName, platform, telegramQuotaDimLabel(lang, dim), formatTelegramUSD(used), formatTelegramUSD(limit), formatTelegramUSD(remaining)),
+			site, accountName, platform, telegramQuotaDimLabel(lang, dim), money.format(used), money.format(limit), money.format(remaining)),
 		fmt.Sprintf("⚠️ %s：账号额度提醒\n账号：%s（%s）\n%s：已用 %s / %s，剩余 %s",
-			site, accountName, platform, telegramQuotaDimLabel(lang, dim), formatTelegramUSD(used), formatTelegramUSD(limit), formatTelegramUSD(remaining)),
+			site, accountName, platform, telegramQuotaDimLabel(lang, dim), money.format(used), money.format(limit), money.format(remaining)),
 	)
 }
 
@@ -208,10 +220,10 @@ func telegramAdminOnlyText(lang string) string {
 	return tgText(lang, "This command is for admins only.", "该命令仅限管理员使用。")
 }
 
-func telegramBalanceText(lang string, user *User, subs []UserSubscription) string {
+func telegramBalanceText(lang string, money telegramMoney, user *User, subs []UserSubscription) string {
 	var b strings.Builder
 	_, _ = b.WriteString(tgText(lang, "💰 Balance: ", "💰 余额："))
-	_, _ = b.WriteString(formatTelegramUSD(user.Balance))
+	_, _ = b.WriteString(money.format(user.Balance))
 	if len(subs) == 0 {
 		return b.String()
 	}
@@ -226,18 +238,18 @@ func telegramBalanceText(lang string, user *User, subs []UserSubscription) strin
 	return b.String()
 }
 
-func telegramUsageText(lang string, st *usagestats.UserDashboardStats) string {
+func telegramUsageText(lang string, money telegramMoney, st *usagestats.UserDashboardStats) string {
 	return tgText(lang,
 		fmt.Sprintf("📈 Usage\nToday: %s requests · %s tokens · %s\nTotal: %s requests · %s tokens · %s",
-			formatTelegramCount(st.TodayRequests), formatTelegramTokens(st.TodayTokens), formatTelegramUSD(st.TodayActualCost),
-			formatTelegramCount(st.TotalRequests), formatTelegramTokens(st.TotalTokens), formatTelegramUSD(st.TotalActualCost)),
+			formatTelegramCount(st.TodayRequests), formatTelegramTokens(st.TodayTokens), money.format(st.TodayActualCost),
+			formatTelegramCount(st.TotalRequests), formatTelegramTokens(st.TotalTokens), money.format(st.TotalActualCost)),
 		fmt.Sprintf("📈 用量\n今日：%s 次请求 · %s tokens · %s\n累计：%s 次请求 · %s tokens · %s",
-			formatTelegramCount(st.TodayRequests), formatTelegramTokens(st.TodayTokens), formatTelegramUSD(st.TodayActualCost),
-			formatTelegramCount(st.TotalRequests), formatTelegramTokens(st.TotalTokens), formatTelegramUSD(st.TotalActualCost)),
+			formatTelegramCount(st.TodayRequests), formatTelegramTokens(st.TodayTokens), money.format(st.TodayActualCost),
+			formatTelegramCount(st.TotalRequests), formatTelegramTokens(st.TotalTokens), money.format(st.TotalActualCost)),
 	)
 }
 
-func telegramKeysText(lang string, keys []APIKey, total int64) string {
+func telegramKeysText(lang string, money telegramMoney, keys []APIKey, total int64) string {
 	if len(keys) == 0 {
 		return tgText(lang, "You have no API keys yet.", "你还没有 API 密钥。")
 	}
@@ -250,9 +262,9 @@ func telegramKeysText(lang string, keys []APIKey, total int64) string {
 		}
 		quota := tgText(lang, "no limit", "不限额")
 		if k.Quota > 0 {
-			quota = formatTelegramUSD(k.QuotaUsed) + " / " + formatTelegramUSD(k.Quota)
+			quota = money.format(k.QuotaUsed) + " / " + money.format(k.Quota)
 		} else if k.QuotaUsed > 0 {
-			quota = tgText(lang, "used ", "已用 ") + formatTelegramUSD(k.QuotaUsed)
+			quota = tgText(lang, "used ", "已用 ") + money.format(k.QuotaUsed)
 		}
 		_, _ = fmt.Fprintf(&b, "\n• %s — %s · %s", k.Name, status, quota)
 		if k.ExpiresAt != nil {
@@ -265,18 +277,18 @@ func telegramKeysText(lang string, keys []APIKey, total int64) string {
 	return b.String()
 }
 
-func telegramDailyReportText(lang, site, day string, st *usagestats.DashboardStats) string {
+func telegramDailyReportText(lang, site, day string, money telegramMoney, st *usagestats.DashboardStats) string {
 	return tgText(lang,
 		fmt.Sprintf("📊 %s report · %s\nRequests: %s · Tokens: %s\nCharged: %s · Upstream cost: %s\nUsers: %s total · %s new · %s active\nAccounts: %s ok · %s error · %s rate-limited · %s overloaded",
 			site, day,
 			formatTelegramCount(st.TodayRequests), formatTelegramTokens(st.TodayTokens),
-			formatTelegramUSD(st.TodayActualCost), formatTelegramUSD(st.TodayAccountCost),
+			money.format(st.TodayActualCost), money.format(st.TodayAccountCost),
 			formatTelegramCount(st.TotalUsers), formatTelegramCount(st.TodayNewUsers), formatTelegramCount(st.ActiveUsers),
 			formatTelegramCount(st.NormalAccounts), formatTelegramCount(st.ErrorAccounts), formatTelegramCount(st.RateLimitAccounts), formatTelegramCount(st.OverloadAccounts)),
 		fmt.Sprintf("📊 %s 日报 · %s\n请求：%s · Tokens：%s\n用户扣费：%s · 上游成本：%s\n用户：共 %s · 新增 %s · 活跃 %s\n账号：正常 %s · 异常 %s · 限流 %s · 过载 %s",
 			site, day,
 			formatTelegramCount(st.TodayRequests), formatTelegramTokens(st.TodayTokens),
-			formatTelegramUSD(st.TodayActualCost), formatTelegramUSD(st.TodayAccountCost),
+			money.format(st.TodayActualCost), money.format(st.TodayAccountCost),
 			formatTelegramCount(st.TotalUsers), formatTelegramCount(st.TodayNewUsers), formatTelegramCount(st.ActiveUsers),
 			formatTelegramCount(st.NormalAccounts), formatTelegramCount(st.ErrorAccounts), formatTelegramCount(st.RateLimitAccounts), formatTelegramCount(st.OverloadAccounts)),
 	)
