@@ -17,7 +17,7 @@ import (
 
 func TestBuildBalanceLowEmailBody_ContainsRequiredFields(t *testing.T) {
 	s := &BalanceNotifyService{}
-	body := s.buildBalanceLowEmailBody("Alice", alertEmailMoney(7), 3.14, 10.0, "MySite", "")
+	body := s.buildBalanceLowEmailBody("Alice", cnyDisplayMoney(7), 3.14, 10.0, "MySite", "")
 
 	// All substituted values should appear in the output.
 	require.Contains(t, body, "MySite")
@@ -33,7 +33,7 @@ func TestBuildBalanceLowEmailBody_ContainsRequiredFields(t *testing.T) {
 
 func TestBuildBalanceLowEmailBody_WithRechargeURL(t *testing.T) {
 	s := &BalanceNotifyService{}
-	body := s.buildBalanceLowEmailBody("Bob", alertEmailMoney(7), 5.0, 20.0, "Site", "https://example.com/pay")
+	body := s.buildBalanceLowEmailBody("Bob", cnyDisplayMoney(7), 5.0, 20.0, "Site", "https://example.com/pay")
 
 	// The recharge anchor element should appear with the URL.
 	require.Contains(t, body, `href="https://example.com/pay"`)
@@ -44,7 +44,7 @@ func TestBuildBalanceLowEmailBody_WithRechargeURL(t *testing.T) {
 func TestBuildBalanceLowEmailBody_RechargeURLEscaped(t *testing.T) {
 	s := &BalanceNotifyService{}
 	// Try a URL with characters that need HTML escaping.
-	body := s.buildBalanceLowEmailBody("u", alertEmailMoney(7), 1.0, 5.0, "Site", `https://example.com/?a=1&b=<script>`)
+	body := s.buildBalanceLowEmailBody("u", cnyDisplayMoney(7), 1.0, 5.0, "Site", `https://example.com/?a=1&b=<script>`)
 
 	// `&` and `<` should be escaped in the href.
 	require.Contains(t, body, "&amp;")
@@ -54,7 +54,7 @@ func TestBuildBalanceLowEmailBody_RechargeURLEscaped(t *testing.T) {
 
 func TestBuildBalanceLowEmailBody_NoRechargeURLOmitsButton(t *testing.T) {
 	s := &BalanceNotifyService{}
-	body := s.buildBalanceLowEmailBody("u", alertEmailMoney(7), 1.0, 5.0, "Site", "")
+	body := s.buildBalanceLowEmailBody("u", cnyDisplayMoney(7), 1.0, 5.0, "Site", "")
 	// The anchor element should not be rendered (style class may still appear).
 	require.NotContains(t, body, `<a href`)
 	require.NotContains(t, body, "立即充值")
@@ -69,7 +69,7 @@ func TestBuildQuotaAlertEmailBody_AllFieldsPresent(t *testing.T) {
 		"acc-foo",     // accountName
 		"anthropic",   // platform
 		"日限额 / Daily", // dimLabel
-		alertEmailMoney(7),
+		cnyDisplayMoney(7),
 		750.50,     // used
 		1000.0,     // limit
 		249.50,     // remaining
@@ -95,7 +95,7 @@ func TestBuildQuotaAlertEmailBody_AllFieldsPresent(t *testing.T) {
 func TestBuildQuotaAlertEmailBody_UnlimitedDisplay(t *testing.T) {
 	s := &BalanceNotifyService{}
 	body := s.buildQuotaAlertEmailBody(
-		1, "n", "p", "dim", alertEmailMoney(7),
+		1, "n", "p", "dim", cnyDisplayMoney(7),
 		100.0, 0.0, // limit=0 triggers unlimited branch
 		0.0, "30%", "Site",
 	)
@@ -106,7 +106,7 @@ func TestBuildQuotaAlertEmailBody_UnlimitedDisplay(t *testing.T) {
 func TestBuildQuotaAlertEmailBody_PercentageThresholdDisplay(t *testing.T) {
 	s := &BalanceNotifyService{}
 	body := s.buildQuotaAlertEmailBody(
-		1, "n", "p", "dim", alertEmailMoney(7),
+		1, "n", "p", "dim", cnyDisplayMoney(7),
 		700.0, 1000.0, 300.0,
 		"30%", // percentage-formatted threshold
 		"Site",
@@ -120,7 +120,7 @@ func TestBuildQuotaAlertEmailBody_RemainingClampedAtZero(t *testing.T) {
 	// display behavior with remaining=0.
 	s := &BalanceNotifyService{}
 	body := s.buildQuotaAlertEmailBody(
-		1, "n", "p", "dim", alertEmailMoney(7),
+		1, "n", "p", "dim", cnyDisplayMoney(7),
 		1500.0, 1000.0, 0.0, // used > limit (over-quota)
 		"¥700.00", "Site",
 	)
@@ -131,7 +131,7 @@ func TestBuildQuotaAlertEmailBody_RemainingClampedAtZero(t *testing.T) {
 
 func TestBuildBalanceLowEmailBody_NoCSSFormatError(t *testing.T) {
 	s := &BalanceNotifyService{}
-	body := s.buildBalanceLowEmailBody("u", alertEmailMoney(7), 1.0, 5.0, "Site", "")
+	body := s.buildBalanceLowEmailBody("u", cnyDisplayMoney(7), 1.0, 5.0, "Site", "")
 	// CSS `linear-gradient(135deg, #f59e0b 0%, #d97706 100%)` should appear with
 	// literal percent signs (from the %% escape in the template).
 	require.True(t,
@@ -141,7 +141,7 @@ func TestBuildBalanceLowEmailBody_NoCSSFormatError(t *testing.T) {
 
 func TestBuildQuotaAlertEmailBody_NoCSSFormatError(t *testing.T) {
 	s := &BalanceNotifyService{}
-	body := s.buildQuotaAlertEmailBody(1, "n", "p", "d", alertEmailMoney(7), 0, 0, 0, "¥0.00", "Site")
+	body := s.buildQuotaAlertEmailBody(1, "n", "p", "d", cnyDisplayMoney(7), 0, 0, 0, "¥0.00", "Site")
 	require.True(t,
 		strings.Contains(body, "0%") && strings.Contains(body, "100%"),
 		"CSS gradient percentages not rendered; got: %s", body)

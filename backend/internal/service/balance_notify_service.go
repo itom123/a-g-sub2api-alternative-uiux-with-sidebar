@@ -23,22 +23,7 @@ const (
 	quotaDimTotal  = "total"
 
 	defaultSiteName = DefaultSiteName
-
-	// alertEmailMaxCNYPerUSD is the website's sanity limit for the display rate.
-	alertEmailMaxCNYPerUSD = 20.0
 )
-
-// alertEmailMoney shows ledger amounts, which stay in USD, as the same yuan
-// figures the website shows. Its value is CNY per USD. Without a usable rate it
-// shows "-", never a dollar amount or a guessed price.
-type alertEmailMoney float64
-
-func (m alertEmailMoney) format(usd float64) string {
-	if m <= 0 {
-		return "-"
-	}
-	return fmt.Sprintf("¥%.2f", usd*float64(m))
-}
 
 // quotaDimLabels maps dimension names to display labels.
 var quotaDimLabels = map[string]string{
@@ -321,25 +306,6 @@ func (s *BalanceNotifyService) getSiteName(ctx context.Context) string {
 	return name
 }
 
-// alertMoney reads the weekly CNY rate that the currency worker saves, so alert
-// emails show the same figures as the website.
-func (s *BalanceNotifyService) alertMoney(ctx context.Context) alertEmailMoney {
-	if s.settingRepo == nil {
-		return 0
-	}
-	raw, err := s.settingRepo.GetValue(ctx, SettingSubscriptionUSDToCNYRate)
-	if err != nil {
-		slog.Warn("alert email: load CNY rate failed", "error", err)
-		return 0
-	}
-	rate, err := strconv.ParseFloat(strings.TrimSpace(raw), 64)
-	if err == nil && rate > 0 && rate < alertEmailMaxCNYPerUSD {
-		return alertEmailMoney(rate)
-	}
-	slog.Warn("alert email: stored CNY rate is not usable", "value", raw)
-	return 0
-}
-
 // filterVerifiedEmails returns deduplicated, non-disabled, verified emails.
 func filterVerifiedEmails(entries []NotifyEmailEntry) []string {
 	var recipients []string
@@ -395,7 +361,7 @@ func (s *BalanceNotifyService) sendBalanceLowEmails(parent context.Context, reci
 	if displayName == "" {
 		displayName = userEmail
 	}
-	money := s.alertMoney(parent)
+	money := loadCNYDisplayMoney(parent, s.settingRepo)
 	if s.notificationEmailService != nil {
 		fallbackRecipients := make([]string, 0, len(recipients))
 		for _, to := range recipients {
@@ -445,7 +411,7 @@ func (s *BalanceNotifyService) sendQuotaAlertEmails(parent context.Context, admi
 	}
 
 	// Format the remaining-based threshold for display
-	money := s.alertMoney(parent)
+	money := loadCNYDisplayMoney(parent, s.settingRepo)
 	thresholdDisplay := money.format(dim.threshold)
 	if dim.thresholdType == thresholdTypePercentage {
 		thresholdDisplay = fmt.Sprintf("%.0f%%", dim.threshold)
@@ -588,7 +554,7 @@ const quotaAlertEmailTemplate = `<!DOCTYPE html>
 </html>`
 
 // buildBalanceLowEmailBody builds HTML email for balance low notification.
-func (s *BalanceNotifyService) buildBalanceLowEmailBody(userName string, money alertEmailMoney, balance, threshold float64, siteName, rechargeURL string) string {
+func (s *BalanceNotifyService) buildBalanceLowEmailBody(userName string, money cnyDisplayMoney, balance, threshold float64, siteName, rechargeURL string) string {
 	rechargeBlock := ""
 	if rechargeURL != "" {
 		rechargeBlock = fmt.Sprintf(`<a href="%s" class="recharge-btn">立即充值 / Top Up Now</a>`, html.EscapeString(rechargeURL))
@@ -598,7 +564,7 @@ func (s *BalanceNotifyService) buildBalanceLowEmailBody(userName string, money a
 }
 
 // buildQuotaAlertEmailBody builds HTML email for account quota alert.
-func (s *BalanceNotifyService) buildQuotaAlertEmailBody(accountID int64, accountName, platform, dimLabel string, money alertEmailMoney, used, limit, remaining float64, thresholdDisplay, siteName string) string {
+func (s *BalanceNotifyService) buildQuotaAlertEmailBody(accountID int64, accountName, platform, dimLabel string, money cnyDisplayMoney, used, limit, remaining float64, thresholdDisplay, siteName string) string {
 	limitStr := money.format(limit)
 	if limit <= 0 {
 		limitStr = "无限制 / Unlimited"

@@ -37,9 +37,6 @@ const (
 	telegramSendTimeout       = 15 * time.Second
 	telegramMaxRetryAfter     = 30 * time.Second
 	telegramBroadcastInterval = 40 * time.Millisecond // stays under Telegram's ~30 msg/s limit
-
-	// telegramMaxCNYPerUSD is the website's sanity limit for the display rate.
-	telegramMaxCNYPerUSD = 20.0
 )
 
 var (
@@ -492,20 +489,9 @@ func (s *TelegramService) siteName(ctx context.Context) string {
 	return name
 }
 
-// money reads the weekly CNY rate that the currency worker saves next to the
-// snapshot the website converts with, so the bot and the site show one figure.
+// money loads the display rate, so the bot and the site show one figure.
 func (s *TelegramService) money(ctx context.Context) telegramMoney {
-	raw, err := s.settingRepo.GetValue(ctx, SettingSubscriptionUSDToCNYRate)
-	if err != nil {
-		slog.Warn("telegram: load CNY rate failed", "error", err)
-		return 0
-	}
-	rate, err := strconv.ParseFloat(strings.TrimSpace(raw), 64)
-	if err == nil && rate > 0 && rate < telegramMaxCNYPerUSD {
-		return telegramMoney(rate)
-	}
-	slog.Warn("telegram: stored CNY rate is not usable", "value", raw)
-	return 0
+	return loadCNYDisplayMoney(ctx, s.settingRepo)
 }
 
 // send delivers one message, waiting once if Telegram asks us to slow down.

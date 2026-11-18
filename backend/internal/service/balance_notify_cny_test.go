@@ -43,21 +43,22 @@ func newAlertEmailCNYFixture(rate string) (*BalanceNotifyService, *alertEmailCap
 	return svc, gateway
 }
 
-func TestAlertEmailMoneyConvertsLedgerUSDToCNY(t *testing.T) {
-	require.Equal(t, "¥83.40", alertEmailMoney(6.671915).format(12.5))
-	require.Equal(t, "-", alertEmailMoney(0).format(12.5))
+func TestCNYDisplayMoneyConvertsLedgerUSDToCNY(t *testing.T) {
+	require.Equal(t, "¥83.40", cnyDisplayMoney(6.671915).format(12.5))
+	require.Equal(t, "-", cnyDisplayMoney(0).format(12.5))
 }
 
-func TestAlertMoneyOnlyTrustsUsableRates(t *testing.T) {
+func TestLoadCNYDisplayMoneyOnlyTrustsUsableRates(t *testing.T) {
 	usable := map[string]float64{"7.2": 7.2, " 6.67 ": 6.67, "19.99": 19.99}
 	for stored, want := range usable {
 		svc, _ := newAlertEmailCNYFixture(stored)
-		require.InDelta(t, want, float64(svc.alertMoney(context.Background())), 1e-9, "rate %q", stored)
+		require.InDelta(t, want, float64(loadCNYDisplayMoney(context.Background(), svc.settingRepo)), 1e-9, "rate %q", stored)
 	}
 	for _, stored := range []string{"", "0", "-1", "20", "20.01", "abc", "NaN", "Inf"} {
 		svc, _ := newAlertEmailCNYFixture(stored)
-		require.Zero(t, svc.alertMoney(context.Background()), "rate %q", stored)
+		require.Zero(t, loadCNYDisplayMoney(context.Background(), svc.settingRepo), "rate %q", stored)
 	}
+	require.Zero(t, loadCNYDisplayMoney(context.Background(), nil))
 }
 
 func TestBalanceLowAlertSendsCNY(t *testing.T) {
@@ -111,7 +112,7 @@ func TestQuotaAlertSendsCNYAndKeepsPercentThreshold(t *testing.T) {
 
 func TestBuiltInAlertBodiesNeverShowDollars(t *testing.T) {
 	s := &BalanceNotifyService{}
-	for _, money := range []alertEmailMoney{7, 0} {
+	for _, money := range []cnyDisplayMoney{7, 0} {
 		require.NotContains(t, s.buildBalanceLowEmailBody("u", money, 1, 5, "Site", ""), "$")
 		require.NotContains(t, s.buildQuotaAlertEmailBody(1, "n", "p", "d", money, 80, 100, 20, money.format(25), "Site"), "$")
 	}

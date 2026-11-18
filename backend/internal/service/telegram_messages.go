@@ -49,19 +49,8 @@ func formatTelegramTokens(v int64) string {
 	}
 }
 
-// telegramMoney shows ledger amounts, which stay in USD, as the same yuan
-// figures the website shows. Its value is CNY per USD. Without a usable rate it
-// shows "-" like the website, never a dollar amount or a guessed price.
-type telegramMoney float64
-
-func (m telegramMoney) available() bool { return m > 0 }
-
-func (m telegramMoney) format(usd float64) string {
-	if !m.available() {
-		return "-"
-	}
-	return fmt.Sprintf("¥%.2f", usd*float64(m))
-}
+// telegramMoney formats bot amounts the same way as every other message.
+type telegramMoney = cnyDisplayMoney
 
 // ─── Notifications ───
 
