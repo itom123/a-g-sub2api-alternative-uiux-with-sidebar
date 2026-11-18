@@ -331,9 +331,23 @@ func (s *OpenClawService) SyncModelMappings(ctx context.Context) error {
 	return errors.Join(failures...)
 }
 
+// openClawModelSyncEnabled reports whether the background pass may write to
+// live cells. It is off unless OPENCLAW_MODEL_SYNC_ENABLED=1. The fleet
+// worker's configure patch replaces `agents.defaults.model` with a single
+// model (dropping fallbacks), replaces the model list (dropping per-model
+// settings such as image input) and re-sends the gateway section, which can
+// restart a cell's gateway. Until that patch preserves cell settings, the
+// mapping reaches cells only on create, provision and Repair, as before.
+func openClawModelSyncEnabled() bool {
+	return strings.TrimSpace(os.Getenv("OPENCLAW_MODEL_SYNC_ENABLED")) == "1"
+}
+
 // StartModelSyncWorker runs SyncModelMappings shortly after startup and then
-// on every interval.
+// on every interval, when openClawModelSyncEnabled allows it.
 func (s *OpenClawService) StartModelSyncWorker(initialDelay, interval time.Duration) {
+	if !openClawModelSyncEnabled() {
+		return
+	}
 	if interval <= 0 {
 		interval = 2 * time.Minute
 	}
