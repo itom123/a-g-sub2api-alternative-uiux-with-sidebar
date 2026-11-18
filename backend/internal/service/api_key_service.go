@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"html"
 	"math"
-	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -367,6 +366,10 @@ func (s *APIKeyService) EnsureOpenClawGroup(ctx context.Context) (*Group, error)
 			IsExclusive:      false,
 			Status:           StatusActive,
 			SubscriptionType: SubscriptionTypeStandard,
+			// Defaults for a new group only. Afterwards the administrator owns
+			// the model allowlist and the reasoning-effort mappings.
+			ModelAllowlist:          openClawModelAllowlist(),
+			ReasoningEffortMappings: openClawReasoningEffortMappings(),
 		}
 		if err := s.groupRepo.Create(ctx, managed); err != nil {
 			// Another instance may have created the group after the lookup.
@@ -409,21 +412,15 @@ func (s *APIKeyService) EnsureOpenClawGroup(ctx context.Context) (*Group, error)
 		managed.SubscriptionType = SubscriptionTypeStandard
 		changed = true
 	}
-	allowlist := openClawModelAllowlist()
-	if managed.ModelAllowlist.Enabled != allowlist.Enabled || !slices.Equal(managed.ModelAllowlist.Models, allowlist.Models) {
-		managed.ModelAllowlist = allowlist
-		changed = true
-	}
+	// The model allowlist and reasoning-effort mappings of an existing group
+	// belong to the administrator, like the price: they are set when the group
+	// is created and never reset here.
 	if managed.MaxReasoningEffort != "max" {
 		managed.MaxReasoningEffort = "max"
 		changed = true
 	}
 	if managed.MaxReasoningEffortOverLimit != ReasoningEffortOverLimitDowngrade {
 		managed.MaxReasoningEffortOverLimit = ReasoningEffortOverLimitDowngrade
-		changed = true
-	}
-	if !slices.Equal(managed.ReasoningEffortMappings, openClawReasoningEffortMappings()) {
-		managed.ReasoningEffortMappings = openClawReasoningEffortMappings()
 		changed = true
 	}
 	if changed {
