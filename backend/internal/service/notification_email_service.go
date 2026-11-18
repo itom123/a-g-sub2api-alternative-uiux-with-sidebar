@@ -559,6 +559,9 @@ func (s *NotificationEmailService) sampleVariables(ctx context.Context, event, l
 	for key, value := range notificationEmailSampleVariables(locale) {
 		variables[key] = value
 	}
+	for key, value := range notificationEmailAlertMoneySamples[event] {
+		variables[key] = value
+	}
 	variables["site_name"] = s.siteName(ctx)
 	if variables["unsubscribe_url"] == "" && info.Optional {
 		variables["unsubscribe_url"] = "https://example.com/unsubscribe"
@@ -768,10 +771,41 @@ func validateNotificationEmailTemplate(event, subject, htmlBody string) error {
 	return nil
 }
 
+// notificationEmailAlertMoneySamples previews alert amounts as they are sent:
+// already formatted in yuan.
+var notificationEmailAlertMoneySamples = map[string]map[string]string{
+	NotificationEmailEventBalanceLow: {
+		"current_balance": "¥85.00",
+		"threshold":       "¥140.00",
+	},
+	NotificationEmailEventAccountQuotaAlert: {
+		"quota_used":      "¥560.00",
+		"quota_limit":     "¥700.00",
+		"quota_remaining": "¥140.00",
+	},
+}
+
+// notificationEmailAlertDollarPrefixes matches a dollar sign that a saved custom
+// template still puts in front of an amount that now arrives formatted in yuan.
+var notificationEmailAlertDollarPrefixes = map[string]*regexp.Regexp{
+	NotificationEmailEventBalanceLow:        regexp.MustCompile(`(?:US)?\$\s*(\{\{\s*(?:current_balance|threshold)\s*\}\})`),
+	NotificationEmailEventAccountQuotaAlert: regexp.MustCompile(`(?:US)?\$\s*(\{\{\s*(?:quota_used|quota_limit|quota_remaining|quota_threshold)\s*\}\})`),
+}
+
+func stripNotificationEmailAlertDollarPrefix(event, raw string) string {
+	pattern, ok := notificationEmailAlertDollarPrefixes[event]
+	if !ok {
+		return raw
+	}
+	return pattern.ReplaceAllString(raw, "$1")
+}
+
 func renderNotificationEmail(event, subject, htmlBody string, variables map[string]string, rawHTMLVariables map[string]string) (NotificationEmailPreview, error) {
 	if err := validateNotificationEmailTemplate(event, subject, htmlBody); err != nil {
 		return NotificationEmailPreview{}, err
 	}
+	subject = stripNotificationEmailAlertDollarPrefix(event, subject)
+	htmlBody = stripNotificationEmailAlertDollarPrefix(event, htmlBody)
 	renderedSubject, err := renderNotificationEmailString(event, subject, variables, nil, false)
 	if err != nil {
 		return NotificationEmailPreview{}, err
@@ -1350,7 +1384,7 @@ var notificationEmailOfficialTemplates = map[string]map[string]notificationEmail
 			Subject: "[{{site_name}}] Low balance alert",
 			HTML: notificationEmailCard("#d97706", "Low balance alert", `
 <p>Hello {{recipient_name}},</p>
-<p>Your current balance is <strong>${{current_balance}}</strong>, below the configured alert threshold of <strong>${{threshold}}</strong>.</p>
+<p>Your current balance is <strong>{{current_balance}}</strong>, below the configured alert threshold of <strong>{{threshold}}</strong>.</p>
 <p>Please recharge in time to avoid service interruption.</p>
 <p><a class="button" href="{{recharge_url}}">Recharge now</a></p>
 <p class="muted"><a href="{{unsubscribe_url}}">Unsubscribe from optional balance alerts</a></p>`),
@@ -1359,7 +1393,7 @@ var notificationEmailOfficialTemplates = map[string]map[string]notificationEmail
 			Subject: "[{{site_name}}] 余额不足提醒",
 			HTML: notificationEmailCard("#d97706", "余额不足提醒", `
 <p>{{recipient_name}}，您好：</p>
-<p>您当前余额为 <strong>${{current_balance}}</strong>，已低于提醒阈值 <strong>${{threshold}}</strong>。</p>
+<p>您当前余额为 <strong>{{current_balance}}</strong>，已低于提醒阈值 <strong>{{threshold}}</strong>。</p>
 <p>请及时充值以免服务中断。</p>
 <p><a class="button" href="{{recharge_url}}">立即充值</a></p>
 <p class="muted"><a href="{{unsubscribe_url}}">退订此类余额提醒</a></p>`),
