@@ -37,6 +37,9 @@ const (
 	telegramSendTimeout       = 15 * time.Second
 	telegramMaxRetryAfter     = 30 * time.Second
 	telegramBroadcastInterval = 40 * time.Millisecond // stays under Telegram's ~30 msg/s limit
+
+	// telegramMaxCNYPerUSD is the website's sanity limit for the display rate.
+	telegramMaxCNYPerUSD = 20.0
 )
 
 var (
@@ -489,6 +492,22 @@ func (s *TelegramService) siteName(ctx context.Context) string {
 	return name
 }
 
+// money reads the weekly CNY rate that the currency worker saves next to the
+// snapshot the website converts with, so the bot and the site show one figure.
+func (s *TelegramService) money(ctx context.Context) telegramMoney {
+	raw, err := s.settingRepo.GetValue(ctx, SettingSubscriptionUSDToCNYRate)
+	if err != nil {
+		slog.Warn("telegram: load CNY rate failed", "error", err)
+		return 0
+	}
+	rate, err := strconv.ParseFloat(strings.TrimSpace(raw), 64)
+	if err == nil && rate > 0 && rate < telegramMaxCNYPerUSD {
+		return telegramMoney(rate)
+	}
+	slog.Warn("telegram: stored CNY rate is not usable", "value", raw)
+	return 0
+}
+
 // send delivers one message, waiting once if Telegram asks us to slow down.
 func (s *TelegramService) send(ctx context.Context, bot telegram.Bot, chatID int64, text string) error {
 	sendCtx, cancel := context.WithTimeout(ctx, telegramSendTimeout)
@@ -546,7 +565,7 @@ func (s *TelegramService) NotifyBalanceLow(ctx context.Context, userID int64, ba
 	if err != nil || b == nil || b.ChatID == 0 {
 		return
 	}
-	_ = s.send(ctx, rt.bot, b.ChatID, telegramBalanceLowText(b.Language, s.siteName(ctx), balance, threshold, rechargeURL))
+	_ = s.send(ctx, rt.bot, b.ChatID, telegramBalanceLowText(b.Language, s.siteName(ctx), s.money(ctx), balance, threshold, rechargeURL))
 }
 
 func (s *TelegramService) NotifyAccountQuota(ctx context.Context, accountName, platform, dim string, used, limit float64) {
@@ -555,8 +574,9 @@ func (s *TelegramService) NotifyAccountQuota(ctx context.Context, accountName, p
 	}
 	rt := s.runtime(ctx)
 	site := s.siteName(ctx)
+	money := s.money(ctx)
 	s.sendToAdmins(ctx, rt, func(lang string) string {
-		return telegramAccountQuotaText(lang, site, accountName, platform, dim, used, limit)
+		return telegramAccountQuotaText(lang, site, money, accountName, platform, dim, used, limit)
 	})
 }
 

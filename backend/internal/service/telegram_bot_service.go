@@ -302,6 +302,11 @@ func (s *TelegramBotService) reply(ctx context.Context, rt telegramRuntime, m *t
 	}
 	isAdmin := user.Role == RoleAdmin
 
+	money := s.tg.money(ctx)
+	if !money.available() && telegramCommandShowsMoney(cmd) {
+		return telegramTryLaterText(lang)
+	}
+
 	switch cmd {
 	case "balance":
 		subs, err := s.subs.ListActiveByUserID(ctx, user.ID)
@@ -309,13 +314,13 @@ func (s *TelegramBotService) reply(ctx context.Context, rt telegramRuntime, m *t
 			slog.Warn("telegram: list subscriptions failed", "user_id", user.ID, "error", err)
 			subs = nil
 		}
-		return telegramBalanceText(lang, user, subs)
+		return telegramBalanceText(lang, money, user, subs)
 	case "usage":
 		st, err := s.userStats.GetUserDashboardStats(ctx, user.ID)
 		if err != nil || st == nil {
 			return telegramTryLaterText(lang)
 		}
-		return telegramUsageText(lang, st)
+		return telegramUsageText(lang, money, st)
 	case "keys":
 		keys, page, err := s.keys.ListByUserID(ctx, user.ID, pagination.PaginationParams{Page: 1, PageSize: telegramKeysListLimit}, APIKeyListFilters{})
 		if err != nil {
@@ -325,7 +330,7 @@ func (s *TelegramBotService) reply(ctx context.Context, rt telegramRuntime, m *t
 		if page != nil {
 			total = page.Total
 		}
-		return telegramKeysText(lang, keys, total)
+		return telegramKeysText(lang, money, keys, total)
 	case "unbind":
 		if err := s.tg.bindings.UnlinkChat(ctx, m.Chat.ID); err != nil {
 			return telegramTryLaterText(lang)
@@ -341,10 +346,18 @@ func (s *TelegramBotService) reply(ctx context.Context, rt telegramRuntime, m *t
 		if err != nil || st == nil {
 			return telegramTryLaterText(lang)
 		}
-		return telegramDailyReportText(lang, site, timezone.Now().Format("2006-01-02"), st)
+		return telegramDailyReportText(lang, site, timezone.Now().Format("2006-01-02"), money, st)
 	default:
 		return telegramHelpText(lang, isAdmin, rt.cfg.GroupInviteURL != "")
 	}
+}
+
+func telegramCommandShowsMoney(cmd string) bool {
+	switch cmd {
+	case "balance", "usage", "keys", "report":
+		return true
+	}
+	return false
 }
 
 func (s *TelegramBotService) link(ctx context.Context, rt telegramRuntime, m *telegram.Message, code, lang string) string {
@@ -453,7 +466,8 @@ func (s *TelegramBotService) maybeSendDailyReport(rt telegramRuntime) {
 		return
 	}
 	site := s.tg.siteName(ctx)
+	money := s.tg.money(ctx)
 	s.tg.sendToAdmins(ctx, rt, func(lang string) string {
-		return telegramDailyReportText(lang, site, day, st)
+		return telegramDailyReportText(lang, site, day, money, st)
 	})
 }
