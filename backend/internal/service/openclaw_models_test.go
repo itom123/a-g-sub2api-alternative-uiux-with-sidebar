@@ -198,3 +198,15 @@ func TestAdminInstanceModelPolicyReportsMappingErrors(t *testing.T) {
 		t.Fatalf("models = %#v", item)
 	}
 }
+
+func TestOpenClawModelSyncIsOptIn(t *testing.T) {
+	for _, tc := range []struct {
+		value string
+		want  bool
+	}{{"", false}, {"0", false}, {"true", false}, {"1", true}, {" 1 ", true}} {
+		t.Setenv("OPENCLAW_MODEL_SYNC_ENABLED", tc.value)
+		if got := openClawModelSyncEnabled(); got != tc.want {
+			t.Fatalf("OPENCLAW_MODEL_SYNC_ENABLED=%q: got %v, want %v", tc.value, got, tc.want)
+		}
+	}
+}

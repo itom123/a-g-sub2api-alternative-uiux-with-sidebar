@@ -170,7 +170,10 @@ edits in Group Management (`openClawSupportedModels`). Exact entries keep the ad
 against the built-in list; a group whose allowlist is off offers the built-in list. The default is the group's
 `default_mapped_model` when allowed, else `gpt-5.6-sol`, else the first model. `OPENCLAW_MODEL_MAPPING_JSON` may only
 rename models the group allows. A background pass (`SyncModelMappings`, every two minutes) writes the mapping into each
-live cell whose last write differs, so a group change reaches existing workspaces without Repair. The tenant fleet
+live cell whose last write differs, so a group change reaches existing workspaces without Repair. The pass is opt-in
+(`OPENCLAW_MODEL_SYNC_ENABLED=1`) because the fleet worker's configure patch still replaces the cell's default model,
+fallbacks and per-model settings and re-sends the gateway section; without the flag, cells get the mapping on create,
+provision and Repair only. The tenant fleet
 shows those models, whether each cell holds them, every connected service per workspace, and counts only finished
 set-ups in workspaces not queued for deletion. No migration.
 
