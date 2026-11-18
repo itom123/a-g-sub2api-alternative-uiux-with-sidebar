@@ -208,6 +208,9 @@ const (
 	OpenClawModelSyncSynced  = "synced"
 	OpenClawModelSyncPending = "pending"
 	OpenClawModelSyncFailed  = "failed"
+	// OpenClawModelSyncUnconfirmed: the background pass is off and the cell
+	// has no record of holding this list; Repair sends it.
+	OpenClawModelSyncUnconfirmed = "unconfirmed"
 )
 
 // openClawModelSyncSetting is the settings row holding, per tenant, the
@@ -222,10 +225,18 @@ type openClawModelSyncRecord struct {
 	err         string
 }
 
+// openClawModelSyncState is the stored form. Seeded is set by the first
+// background pass, which records every existing cell without writing it.
+type openClawModelSyncState struct {
+	Seeded bool                               `json:"seeded"`
+	Cells  map[string]openClawModelSyncRecord `json:"cells"`
+}
+
 type openClawModelSync struct {
 	mu      sync.Mutex
 	records map[string]openClawModelSyncRecord
 	loaded  bool
+	seeded  bool
 	// persist serialises writes of the settings row so an older snapshot
 	// can never overwrite a newer one.
 	persist sync.Mutex
@@ -245,18 +256,19 @@ func (m *openClawModelSync) record(tenant, fingerprint string, err error) {
 }
 
 // adopt installs persisted records for tenants this process has not written yet.
-func (m *openClawModelSync) adopt(stored map[string]openClawModelSyncRecord) {
+func (m *openClawModelSync) adopt(stored openClawModelSyncState) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.records == nil {
 		m.records = make(map[string]openClawModelSyncRecord)
 	}
-	for tenant, record := range stored {
+	for tenant, record := range stored.Cells {
 		if _, ok := m.records[tenant]; !ok && record.Fingerprint != "" {
 			record.err = ""
 			m.records[tenant] = record
 		}
 	}
+	m.seeded = m.seeded || stored.Seeded
 	m.loaded = true
 }
 
@@ -264,6 +276,28 @@ func (m *openClawModelSync) isLoaded() bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.loaded
+}
+
+func (m *openClawModelSync) isSeeded() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.seeded
+}
+
+// seed records every given cell as holding its fingerprint, keeping records
+// that already exist, and marks the state seeded.
+func (m *openClawModelSync) seed(cells map[string]string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.records == nil {
+		m.records = make(map[string]openClawModelSyncRecord)
+	}
+	for tenant, fingerprint := range cells {
+		if _, ok := m.records[tenant]; !ok {
+			m.records[tenant] = openClawModelSyncRecord{Fingerprint: fingerprint, At: time.Now().UTC()}
+		}
+	}
+	m.seeded = true
 }
 
 // prune forgets tenants that no longer exist and reports whether any did.
@@ -280,24 +314,29 @@ func (m *openClawModelSync) prune(keep map[string]struct{}) bool {
 	return changed
 }
 
-// delivered returns the records of successful writes, the ones worth keeping.
-func (m *openClawModelSync) delivered() map[string]openClawModelSyncRecord {
+// delivered returns the state worth keeping: successful writes only.
+func (m *openClawModelSync) delivered() openClawModelSyncState {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	out := make(map[string]openClawModelSyncRecord, len(m.records))
+	out := openClawModelSyncState{Seeded: m.seeded, Cells: make(map[string]openClawModelSyncRecord, len(m.records))}
 	for tenant, record := range m.records {
 		if record.err == "" {
-			out[tenant] = record
+			out.Cells[tenant] = record
 		}
 	}
 	return out
 }
 
-func (m *openClawModelSync) state(tenant, fingerprint string) (string, *time.Time) {
+// state reports whether a cell holds the fingerprinted mapping. auto says
+// whether the background pass is on and will deliver an outdated cell.
+func (m *openClawModelSync) state(tenant, fingerprint string, auto bool) (string, *time.Time) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	record, ok := m.records[tenant]
 	if !ok || record.Fingerprint != fingerprint {
+		if !auto {
+			return OpenClawModelSyncUnconfirmed, nil
+		}
 		return OpenClawModelSyncPending, nil
 	}
 	at := record.At
@@ -320,21 +359,29 @@ func (m *openClawModelSync) due(tenant, fingerprint string, now time.Time) bool 
 	return record.err != "" && now.Sub(record.At) >= openClawModelSyncRetry
 }
 
-func (s *OpenClawService) loadModelSyncState(ctx context.Context) (map[string]openClawModelSyncRecord, bool, error) {
+// ensureModelSyncLoaded reads the stored state once per process.
+func (s *OpenClawService) ensureModelSyncLoaded(ctx context.Context) error {
+	if s.modelSync.isLoaded() {
+		return nil
+	}
 	var raw string
 	err := s.db.QueryRowContext(ctx, `SELECT value FROM settings WHERE key = $1`, openClawModelSyncSetting).Scan(&raw)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, false, nil
+		s.modelSync.adopt(openClawModelSyncState{})
+		return nil
 	}
 	if err != nil {
-		return nil, false, err
+		return err
 	}
-	stored := map[string]openClawModelSyncRecord{}
-	if err := json.Unmarshal([]byte(raw), &stored); err != nil {
-		// An unreadable row is replaced by the next write; nothing is rewritten.
-		return map[string]openClawModelSyncRecord{}, true, nil
+	var stored openClawModelSyncState
+	if json.Unmarshal([]byte(raw), &stored) != nil {
+		// An unreadable row counts as seeded: the pass then writes cells
+		// whose state is unknown, which Repair would do too, rather than
+		// recording guesses. The next save replaces the row.
+		stored = openClawModelSyncState{Seeded: true}
 	}
-	return stored, true, nil
+	s.modelSync.adopt(stored)
+	return nil
 }
 
 func (s *OpenClawService) persistModelSync(ctx context.Context) error {
@@ -352,12 +399,13 @@ func (s *OpenClawService) persistModelSync(ctx context.Context) error {
 }
 
 // recordModelSync notes what a cell now holds after create, provision or
-// Repair wrote it, so the background pass does not write it again.
+// Repair wrote it, so the background pass does not write it again and the
+// fleet can show it. The stored state is loaded first so this write keeps
+// the other cells' records.
 func (s *OpenClawService) recordModelSync(ctx context.Context, tenant string, mapping OpenClawModelMapping, apiKeyID int64, err error) {
+	loadErr := s.ensureModelSyncLoaded(ctx)
 	s.modelSync.record(tenant, openClawMappingFingerprint(mapping, apiKeyID), err)
-	// Before the first background pass has loaded the stored record, a write
-	// here would replace it with this one tenant; that pass saves it instead.
-	if err == nil && s.modelSync.isLoaded() {
+	if err == nil && loadErr == nil {
 		_ = s.persistModelSync(ctx)
 	}
 }
@@ -443,22 +491,20 @@ func (s *OpenClawService) SyncModelMappings(ctx context.Context) error {
 	if err != nil || !enabled {
 		return err
 	}
+	if err := s.ensureModelSyncLoaded(ctx); err != nil {
+		return err
+	}
 	changed := false
-	if !s.modelSync.isLoaded() {
-		// Save after this pass in any case, so writes made by create,
-		// provision or Repair before it are kept.
+	if !s.modelSync.isSeeded() {
+		// The first pass ever: the cells hold what create, provision or Repair
+		// gave them. Record that (keeping exact records Repair already made)
+		// and write none of them.
+		current := make(map[string]string, len(cells))
+		for _, item := range cells {
+			current[item.tenant] = openClawMappingFingerprint(desired, item.apiKeyID)
+		}
+		s.modelSync.seed(current)
 		changed = true
-		stored, found, err := s.loadModelSyncState(ctx)
-		if err != nil {
-			return err
-		}
-		if !found {
-			stored = make(map[string]openClawModelSyncRecord, len(cells))
-			for _, item := range cells {
-				stored[item.tenant] = openClawModelSyncRecord{Fingerprint: openClawMappingFingerprint(desired, item.apiKeyID), At: time.Now().UTC()}
-			}
-		}
-		s.modelSync.adopt(stored)
 	}
 	keep := make(map[string]struct{}, len(cells))
 	for _, item := range cells {
@@ -498,9 +544,23 @@ func (s *OpenClawService) SyncModelMappings(ctx context.Context) error {
 	return errors.Join(failures...)
 }
 
+// openClawModelSyncEnabled reports whether the background pass may write to
+// live cells. It is off unless OPENCLAW_MODEL_SYNC_ENABLED=1. The fleet
+// worker's configure patch replaces `agents.defaults.model` with a single
+// model (dropping fallbacks), replaces the model list (dropping per-model
+// settings such as image input) and re-sends the gateway section, which can
+// restart a cell's gateway. Until that patch preserves cell settings, the
+// mapping reaches cells only on create, provision and Repair, as before.
+func openClawModelSyncEnabled() bool {
+	return strings.TrimSpace(os.Getenv("OPENCLAW_MODEL_SYNC_ENABLED")) == "1"
+}
+
 // StartModelSyncWorker runs SyncModelMappings shortly after startup and then
-// on every interval.
+// on every interval, when openClawModelSyncEnabled allows it.
 func (s *OpenClawService) StartModelSyncWorker(initialDelay, interval time.Duration) {
+	if !openClawModelSyncEnabled() {
+		return
+	}
 	if interval <= 0 {
 		interval = 2 * time.Minute
 	}

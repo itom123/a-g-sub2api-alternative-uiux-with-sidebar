@@ -113,6 +113,7 @@ require_text backend/internal/service/wire.go "svc.StartModelSyncWorker(" "group
 require_text frontend/src/views/admin/OpenClawFleetView.vue 'data-label="Services"' "fleet lists each workspace's services"
 require_text backend/internal/service/openclaw_models.go 'openClawModelSyncSetting = "openclaw_cell_model_sync"' "delivered model lists survive restarts, so a deploy rewrites no cell"
 require_text backend/internal/service/openclaw_models.go "s.apiKeys.findOpenClawGroup(ctx)" "the background pass never creates or repairs the group"
+require_text backend/internal/service/openclaw_models.go 'os.Getenv("OPENCLAW_MODEL_SYNC_ENABLED")) == "1"' "the background model sync stays opt-in"
 require_text frontend/src/views/user/ConnectionsView.vue 'data-testid="services-metric"' "customer card counts the services the workspace offers"
 
 # 7. No upstream tutorial or branding (docs/fork/CUSTOMIZATIONS.md, section 7).

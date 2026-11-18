@@ -170,17 +170,19 @@ edits in Group Management (`openClawSupportedModels`). Exact entries keep the ad
 against the built-in list; a group whose allowlist is off offers the built-in list, and so does an allowlist naming no
 model a cell can offer (reported as `fallback`, so a workspace is never blocked over it). The default is the group's
 `default_mapped_model` when allowed, else `gpt-5.6-sol`, else the first model. `OPENCLAW_MODEL_MAPPING_JSON` may only
-rename models the group allows.
+rename models the group allows. Cells get the mapping on create, provision and Repair.
 
-A background pass (`SyncModelMappings`, every two minutes) writes a live cell only when what it should hold changed
-since it was last written: a group model or default edit, or a replaced billing key. What each cell was given is kept
-in the `settings` row `openclaw_cell_model_sync`, so a restart or deploy writes no cell (a write also resets the
-workspace's default agent model). The first run without that row records the current mapping without writing cells.
-The pass reads the group and never creates or repairs it.
+The background pass (`SyncModelMappings`, every two minutes) is opt-in (`OPENCLAW_MODEL_SYNC_ENABLED=1`) because the
+fleet worker's configure patch replaces the cell's default model, fallbacks and per-model settings and re-sends the
+gateway section. When enabled, it writes a live cell only when what it should hold changed since it was last written:
+a group model or default edit, or a replaced billing key. What each cell was given is kept in the `settings` row
+`openclaw_cell_model_sync`, so a restart or deploy writes no cell. The first pass ever (row not yet seeded) records the
+current mapping for every cell without writing any. The pass reads the group and never creates or repairs it.
 
-The tenant fleet shows those models, whether each cell holds them, every service per workspace, and counts only
-finished set-ups in workspaces not queued for deletion. The customer Connections page counts connected services out of
-the services it offers, matching its service cards, and names unfinished set-ups. No migration.
+The tenant fleet shows those models, whether each cell holds them (with the pass off, a cell not written since the
+group changed is shown as needing Repair), every service per workspace, and counts only finished set-ups in workspaces
+not queued for deletion. The customer Connections page counts connected services out of the services it offers,
+matching its service cards, and names unfinished set-ups. No migration.
 
 **Fork-owned files:** `backend/internal/service/openclaw_models.go`, `openclaw_models_test.go`.
 

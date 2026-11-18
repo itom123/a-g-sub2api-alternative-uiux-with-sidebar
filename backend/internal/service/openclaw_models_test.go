@@ -72,7 +72,7 @@ func expectSyncCells(mock sqlmock.Sqlmock, cells ...syncCell) {
 
 // storedSync captures the JSON written to the settings row.
 type storedSync struct {
-	value map[string]openClawModelSyncRecord
+	value openClawModelSyncState
 }
 
 func (c *storedSync) Match(v driver.Value) bool {
@@ -80,7 +80,7 @@ func (c *storedSync) Match(v driver.Value) bool {
 	if !ok {
 		return false
 	}
-	c.value = map[string]openClawModelSyncRecord{}
+	c.value = openClawModelSyncState{}
 	return json.Unmarshal([]byte(raw), &c.value) == nil
 }
 
@@ -141,14 +141,17 @@ func TestSyncModelMappingsNeverRewritesCellsOnStartup(t *testing.T) {
 	if err := service.SyncModelMappings(ctx); err != nil {
 		t.Fatalf("first pass: %v", err)
 	}
+	if !stored.value.Seeded {
+		t.Fatal("first pass did not mark the state seeded")
+	}
 	for _, cell := range []syncCell{cellOne, cellTwo, cellThree} {
 		if writes := fleet.writes(cell.tenant); len(writes) != 0 {
 			t.Fatalf("%s was rewritten on startup: %#v", cell.tenant, writes)
 		}
-		if stored.value[cell.tenant].Fingerprint != syncFingerprint(t, group, cell.keyID) {
+		if stored.value.Cells[cell.tenant].Fingerprint != syncFingerprint(t, group, cell.keyID) {
 			t.Fatalf("%s not recorded as delivered: %#v", cell.tenant, stored.value)
 		}
-		if state, _ := service.modelSync.state(cell.tenant, syncFingerprint(t, group, cell.keyID)); state != OpenClawModelSyncSynced {
+		if state, _ := service.modelSync.state(cell.tenant, syncFingerprint(t, group, cell.keyID), true); state != OpenClawModelSyncSynced {
 			t.Fatalf("%s state = %q", cell.tenant, state)
 		}
 	}
@@ -165,7 +168,6 @@ func TestSyncModelMappingsNeverRewritesCellsOnStartup(t *testing.T) {
 	raw, _ := json.Marshal(stored.value)
 	expectSyncCells(mock, cellOne, cellTwo, cellThree)
 	mock.ExpectQuery(syncStateRead).WithArgs(openClawModelSyncSetting).WillReturnRows(sqlmock.NewRows([]string{"value"}).AddRow(string(raw)))
-	mock.ExpectExec(syncStateWrite).WithArgs(openClawModelSyncSetting, sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(0, 1))
 	if err := restarted.SyncModelMappings(ctx); err != nil {
 		t.Fatalf("restarted pass: %v", err)
 	}
@@ -246,9 +248,9 @@ func TestSyncModelMappingsReportsAndSpacesOutFailures(t *testing.T) {
 	fleet := &modelSyncFleetStub{fail: map[string]error{cellOne.tenant: errors.New("cell busy")}}
 	service, mock, _ := newSyncService(t, group, fleet, syncKeys)
 	ctx := context.Background()
-	old, _ := json.Marshal(map[string]openClawModelSyncRecord{
+	old, _ := json.Marshal(openClawModelSyncState{Seeded: true, Cells: map[string]openClawModelSyncRecord{
 		cellOne.tenant: {Fingerprint: "an older mapping"}, cellTwo.tenant: {Fingerprint: "an older mapping"},
-	})
+	}})
 
 	stored := &storedSync{}
 	expectSyncCells(mock, cellOne, cellTwo)
@@ -257,10 +259,10 @@ func TestSyncModelMappingsReportsAndSpacesOutFailures(t *testing.T) {
 	if err := service.SyncModelMappings(ctx); err == nil {
 		t.Fatal("a failed cell write was not reported")
 	}
-	if _, ok := stored.value[cellOne.tenant]; ok {
+	if _, ok := stored.value.Cells[cellOne.tenant]; ok {
 		t.Fatalf("a failed write was recorded as delivered: %#v", stored.value)
 	}
-	if stored.value[cellTwo.tenant].Fingerprint != syncFingerprint(t, group, cellTwo.keyID) {
+	if stored.value.Cells[cellTwo.tenant].Fingerprint != syncFingerprint(t, group, cellTwo.keyID) {
 		t.Fatalf("successful write not recorded: %#v", stored.value)
 	}
 
@@ -269,7 +271,7 @@ func TestSyncModelMappingsReportsAndSpacesOutFailures(t *testing.T) {
 	if len(fleet.writes(cellOne.tenant)) != 1 || len(fleet.writes(cellTwo.tenant)) != 1 {
 		t.Fatalf("writes = %d/%d, want one each", len(fleet.writes(cellOne.tenant)), len(fleet.writes(cellTwo.tenant)))
 	}
-	if state, at := service.modelSync.state(cellOne.tenant, syncFingerprint(t, group, cellOne.keyID)); state != OpenClawModelSyncFailed || at == nil {
+	if state, at := service.modelSync.state(cellOne.tenant, syncFingerprint(t, group, cellOne.keyID), true); state != OpenClawModelSyncFailed || at == nil {
 		t.Fatalf("failed cell state = %q", state)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -277,29 +279,65 @@ func TestSyncModelMappingsReportsAndSpacesOutFailures(t *testing.T) {
 	}
 }
 
-// A write made by create, provision or Repair before the first pass must not
-// replace the stored record with that one tenant; the pass keeps it.
+// A write made by create, provision or Repair keeps the other cells' records
+// (the stored state is loaded first), and does not count as the seeding
+// pass: the first background pass still records the other cells untouched.
 func TestSyncModelMappingsKeepsWritesMadeBeforeTheFirstPass(t *testing.T) {
 	group := syncTestGroup()
 	fleet := &modelSyncFleetStub{}
 	service, mock, _ := newSyncService(t, group, fleet, syncKeys)
 	ctx := context.Background()
 	mapping, _, _ := configuredOpenClawModelMapping(syncKeys[10], group)
+
+	repaired := &storedSync{}
+	mock.ExpectQuery(syncStateRead).WithArgs(openClawModelSyncSetting).WillReturnRows(sqlmock.NewRows([]string{"value"}))
+	mock.ExpectExec(syncStateWrite).WithArgs(openClawModelSyncSetting, repaired).WillReturnResult(sqlmock.NewResult(0, 1))
 	service.recordModelSync(ctx, cellOne.tenant, mapping, cellOne.keyID, nil)
+	if repaired.value.Seeded || len(repaired.value.Cells) != 1 {
+		t.Fatalf("Repair record = %#v", repaired.value)
+	}
 
 	stored := &storedSync{}
 	expectSyncCells(mock, cellOne, cellTwo)
-	mock.ExpectQuery(syncStateRead).WithArgs(openClawModelSyncSetting).WillReturnRows(sqlmock.NewRows([]string{"value"}))
 	mock.ExpectExec(syncStateWrite).WithArgs(openClawModelSyncSetting, stored).WillReturnResult(sqlmock.NewResult(0, 1))
 	if err := service.SyncModelMappings(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if len(stored.value) != 2 || len(fleet.writes(cellOne.tenant))+len(fleet.writes(cellTwo.tenant)) != 0 {
+	if !stored.value.Seeded || len(stored.value.Cells) != 2 || len(fleet.writes(cellOne.tenant))+len(fleet.writes(cellTwo.tenant)) != 0 {
 		t.Fatalf("stored = %#v, writes = %d/%d", stored.value, len(fleet.writes(cellOne.tenant)), len(fleet.writes(cellTwo.tenant)))
 	}
-	// Once loaded, a later Repair is saved straight away.
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// With the background pass off (the default), Repair still records what it
+// sent, so the fleet can tell a confirmed cell from one Repair should update,
+// and it never claims an update is on its way.
+func TestModelSyncStateWithoutTheBackgroundPass(t *testing.T) {
+	group := syncTestGroup()
+	service, mock, _ := newSyncService(t, group, &modelSyncFleetStub{}, syncKeys)
+	ctx := context.Background()
+	fingerprint := syncFingerprint(t, group, cellOne.keyID)
+	if state, _ := service.modelSync.state(cellOne.tenant, fingerprint, false); state != OpenClawModelSyncUnconfirmed {
+		t.Fatalf("unrecorded cell with the pass off = %q, want unconfirmed", state)
+	}
+	if state, _ := service.modelSync.state(cellOne.tenant, fingerprint, true); state != OpenClawModelSyncPending {
+		t.Fatalf("unrecorded cell with the pass on = %q, want pending", state)
+	}
+
+	mapping, _, _ := configuredOpenClawModelMapping(syncKeys[10], group)
+	mock.ExpectQuery(syncStateRead).WithArgs(openClawModelSyncSetting).WillReturnRows(sqlmock.NewRows([]string{"value"}))
 	mock.ExpectExec(syncStateWrite).WithArgs(openClawModelSyncSetting, sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(0, 1))
-	service.recordModelSync(ctx, cellTwo.tenant, mapping, cellTwo.keyID, nil)
+	service.recordModelSync(ctx, cellOne.tenant, mapping, cellOne.keyID, nil)
+	if state, at := service.modelSync.state(cellOne.tenant, fingerprint, false); state != OpenClawModelSyncSynced || at == nil {
+		t.Fatalf("repaired cell = %q", state)
+	}
+	// A later group change makes it unconfirmed again until the next Repair.
+	group.ModelAllowlist.Models = append(group.ModelAllowlist.Models, "gpt-6.2-sol")
+	if state, _ := service.modelSync.state(cellOne.tenant, syncFingerprint(t, group, cellOne.keyID), false); state != OpenClawModelSyncUnconfirmed {
+		t.Fatalf("cell after a group change = %q, want unconfirmed", state)
+	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)
 	}
@@ -325,11 +363,23 @@ func TestAdminInstanceModelPolicyReportsMappingErrors(t *testing.T) {
 	t.Setenv("OPENCLAW_MODEL_GATEWAY_BASE_URL", "not a url")
 	t.Setenv("OPENCLAW_MODEL_MAPPING_JSON", "")
 	var item OpenClawAdminInstance
-	item.applyModelPolicy(&Group{ModelAllowlist: GroupModelAllowlist{Enabled: true, Models: []string{"gpt-6-sol"}}}, sql.NullInt64{Int64: 10, Valid: true}, &openClawModelSync{})
+	item.applyModelPolicy(&Group{ModelAllowlist: GroupModelAllowlist{Enabled: true, Models: []string{"gpt-6-sol"}}}, sql.NullInt64{Int64: 10, Valid: true}, &openClawModelSync{}, false)
 	if item.MappingEnabled || item.MappingError == "" {
 		t.Fatalf("mapping error hidden: %#v", item)
 	}
 	if !slices.Equal(item.AllowedModels, []string{"gpt-6-sol"}) || item.ModelsSource != OpenClawModelsFromGroup || item.DefaultModel != "gpt-6-sol" {
 		t.Fatalf("models = %#v", item)
+	}
+}
+
+func TestOpenClawModelSyncIsOptIn(t *testing.T) {
+	for _, tc := range []struct {
+		value string
+		want  bool
+	}{{"", false}, {"0", false}, {"true", false}, {"1", true}, {" 1 ", true}} {
+		t.Setenv("OPENCLAW_MODEL_SYNC_ENABLED", tc.value)
+		if got := openClawModelSyncEnabled(); got != tc.want {
+			t.Fatalf("OPENCLAW_MODEL_SYNC_ENABLED=%q: got %v, want %v", tc.value, got, tc.want)
+		}
 	}
 }

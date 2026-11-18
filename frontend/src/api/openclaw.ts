@@ -186,8 +186,11 @@ export interface OpenClawAdminInstance extends OpenClawInstance {
   models_source: 'group' | 'defaults' | 'fallback'
   mapping_enabled: boolean
   mapping_error?: string
-  /** Whether the tenant cell already holds `allowed_models`. */
-  model_sync?: 'synced' | 'pending' | 'failed'
+  /**
+   * Whether the tenant cell already holds `allowed_models`. `unconfirmed`: the background
+   * sync is off and the cell has no record of holding them; Repair sends them.
+   */
+  model_sync?: 'synced' | 'pending' | 'failed' | 'unconfirmed'
   model_synced_at?: string
   connections: OpenClawAdminConnection[]
   connection_count: number
