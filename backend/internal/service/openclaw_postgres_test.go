@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"os"
+	"slices"
 	"testing"
 	"time"
 
@@ -64,6 +65,8 @@ func TestOpenClawCreateInstancePostgresParameterTypes(t *testing.T) {
 // counter nothing increments, so it read "0 calls" beside real spend. Request
 // counts, spend, tokens and recency must all come from the billing ledger.
 func TestOpenClawListAdminInstancesUsageComesFromBillingLedger(t *testing.T) {
+	t.Setenv("OPENCLAW_MODEL_GATEWAY_BASE_URL", "")
+	t.Setenv("OPENCLAW_MODEL_MAPPING_JSON", "")
 	dsn := os.Getenv("OPENCLAW_TEST_DATABASE_URL")
 	if dsn == "" {
 		t.Skip("OPENCLAW_TEST_DATABASE_URL is required for the PostgreSQL regression")
@@ -80,7 +83,10 @@ func TestOpenClawListAdminInstancesUsageComesFromBillingLedger(t *testing.T) {
 	defer cancel()
 	_, err = db.ExecContext(ctx, `
 		CREATE TEMP TABLE users (id bigint PRIMARY KEY, email text);
-		CREATE TEMP TABLE groups (id bigint PRIMARY KEY, name text, rate_multiplier numeric);
+		CREATE TEMP TABLE groups (
+			id bigint PRIMARY KEY, name text, rate_multiplier numeric,
+			model_allowlist jsonb NOT NULL DEFAULT '{}'::jsonb, default_mapped_model varchar(100) NOT NULL DEFAULT ''
+		);
 		CREATE TEMP TABLE api_keys (
 			id bigint PRIMARY KEY, name text DEFAULT 'key', status text, quota numeric DEFAULT 0,
 			quota_used numeric DEFAULT 0, group_id bigint, last_used_at timestamptz, deleted_at timestamptz
@@ -93,20 +99,26 @@ func TestOpenClawListAdminInstancesUsageComesFromBillingLedger(t *testing.T) {
 			last_latency_ms integer, last_seen_at timestamptz
 		);
 		CREATE TEMP TABLE openclaw_api_keys (instance_id bigint PRIMARY KEY, api_key_id bigint);
-		CREATE TEMP TABLE openclaw_connections (id bigint PRIMARY KEY, instance_id bigint, status text, usage_count bigint DEFAULT 0, last_used_at timestamptz);
+		CREATE TEMP TABLE openclaw_connections (
+			id bigint PRIMARY KEY, instance_id bigint, kind text, status text, label text DEFAULT '',
+			created_at timestamptz DEFAULT NOW(), updated_at timestamptz DEFAULT NOW()
+		);
+		CREATE TEMP TABLE openclaw_connection_catalog (kind text PRIMARY KEY, title text, sort_order int);
+		INSERT INTO openclaw_connection_catalog VALUES ('wechat', 'WeChat', 10), ('telegram', 'Telegram', 20), ('gws', 'Google Workspace', 30);
 		CREATE TEMP TABLE usage_logs (
 			id bigint PRIMARY KEY, api_key_id bigint, actual_cost numeric(20,10),
 			input_tokens int, output_tokens int, cache_creation_tokens int, cache_read_tokens int,
 			created_at timestamptz
 		);
 		INSERT INTO users VALUES (1, 'busy@example.test'), (2, 'idle@example.test');
-		INSERT INTO groups VALUES (5, 'openai-claw', 0.3);
+		INSERT INTO groups VALUES (5, 'openai-claw', 0.3, '{"enabled":true,"models":["gpt-6.2-sol","gpt-5.6-sol"]}', 'gpt-6.2-sol');
 		INSERT INTO api_keys (id, status, group_id) VALUES (10, 'active', 5), (11, 'active', 5), (99, 'active', 5);
 		INSERT INTO openclaw_instances (id, user_id, tenant_slug, name, status, worker_host, created_at) VALUES
 			(1, 1, 'u1-busy', 'Busy', 'running', 'default', NOW() - INTERVAL '2 days'),
 			(2, 2, 'u2-idle', 'Idle', 'running', 'default', NOW() - INTERVAL '1 day');
 		INSERT INTO openclaw_api_keys VALUES (1, 10), (2, 11);
-		INSERT INTO openclaw_connections VALUES (1, 1, 'connected', 0, NULL), (2, 1, 'pending', 0, NULL);
+		INSERT INTO openclaw_connections (id, instance_id, kind, status, label) VALUES
+			(1, 1, 'telegram', 'connected', 'Support bot'), (2, 1, 'wechat', 'pending', '');
 		INSERT INTO usage_logs VALUES
 			(1, 10, 20.00, 1000, 200, 0, 5000, NOW() - INTERVAL '30 days'),
 			(2, 10, 30.00, 2000, 300, 100, 0, NOW() - INTERVAL '20 days'),
@@ -144,8 +156,21 @@ func TestOpenClawListAdminInstancesUsageComesFromBillingLedger(t *testing.T) {
 	if busy.ConnectionCount != 2 || busy.ConnectedCount != 1 {
 		t.Fatalf("busy connections = %d/%d, want 1/2", busy.ConnectedCount, busy.ConnectionCount)
 	}
-	if busy.BillingGroup != "openai-claw" || busy.APIKeyStatus != "active" {
-		t.Fatalf("busy billing = %q/%q", busy.BillingGroup, busy.APIKeyStatus)
+	if busy.BillingGroup != "openai-claw" || busy.APIKeyStatus != "active" || busy.BillingRate != 0.3 {
+		t.Fatalf("busy billing = %q/%q x%v", busy.BillingGroup, busy.APIKeyStatus, busy.BillingRate)
+	}
+	// Each service is listed, catalog order first, so the fleet can show which
+	// set-ups are finished instead of an unexplained "configured" total.
+	if len(busy.Connections) != 2 || busy.Connections[0].Kind != "wechat" || busy.Connections[0].Title != "WeChat" || busy.Connections[0].Status != "pending" ||
+		busy.Connections[1].Kind != "telegram" || busy.Connections[1].Status != "connected" || busy.Connections[1].Label != "Support bot" {
+		t.Fatalf("busy connections = %#v", busy.Connections)
+	}
+	if idle.Connections == nil || len(idle.Connections) != 0 || idle.ConnectionCount != 0 {
+		t.Fatalf("idle connections = %#v", idle.Connections)
+	}
+	// Models are the billing group's live allowlist, not a list in code.
+	if !slices.Equal(busy.AllowedModels, []string{"gpt-6.2-sol", "gpt-5.6-sol"}) || busy.DefaultModel != "gpt-6.2-sol" || busy.ModelsSource != OpenClawModelsFromGroup {
+		t.Fatalf("busy models = %v default %q source %q", busy.AllowedModels, busy.DefaultModel, busy.ModelsSource)
 	}
 	if idle.RequestCount != 0 || idle.UsageCost != 0 || idle.TokenCount != 0 || idle.LastRequestAt != nil {
 		t.Fatalf("idle usage should be empty: %#v", idle)

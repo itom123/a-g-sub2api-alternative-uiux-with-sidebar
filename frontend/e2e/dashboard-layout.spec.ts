@@ -3,7 +3,7 @@ import { prepare, settings } from './fixtures'
 
 const instance = { id: 7, tenant_slug: 'fixture-workspace', name: 'Example workspace', status: 'running', created_at: '2026-10-01T09:00:00Z', updated_at: '2026-10-01T09:00:00Z' }
 const models = ['example-model-with-a-very-long-identifier-'.repeat(3), 'reasoning-model', 'coding-model', 'general-model']
-const fleet = { ...instance, user_id: 1, user_email: 'long-workspace-owner@example.test', billing_group: 'OpenClaw', billing_rate: .3, api_key_status: 'active', connection_count: 2, connected_count: 1, request_count: 999_999, usage_cost: 1234.5, token_count: 987_654_321, requests_7d: 12_345, usage_cost_7d: 99.5, last_request_at: '2026-10-19T09:00:00Z', allowed_models: models, default_model: models[0], mapping_enabled: true }
+const fleet = { ...instance, user_id: 1, user_email: 'long-workspace-owner@example.test', billing_group: 'OpenClaw', billing_rate: .3, api_key_status: 'active', connection_count: 2, connected_count: 1, request_count: 999_999, usage_cost: 1234.5, token_count: 987_654_321, requests_7d: 12_345, usage_cost_7d: 99.5, last_request_at: '2026-10-19T09:00:00Z', allowed_models: models, default_model: models[0], models_source: 'group', mapping_enabled: true, model_sync: 'synced', connections: [{ kind: 'wechat', title: 'WeChat', status: 'pending', label: '', updated_at: '2026-10-19T09:00:00Z' }, { kind: 'telegram', title: 'Telegram', status: 'connected', label: 'customer-support-bot-with-a-long-name', updated_at: '2026-10-19T09:00:00Z' }] }
 const fulfill = (data: unknown) => ({ json: { code: 0, data } })
 async function noOverflow(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true)
@@ -25,6 +25,7 @@ for (const theme of ['light', 'dark'] as const) {
       await page.goto('/admin/openclaw', { waitUntil: 'networkidle' })
       await expect(page.getByText('Example workspace', { exact: true })).toBeVisible()
       await expect(page.locator('.fleet-models li').first()).toHaveText(models[0])
+      await expect(page.locator('.fleet-services li').first()).toContainText('Set-up not finished')
       await noOverflow(page)
       const rootWidth = (await page.locator('.fleet-page').boundingBox())!.width
       expect(await page.locator('.fleet-table tbody tr').first().evaluate(el => getComputedStyle(el).display)).toBe(rootWidth >= 1200 ? 'table-row' : 'grid')

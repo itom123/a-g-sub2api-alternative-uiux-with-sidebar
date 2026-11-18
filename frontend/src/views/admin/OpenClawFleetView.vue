@@ -23,7 +23,7 @@
       <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-dark-700 dark:bg-dark-800">
         <div class="border-b border-gray-200 px-4 py-4 dark:border-dark-700">
           <h2 class="font-semibold text-gray-900 dark:text-white">Customer workspaces</h2>
-          <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">View openai-龙虾 pricing, key binding, model policy, usage, and bridge health. Set group pricing in Group Management.</p>
+          <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">View openai-龙虾 pricing, key binding, models, connected services, usage, and bridge health. Set group pricing and models in Group Management; workspaces pick up model changes automatically.</p>
           <div class="mt-3 flex flex-wrap items-center gap-3">
             <input v-model="search" class="input w-full max-w-md" placeholder="Search user or workspace" />
             <div class="w-full sm:w-auto sm:min-w-[180px]"><Select v-model="sortKey" :options="sortOptions" aria-label="Sort workspaces" /></div>
@@ -34,7 +34,7 @@
         <div v-else class="overflow-x-auto">
           <table class="fleet-table min-w-full divide-y divide-gray-200 text-left text-sm dark:divide-dark-700">
             <thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-500 dark:bg-dark-900/40 dark:text-gray-400">
-              <tr><th class="px-4 py-3">Workspace</th><th class="px-4 py-3">User</th><th class="px-4 py-3">State</th><th class="px-4 py-3">Billing</th><th class="px-4 py-3">Models</th><th class="px-4 py-3">Usage</th><th class="px-4 py-3">Deletion</th><th class="px-4 py-3 text-right">Action</th></tr>
+              <tr><th class="px-4 py-3">Workspace</th><th class="px-4 py-3">User</th><th class="px-4 py-3">State</th><th class="px-4 py-3">Billing</th><th class="px-4 py-3">Models</th><th class="px-4 py-3">Services</th><th class="px-4 py-3">Usage</th><th class="px-4 py-3">Deletion</th><th class="px-4 py-3 text-right">Action</th></tr>
             </thead>
             <tbody class="divide-y divide-gray-100 dark:divide-dark-700">
               <tr v-for="item in filteredItems" :key="item.id" class="text-gray-700 dark:text-gray-200">
@@ -42,7 +42,23 @@
                 <td data-label="User" class="whitespace-nowrap px-4 py-4">{{ item.user_email }}</td>
                 <td data-label="State" class="whitespace-nowrap px-4 py-4"><span class="rounded-full border px-2 py-1 text-xs">{{ item.status }}</span></td>
                 <td data-label="Billing" class="whitespace-nowrap px-4 py-4"><div class="font-medium">{{ item.billing_group || 'Unbound' }}</div><div class="text-xs text-gray-500">x{{ item.billing_rate.toFixed(2) }} · {{ item.api_key_status || 'no key' }}</div></td>
-                <td data-label="Models" class="max-w-sm px-4 py-4"><ul v-if="item.mapping_enabled" class="fleet-models text-xs"><li v-for="model in item.allowed_models" :key="model">{{ model }}</li><li v-if="!item.allowed_models.length">No allowed models</li></ul><div v-else class="text-xs">Mapping not configured</div><div class="mt-1 text-xs text-gray-500">Default: {{ item.default_model || '—' }}</div></td>
+                <td data-label="Models" class="max-w-sm px-4 py-4">
+                  <ul class="fleet-models text-xs"><li v-for="model in item.allowed_models" :key="model">{{ model }}</li><li v-if="!item.allowed_models.length">No allowed models</li></ul>
+                  <div class="mt-1 text-xs text-gray-500">Default: {{ item.default_model || '—' }}</div>
+                  <div class="text-xs text-gray-500">{{ modelsSource(item) }}</div>
+                  <div v-if="item.mapping_error" class="mt-1 text-xs text-red-700 dark:text-red-300">Model mapping error: {{ item.mapping_error }}</div>
+                  <div v-else-if="!item.mapping_enabled" class="text-xs text-gray-500">Not sent to the workspace: model mapping is off</div>
+                  <div v-else-if="item.model_sync" :class="['fleet-sync mt-1 text-xs', modelSyncClass(item.model_sync)]" :title="item.model_synced_at ? formatDate(item.model_synced_at) : undefined">{{ modelSyncLabel(item.model_sync) }}</div>
+                </td>
+                <td data-label="Services" class="px-4 py-4">
+                  <ul v-if="connectionsOf(item).length" class="fleet-services text-xs">
+                    <li v-for="connection in connectionsOf(item)" :key="`${connection.kind}-${connection.label}`">
+                      <span class="font-medium">{{ connection.title || connection.kind }}</span><span v-if="connection.label" class="text-gray-500"> · {{ connection.label }}</span>
+                      <span :class="['fleet-service-state', connection.status === 'connected' ? 'text-green-700 dark:text-green-300' : 'text-amber-700 dark:text-amber-300']">{{ connectionStatus(connection.status) }}</span>
+                    </li>
+                  </ul>
+                  <div v-else class="text-xs text-gray-500">No services</div>
+                </td>
                 <td data-label="Usage" class="whitespace-nowrap px-4 py-4">
                   <div v-if="item.request_count" class="fleet-usage">
                     <div><strong class="fleet-usage-cost">{{ money(item.usage_cost) }}</strong> <span class="text-xs text-gray-500">billed</span></div>
@@ -93,7 +109,7 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import Select from '@/components/common/Select.vue'
 import { cnyCost } from '@/utils/currency'
 import { formatCompactNumber, formatRelativeTime } from '@/utils/format'
-import { deleteAdminOpenClawInstance, listAdminOpenClawAccessRequests, listAdminOpenClawInstances, reconcileAdminOpenClawInstance, reviewAdminOpenClawAccessRequest, setAdminOpenClawAccessPolicy, type OpenClawAccessRequest, type OpenClawAdminInstance } from '@/api/openclaw'
+import { deleteAdminOpenClawInstance, listAdminOpenClawAccessRequests, listAdminOpenClawInstances, reconcileAdminOpenClawInstance, reviewAdminOpenClawAccessRequest, setAdminOpenClawAccessPolicy, type OpenClawAccessRequest, type OpenClawAdminConnection, type OpenClawAdminInstance } from '@/api/openclaw'
 
 const items = ref<OpenClawAdminInstance[]>([])
 const loading = ref(true)
@@ -111,19 +127,36 @@ const sortOptions: { value: SortKey; label: string }[] = [
   { value: 'requests', label: 'Most requests' },
   { value: 'recent', label: 'Recently active' },
 ]
+// A service counts as connected only when its provider set-up finished. Rows
+// still waiting for a QR scan, a Telegram claim or a Google code are set-ups
+// that were started and not finished, so they are reported as such instead of
+// being folded into a "configured" total. Workspaces queued for deletion no
+// longer serve anyone and are left out.
+const services = computed(() => {
+  let connected = 0
+  let unfinished = 0
+  for (const item of items.value) {
+    if (item.deletion_scheduled_at) continue
+    for (const connection of connectionsOf(item)) {
+      if (connection.status === 'connected') connected++
+      else unfinished++
+    }
+  }
+  return { connected, unfinished }
+})
 const metrics = computed(() => {
   const totals = items.value.reduce((sum, item) => ({
     running: sum.running + (item.status === 'ready' || item.status === 'running' ? 1 : 0),
-    connections: sum.connections + item.connection_count,
-    connected: sum.connected + item.connected_count,
     requests: sum.requests + item.request_count,
     requests7d: sum.requests7d + item.requests_7d,
     cost: sum.cost + item.usage_cost,
     cost7d: sum.cost7d + item.usage_cost_7d,
-  }), { running: 0, connections: 0, connected: 0, requests: 0, requests7d: 0, cost: 0, cost7d: 0 })
+  }), { running: 0, requests: 0, requests7d: 0, cost: 0, cost7d: 0 })
+  const { connected, unfinished } = services.value
+  const servicesHint = unfinished ? `${plural(unfinished, 'set-up')} not finished` : connected ? 'All set-ups finished' : 'No services set up yet'
   return [
     { label: 'Workspaces', value: count(items.value.length), hint: `${count(totals.running)} running` },
-    { label: 'Connected services', value: count(totals.connected), hint: `${count(totals.connections)} configured` },
+    { label: 'Connected services', value: count(connected), hint: servicesHint },
     { label: 'API requests', value: count(totals.requests), hint: `${count(totals.requests7d)} in the last 7 days` },
     { label: 'Billed', value: money(totals.cost), hint: `${money(totals.cost7d)} in the last 7 days` },
   ]
@@ -143,6 +176,17 @@ const filteredItems = computed(() => {
 })
 
 function count(value: number) { return value.toLocaleString() }
+function connectionsOf(item: OpenClawAdminInstance): OpenClawAdminConnection[] { return item.connections ?? [] }
+function connectionStatus(status: string) { return status === 'connected' ? 'Connected' : status === 'pending' ? 'Set-up not finished' : status }
+function modelsSource(item: OpenClawAdminInstance) {
+  return item.models_source === 'group' ? `From the ${item.billing_group || 'billing'} group's model allowlist` : 'Built-in defaults: the group allows every model'
+}
+function modelSyncClass(state: string) {
+  return state === 'synced' ? 'text-green-700 dark:text-green-300' : state === 'failed' ? 'text-red-700 dark:text-red-300' : 'text-gray-500'
+}
+function modelSyncLabel(state: string) {
+  return state === 'synced' ? 'Workspace up to date' : state === 'failed' ? 'Workspace update failed; retrying' : 'Updating the workspace…'
+}
 function plural(value: number, noun: string) { return `${count(value)} ${noun}${value === 1 ? '' : 's'}` }
 // Ledger amounts are USD; the console displays CNY like every other billing view.
 function money(usd: number) { const value = cnyCost(usd); return value === '-' ? '—' : `¥${value}` }
@@ -197,6 +241,10 @@ onMounted(load)
 .fleet-usage { display: grid; gap: 2px; }
 .fleet-usage-cost { font-weight: 600; font-variant-numeric: tabular-nums; }
 .fleet-models li { padding: 4px 6px; border: 1px solid var(--ag-rule); overflow-wrap: anywhere; }
+.fleet-table td[data-label="Services"] { min-width: 180px; }
+.fleet-services { display: grid; gap: 6px; }
+.fleet-services li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 6px; overflow-wrap: anywhere; }
+.fleet-service-state { padding: 1px 6px; border: 1px solid var(--ag-rule); border-radius: 9999px; }
 .fleet-table td[data-label="Models"] > div { overflow-wrap: anywhere; }
 .fleet-table td[data-label="Action"] > div { flex-wrap: wrap; }
 @container fleet (max-width: 1199px) {

@@ -160,15 +160,33 @@ export interface OpenClawAPIKey {
   last_request_at?: string
 }
 
+export interface OpenClawAdminConnection {
+  kind: string
+  /** Catalog title, or the kind when the catalog no longer lists it. */
+  title: string
+  /** `connected`, or `pending` while the provider set-up is unfinished. */
+  status: string
+  label: string
+  updated_at: string
+}
+
 export interface OpenClawAdminInstance extends OpenClawInstance {
   user_id: number
   user_email: string
   billing_group: string
   billing_rate: number
   api_key_status: string
+  /** Models the workspace offers: its billing group's live model allowlist. */
   allowed_models: string[]
   default_model: string
+  /** `group` when the group's allowlist chose the models, `defaults` when it allows every model. */
+  models_source: 'group' | 'defaults'
   mapping_enabled: boolean
+  mapping_error?: string
+  /** Whether the tenant cell already holds `allowed_models`. */
+  model_sync?: 'synced' | 'pending' | 'failed'
+  model_synced_at?: string
+  connections: OpenClawAdminConnection[]
   connection_count: number
   connected_count: number
   /** API usage from the billing ledger (usage_logs) of the workspace key. */

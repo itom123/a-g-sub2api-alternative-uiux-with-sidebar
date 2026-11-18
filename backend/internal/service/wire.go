@@ -1009,6 +1009,8 @@ func ProvideOpenClawService(db *sql.DB, fleet OpenClawFleetClient, apiKeys *APIK
 		apiKeys.SetAPIKeyGroupChangeGuard(svc)
 	}
 	svc.StartDeletionWorker(time.Minute)
+	// Keeps every live cell's model list equal to the billing group's.
+	svc.StartModelSyncWorker(30*time.Second, 2*time.Minute)
 	return svc
 }
 

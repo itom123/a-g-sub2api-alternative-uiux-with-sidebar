@@ -253,37 +253,120 @@ func TestConfiguredOpenClawModelMappingDefaultsToApprovedModels(t *testing.T) {
 	t.Setenv("OPENCLAW_MODEL_GATEWAY_BASE_URL", "https://gateway.example/v1")
 	t.Setenv("OPENCLAW_MODEL_MAPPING_JSON", "")
 
-	mapping, enabled, err := configuredOpenClawModelMapping("sk-012345678901234567890")
-	if err != nil {
-		t.Fatalf("configuredOpenClawModelMapping() error = %v", err)
-	}
-	if !enabled || mapping.DefaultModel != "gpt-5.6-sol" {
-		t.Fatalf("mapping = %#v, enabled = %v", mapping, enabled)
-	}
-	if len(mapping.Models) != len(openClawAllowedModels) {
-		t.Fatalf("model count = %d, want %d", len(mapping.Models), len(openClawAllowedModels))
+	for name, group := range map[string]*Group{
+		"no group":          nil,
+		"allowlist off":     {ModelAllowlist: GroupModelAllowlist{Enabled: false, Models: []string{"gpt-6-sol"}}},
+		"allowlist missing": {},
+	} {
+		t.Run(name, func(t *testing.T) {
+			mapping, enabled, err := configuredOpenClawModelMapping("sk-012345678901234567890", group)
+			if err != nil {
+				t.Fatalf("configuredOpenClawModelMapping() error = %v", err)
+			}
+			if !enabled || mapping.DefaultModel != "gpt-5.6-sol" {
+				t.Fatalf("mapping = %#v, enabled = %v", mapping, enabled)
+			}
+			if got := openClawMappingAliases(mapping); !slices.Equal(got, openClawAllowedModels) {
+				t.Fatalf("aliases = %v, want %v", got, openClawAllowedModels)
+			}
+		})
 	}
 }
 
-func TestConfiguredOpenClawModelMappingRejectsAstra(t *testing.T) {
-	t.Setenv("OPENCLAW_MODEL_GATEWAY_BASE_URL", "https://gateway.example/v1")
-	models := make([]OpenClawModelAlias, 0, len(openClawAllowedModels))
-	for _, model := range openClawAllowedModels {
-		models = append(models, OpenClawModelAlias{Alias: model, Model: model})
+func openClawMappingAliases(mapping OpenClawModelMapping) []string {
+	aliases := make([]string, 0, len(mapping.Models))
+	for _, model := range mapping.Models {
+		aliases = append(aliases, model.Alias)
 	}
-	models[len(models)-1].Model = "gpt-6-astra"
-	raw, err := json.Marshal(struct {
-		DefaultModel string               `json:"default_model"`
-		Models       []OpenClawModelAlias `json:"models"`
-	}{DefaultModel: "gpt-5.6-sol", Models: models})
+	return aliases
+}
+
+// The administrator owns the group's allowlist; the cell must offer exactly
+// what the gateway admits for the workspace key, without a code change.
+func TestConfiguredOpenClawModelMappingFollowsGroupAllowlist(t *testing.T) {
+	t.Setenv("OPENCLAW_MODEL_GATEWAY_BASE_URL", "https://gateway.example/v1")
+	t.Setenv("OPENCLAW_MODEL_MAPPING_JSON", "")
+	group := &Group{
+		DefaultMappedModel: "openai/GPT-6.2-Sol",
+		ModelAllowlist: GroupModelAllowlist{Enabled: true, Models: []string{
+			"gpt-6.2-sol", " gpt-5.6-sol ", "GPT-5.6-SOL", "gpt-7-preview", "gpt-6*",
+		}},
+	}
+	mapping, enabled, err := configuredOpenClawModelMapping("sk-012345678901234567890", group)
+	if err != nil || !enabled {
+		t.Fatalf("mapping enabled=%v err=%v", enabled, err)
+	}
+	// Exact entries keep the administrator's order; the wildcard expands to the
+	// known models it matches, without repeating one.
+	want := []string{"gpt-6.2-sol", "gpt-5.6-sol", "gpt-7-preview", "gpt-6.1-sol", "gpt-6-sol", "gpt-6-luna", "gpt-6.2-astra"}
+	if got := openClawMappingAliases(mapping); !slices.Equal(got, want) {
+		t.Fatalf("aliases = %v, want %v", got, want)
+	}
+	if mapping.DefaultModel != "gpt-6.2-sol" {
+		t.Fatalf("default = %q, want the group's default_mapped_model", mapping.DefaultModel)
+	}
+
+	// A group default the allowlist excludes falls back to gpt-5.6-sol, then
+	// to the first allowed model.
+	group.DefaultMappedModel = "gpt-4o"
+	if mapping, _, _ = configuredOpenClawModelMapping("sk-012345678901234567890", group); mapping.DefaultModel != "gpt-5.6-sol" {
+		t.Fatalf("default = %q, want gpt-5.6-sol", mapping.DefaultModel)
+	}
+	group.ModelAllowlist.Models = []string{"gpt-6-luna"}
+	if mapping, _, _ = configuredOpenClawModelMapping("sk-012345678901234567890", group); mapping.DefaultModel != "gpt-6-luna" {
+		t.Fatalf("default = %q, want gpt-6-luna", mapping.DefaultModel)
+	}
+
+	group.ModelAllowlist.Models = []string{"claude-*"}
+	if _, enabled, err := configuredOpenClawModelMapping("sk-012345678901234567890", group); err == nil || enabled {
+		t.Fatalf("a group that admits no offerable model was accepted: enabled=%v err=%v", enabled, err)
+	}
+}
+
+// OPENCLAW_MODEL_MAPPING_JSON only renames models the group allows. Entries
+// for other models are ignored rather than offered, and a model the JSON does
+// not mention is still offered, so editing the group never breaks a workspace.
+func TestConfiguredOpenClawModelMappingJSONOnlyRenamesAllowedModels(t *testing.T) {
+	t.Setenv("OPENCLAW_MODEL_GATEWAY_BASE_URL", "https://gateway.example/v1")
+	raw, err := json.Marshal(map[string]any{
+		"default_model": "gpt-5.6",
+		"models": []OpenClawModelAlias{
+			{Alias: "gpt-5.6", Model: "gpt-5.6-sol"},
+			{Alias: "gpt-6-sol", Model: "gpt-6-astra"},
+			{Alias: "gpt-5.6", Model: "gpt-6-sol"},
+		},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("OPENCLAW_MODEL_MAPPING_JSON", string(raw))
+	group := &Group{ModelAllowlist: GroupModelAllowlist{Enabled: true, Models: []string{"gpt-5.6", "gpt-5.6-sol", "gpt-6-sol"}}}
 
-	_, _, err = configuredOpenClawModelMapping("sk-012345678901234567890")
-	if err == nil {
-		t.Fatal("configuredOpenClawModelMapping() accepted gpt-6-astra")
+	mapping, enabled, err := configuredOpenClawModelMapping("sk-012345678901234567890", group)
+	if err != nil || !enabled {
+		t.Fatalf("mapping enabled=%v err=%v", enabled, err)
+	}
+	want := []OpenClawModelAlias{{Alias: "gpt-5.6", Model: "gpt-5.6-sol"}, {Alias: "gpt-6-sol", Model: "gpt-6-sol"}}
+	if !slices.Equal(mapping.Models, want) || mapping.DefaultModel != "gpt-5.6" {
+		t.Fatalf("mapping = %#v", mapping)
+	}
+	for _, model := range mapping.Models {
+		if model.Model == "gpt-6-astra" {
+			t.Fatal("mapping offered gpt-6-astra, which the group does not allow")
+		}
+	}
+
+	t.Setenv("OPENCLAW_MODEL_MAPPING_JSON", "{")
+	if _, _, err := configuredOpenClawModelMapping("sk-012345678901234567890", group); err == nil {
+		t.Fatal("malformed OPENCLAW_MODEL_MAPPING_JSON was accepted")
+	}
+}
+
+func TestConfiguredOpenClawModelMappingDisabledWithoutGateway(t *testing.T) {
+	t.Setenv("OPENCLAW_MODEL_GATEWAY_BASE_URL", "")
+	t.Setenv("OPENCLAW_MODEL_MAPPING_JSON", "")
+	if _, enabled, err := configuredOpenClawModelMapping("sk-012345678901234567890", nil); enabled || err != nil {
+		t.Fatalf("enabled=%v err=%v", enabled, err)
 	}
 }
 

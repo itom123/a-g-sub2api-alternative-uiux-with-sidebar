@@ -163,6 +163,32 @@ stopped channel without reloading the gateway.
 
 ---
 
+## 10. OpenClaw models follow the billing group; truthful tenant fleet
+
+**What it does.** The models a workspace offers come from its billing group's model allowlist, which the administrator
+edits in Group Management (`openClawSupportedModels`). Exact entries keep the administrator's order; `*` entries expand
+against the built-in list; a group whose allowlist is off offers the built-in list. The default is the group's
+`default_mapped_model` when allowed, else `gpt-5.6-sol`, else the first model. `OPENCLAW_MODEL_MAPPING_JSON` may only
+rename models the group allows. A background pass (`SyncModelMappings`, every two minutes) writes the mapping into each
+live cell whose last write differs, so a group change reaches existing workspaces without Repair. The tenant fleet
+shows those models, whether each cell holds them, every connected service per workspace, and counts only finished
+set-ups in workspaces not queued for deletion. No migration.
+
+**Fork-owned files:** `backend/internal/service/openclaw_models.go`, `openclaw_models_test.go`.
+
+**Hook points in shared files:**
+
+| File | Hook |
+| --- | --- |
+| `backend/internal/service/openclaw.go` | Create, provision and Repair build the mapping with `s.workspaceModelMapping` and record it; `ListAdminInstances` reads the key's group and the connection rows. |
+| `backend/internal/service/wire.go` | `ProvideOpenClawService` calls `StartModelSyncWorker`. |
+| `frontend/src/views/admin/OpenClawFleetView.vue`, `frontend/src/api/openclaw.ts` | Services column, finished-set-up count, model source and sync state. |
+
+**Invariants checked by `fork-guard`:** the mapping is built from the group, the sync worker is started, and the tests in
+`openclaw_models_test.go` and `OpenClawFleetView.usage.spec.ts` pass.
+
+---
+
 ## Production is built from `main` only
 
 Every production deploy must be built from a commit on `main`, with this guard green. Never deploy a locally built
