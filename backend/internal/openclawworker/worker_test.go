@@ -38,17 +38,32 @@ func TestConfigureSpecifiesResponsesProtocol(t *testing.T) {
 				Providers map[string]struct {
 					API    string `json:"api"`
 					Models []struct {
-						ID     string `json:"id"`
-						Name   string `json:"name"`
+						ID     string   `json:"id"`
+						Name   string   `json:"name"`
+						Input  []string `json:"input"`
 						Compat struct {
 							SupportsPromptCacheKey *bool `json:"supportsPromptCacheKey"`
 						} `json:"compat"`
 					} `json:"models"`
 				} `json:"providers"`
 			} `json:"models"`
+			Agents struct {
+				Defaults struct {
+					Model json.RawMessage `json:"model"`
+				} `json:"defaults"`
+			} `json:"agents"`
 		}
 		if err := json.Unmarshal(data, &patch); err != nil {
 			t.Fatal(err)
+		}
+		// The default model must be an object holding only "primary": config patch
+		// merges objects, so the cell's fallbacks survive; a string would wipe them.
+		var defaultModel map[string]any
+		if err := json.Unmarshal(patch.Agents.Defaults.Model, &defaultModel); err != nil {
+			t.Fatalf("agents.defaults.model = %s, want an object: %v", patch.Agents.Defaults.Model, err)
+		}
+		if len(defaultModel) != 1 || defaultModel["primary"] != "sub2api/test" {
+			t.Fatalf("agents.defaults.model = %s, want only primary=sub2api/test", patch.Agents.Defaults.Model)
 		}
 		provider := patch.Models.Providers["sub2api"]
 		if got := provider.API; got != "openai-responses" {
@@ -64,6 +79,10 @@ func TestConfigureSpecifiesResponsesProtocol(t *testing.T) {
 			// Without this flag OpenClaw omits prompt_cache_key for non-OpenAI base URLs.
 			if flag := model.Compat.SupportsPromptCacheKey; flag == nil || !*flag {
 				t.Fatalf("model %q missing compat.supportsPromptCacheKey=true", model.ID)
+			}
+			// ClawHub basics: text and image input on every model.
+			if len(model.Input) != 2 || model.Input[0] != "text" || model.Input[1] != "image" {
+				t.Fatalf("model %q input = %v, want [text image]", model.ID, model.Input)
 			}
 		}
 	}
