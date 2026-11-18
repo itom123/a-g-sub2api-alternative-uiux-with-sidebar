@@ -253,6 +253,9 @@ func (w *Worker) configure(ctx context.Context, tenant string, mapping modelMapp
 			// Without it, OAuth upstreams behind sub2api get no cache affinity and
 			// each turn re-reads the whole context.
 			"compat": map[string]any{"supportsPromptCacheKey": true},
+			// ClawHub basics: every cell model accepts text and images. Without
+			// "input", OpenClaw treats the model as text-only and rejects photos.
+			"input": []string{"text", "image"},
 		})
 	}
 	defaultModel := strings.TrimSpace(mapping.DefaultModel)
@@ -270,7 +273,9 @@ func (w *Worker) configure(ctx context.Context, tenant string, mapping modelMapp
 				},
 			},
 		},
-		"agents": map[string]any{"defaults": map[string]any{"model": "sub2api/" + defaultModel}},
+		// An object, not a string: config patch merges objects, so the cell's
+		// configured fallbacks survive; a string would replace them.
+		"agents": map[string]any{"defaults": map[string]any{"model": map[string]any{"primary": "sub2api/" + defaultModel}}},
 	}
 	if os.Getenv("OPENCLAW_GATEWAY_ENABLED") == "1" {
 		gateway, err := w.gatewayConfigPatch(ctx, tenant)
