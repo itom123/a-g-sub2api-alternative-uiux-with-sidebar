@@ -87,7 +87,7 @@
 
         <section class="metric-grid" aria-label="Tenant health">
           <article class="metric-card"><span>{{ t('connections.metrics.latency') }}</span><strong>{{ dashboard?.latency_ms != null ? `${dashboard.latency_ms} ms` : '—' }}</strong><small>{{ t('connections.metrics.latencyHint') }}</small></article>
-          <article class="metric-card"><span>{{ t('connections.metrics.connections') }}</span><strong>{{ dashboard?.connected_count || 0 }}/{{ dashboard?.connection_count || 0 }}</strong><small>{{ t('connections.metrics.connectionsHint') }}</small></article>
+          <article class="metric-card" data-testid="services-metric"><span>{{ t('connections.metrics.connections') }}</span><strong>{{ serviceSummary.connected }}/{{ serviceSummary.available }}</strong><small>{{ serviceSummary.unfinished ? t('connections.metrics.connectionsUnfinished', { count: serviceSummary.unfinished }) : t('connections.metrics.connectionsHint') }}</small></article>
           <article class="metric-card"><span>{{ t('connections.metrics.activity') }}</span><strong><time v-if="lastActivity" :datetime="lastActivity" :aria-label="new Date(lastActivity).toLocaleString()" :title="new Date(lastActivity).toLocaleString()">{{ formatActivityTime(lastActivity) }}</time><template v-else>{{ t('connections.metrics.noActivity') }}</template></strong><small>{{ t('connections.metrics.activityHint') }}</small></article>
           <article class="metric-card"><span>{{ t('connections.metrics.checked') }}</span><strong>{{ dashboard?.checked_at ? formatTime(dashboard.checked_at) : '—' }}</strong><small>{{ t('connections.metrics.checkedHint') }}</small></article>
         </section>
@@ -312,6 +312,24 @@ const fleetState = computed(() => dashboard.value?.fleet_state || instance.value
 const deletionQueued = computed(() => Boolean(instance.value?.deletion_scheduled_at) || instance.value?.status === 'deletion_scheduled')
 const needsProvision = computed(() => !deletionQueued.value && ['planned', 'missing', 'error'].includes(fleetState.value))
 const activeConnection = computed(() => activeKind.value ? connectionFor(activeKind.value.kind) : undefined)
+// Matches the service cards below: each service the workspace can use counts
+// once, as connected when its card says so. A set-up that was started and not
+// finished is reported as such instead of inflating the total, and rows of
+// services no longer offered here are left out.
+const serviceSummary = computed(() => {
+  if (!connectionKinds.value.length) {
+    return { connected: dashboard.value?.connected_count || 0, available: dashboard.value?.connection_count || 0, unfinished: 0 }
+  }
+  let connected = 0
+  let unfinished = 0
+  for (const kind of connectionKinds.value) {
+    const connection = connectionFor(kind.kind)
+    if (!connection) continue
+    if (connection.status === 'connected') connected++
+    else unfinished++
+  }
+  return { connected, available: connectionKinds.value.length, unfinished }
+})
 
 let loadRevision = 0
 async function load() {

@@ -167,9 +167,10 @@ describe('OpenClaw fleet usage', () => {
       workspace({ id: 5, models_source: 'defaults', mapping_enabled: false, model_sync: undefined }),
       workspace({ id: 6, mapping_enabled: false, mapping_error: 'OPENCLAW_MODEL_GATEWAY_BASE_URL must be an http(s) URL', model_sync: undefined }),
       workspace({ id: 7, model_sync: 'failed' }),
+      workspace({ id: 8, models_source: 'fallback' }),
     ])
     const wrapper = await mountFleet()
-    const [pending, defaults, broken, failed] = wrapper.findAll('td[data-label="Models"]').map(cell => [
+    const [pending, defaults, broken, failed, fallback] = wrapper.findAll('td[data-label="Models"]').map(cell => [
       ...cell.findAll('li').map(item => item.text()),
       ...cell.findAll('td > div').map(line => line.text()),
     ].join(' | '))
@@ -178,6 +179,7 @@ describe('OpenClaw fleet usage', () => {
     expect(defaults).toContain('Not sent to the workspace: model mapping is off')
     expect(broken).toContain('Model mapping error: OPENCLAW_MODEL_GATEWAY_BASE_URL must be an http(s) URL')
     expect(failed).toContain('Workspace update failed; retrying')
+    expect(fallback).toContain("Built-in defaults: the openai-claw group's allowlist names no model a workspace can offer")
     expect(wrapper.text()).not.toContain('Mapping not configured')
   })
 

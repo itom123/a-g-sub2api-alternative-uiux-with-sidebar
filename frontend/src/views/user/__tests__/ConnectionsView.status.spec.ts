@@ -162,3 +162,44 @@ describe('Connections workspace status', () => {
     expect(actions(wrapper)).not.toContain('connections.provisionAction')
   })
 })
+
+describe('Connected services card', () => {
+  const kinds = [
+    { kind: 'wechat', title: 'WeChat', description: '', sort_order: 10, setup_available: true },
+    { kind: 'telegram', title: 'Telegram', description: '', sort_order: 20, setup_available: true },
+  ]
+  function connection(id: number, kind: string, status: string) {
+    return { id, instance_id: 7, kind, status, label: '', created_at: '2026-11-01T01:00:00Z', updated_at: '2026-11-01T01:00:00Z' }
+  }
+  function metric(wrapper: ReturnType<typeof mount>) { return wrapper.get('[data-testid="services-metric"]') }
+
+  it('counts the services this workspace offers and names unfinished set-ups', async () => {
+    const dashboard = setup('running', 'running')
+    // The dashboard total still counts every row, including a retired service.
+    api.dashboard.mockResolvedValue({ ...dashboard, connection_count: 3, connected_count: 2 })
+    api.kinds.mockResolvedValue(kinds)
+    api.connections.mockResolvedValue([connection(1, 'wechat', 'pending'), connection(2, 'telegram', 'connected'), connection(3, 'gws', 'connected')])
+    const wrapper = await render()
+    expect(metric(wrapper).get('strong').text()).toBe('1/2')
+    expect(metric(wrapper).get('small').text()).toBe('connections.metrics.connectionsUnfinished')
+    // The service cards and their actions are unchanged.
+    const cards = wrapper.findAll('.connection-card').map(card => card.find('.status-pill').text())
+    expect(cards).toEqual(['connections.status.pending', 'connections.status.connected'])
+  })
+
+  it('keeps the plain hint once every started set-up is finished', async () => {
+    setup('running', 'running')
+    api.kinds.mockResolvedValue(kinds)
+    api.connections.mockResolvedValue([connection(2, 'telegram', 'connected')])
+    const wrapper = await render()
+    expect(metric(wrapper).get('strong').text()).toBe('1/2')
+    expect(metric(wrapper).get('small').text()).toBe('connections.metrics.connectionsHint')
+  })
+
+  it('falls back to the dashboard counts when the catalog is unavailable', async () => {
+    const dashboard = setup('running', 'running')
+    api.dashboard.mockResolvedValue({ ...dashboard, connection_count: 2, connected_count: 1 })
+    const wrapper = await render()
+    expect(metric(wrapper).get('strong').text()).toBe('1/2')
+  })
+})

@@ -317,9 +317,15 @@ func TestConfiguredOpenClawModelMappingFollowsGroupAllowlist(t *testing.T) {
 		t.Fatalf("default = %q, want gpt-6-luna", mapping.DefaultModel)
 	}
 
+	// An allowlist that names no model a cell can offer must not block
+	// workspace creation: the built-in list is offered, and reported as such.
 	group.ModelAllowlist.Models = []string{"claude-*"}
-	if _, enabled, err := configuredOpenClawModelMapping("sk-012345678901234567890", group); err == nil || enabled {
-		t.Fatalf("a group that admits no offerable model was accepted: enabled=%v err=%v", enabled, err)
+	mapping, enabled, err = configuredOpenClawModelMapping("sk-012345678901234567890", group)
+	if err != nil || !enabled || !slices.Equal(openClawMappingAliases(mapping), openClawAllowedModels) {
+		t.Fatalf("fallback mapping = %#v enabled=%v err=%v", mapping, enabled, err)
+	}
+	if _, _, source := openClawSupportedModels(group); source != OpenClawModelsFallback {
+		t.Fatalf("source = %q, want fallback", source)
 	}
 }
 

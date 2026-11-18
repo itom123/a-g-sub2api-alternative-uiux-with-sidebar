@@ -179,8 +179,11 @@ export interface OpenClawAdminInstance extends OpenClawInstance {
   /** Models the workspace offers: its billing group's live model allowlist. */
   allowed_models: string[]
   default_model: string
-  /** `group` when the group's allowlist chose the models, `defaults` when it allows every model. */
-  models_source: 'group' | 'defaults'
+  /**
+   * `group` when the group's allowlist chose the models, `defaults` when it allows every model,
+   * `fallback` when the allowlist names no model a workspace can offer (built-in list used).
+   */
+  models_source: 'group' | 'defaults' | 'fallback'
   mapping_enabled: boolean
   mapping_error?: string
   /** Whether the tenant cell already holds `allowed_models`. */

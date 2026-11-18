@@ -839,7 +839,7 @@ func (s *OpenClawService) CreateInstance(ctx context.Context, userID int64, name
 			return instance, nil
 		}
 		if billingKey != nil {
-			s.recordModelSync(instance.TenantSlug, mapping, billingKey.ID, nil)
+			s.recordModelSync(ctx, instance.TenantSlug, mapping, billingKey.ID, nil)
 		}
 	}
 	if result.Port > 0 {
@@ -983,7 +983,7 @@ func (s *OpenClawService) ProvisionInstance(ctx context.Context, userID, instanc
 			_, _ = s.db.ExecContext(ctx, `UPDATE openclaw_instances SET status = 'error', last_error = $1, updated_at = NOW() WHERE id = $2 AND user_id = $3`, configErr.Error(), instanceID, userID)
 			return OpenClawInstance{}, fmt.Errorf("configure OpenClaw model mapping: %w", configErr)
 		}
-		s.recordModelSync(instance.TenantSlug, mapping, billingKey.ID, nil)
+		s.recordModelSync(ctx, instance.TenantSlug, mapping, billingKey.ID, nil)
 	}
 	if result.Port > 0 {
 		_, err = s.db.ExecContext(ctx, `UPDATE openclaw_instances SET status = 'ready', port = $1, last_error = NULL, updated_at = NOW() WHERE id = $2 AND user_id = $3`, result.Port, instanceID, userID)
@@ -1828,7 +1828,7 @@ func (s *OpenClawService) ReconcileInstanceAdmin(ctx context.Context, instanceID
 					return OpenClawInstance{}, errors.New("OpenClaw worker does not support model mapping")
 				}
 				err := configurator.Configure(ctx, instance.TenantSlug, mapping)
-				s.recordModelSync(instance.TenantSlug, mapping, billingKey.ID, err)
+				s.recordModelSync(ctx, instance.TenantSlug, mapping, billingKey.ID, err)
 				if err != nil {
 					return OpenClawInstance{}, err
 				}

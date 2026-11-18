@@ -179,7 +179,9 @@ function count(value: number) { return value.toLocaleString() }
 function connectionsOf(item: OpenClawAdminInstance): OpenClawAdminConnection[] { return item.connections ?? [] }
 function connectionStatus(status: string) { return status === 'connected' ? 'Connected' : status === 'pending' ? 'Set-up not finished' : status }
 function modelsSource(item: OpenClawAdminInstance) {
-  return item.models_source === 'group' ? `From the ${item.billing_group || 'billing'} group's model allowlist` : 'Built-in defaults: the group allows every model'
+  if (item.models_source === 'group') return `From the ${item.billing_group || 'billing'} group's model allowlist`
+  if (item.models_source === 'fallback') return `Built-in defaults: the ${item.billing_group || 'billing'} group's allowlist names no model a workspace can offer`
+  return 'Built-in defaults: the group allows every model'
 }
 function modelSyncClass(state: string) {
   return state === 'synced' ? 'text-green-700 dark:text-green-300' : state === 'failed' ? 'text-red-700 dark:text-red-300' : 'text-gray-500'
