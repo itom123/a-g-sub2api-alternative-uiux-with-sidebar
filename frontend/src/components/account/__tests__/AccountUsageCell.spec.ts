@@ -130,6 +130,59 @@ describe('AccountUsageCell', () => {
     })
   })
 
+  it.each([
+    { name: 'missing', window: null, visible: false },
+    { name: 'synthetic empty window', window: { utilization: 0, resets_at: null }, visible: false },
+    { name: 'local stats without provider window', window: { utilization: 0, resets_at: null, window_stats: { requests: 12, tokens: 1000, cost: 1 } }, visible: false },
+    { name: 'reported zero', window: { utilization: 0, resets_at: '2099-11-22T02:00:00Z' }, visible: true },
+    { name: 'reported positive without reset', window: { utilization: 12, resets_at: null }, visible: true },
+    { name: 'invalid measurement', window: { utilization: Number.NaN, resets_at: null }, visible: false },
+  ])('Claude hides only unreported five-hour usage: $name', async ({ window, visible }) => {
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({ platform: 'anthropic', type: 'oauth',
+          session_window_end: '2026-11-05T18:50:00Z', extra: { session_window_utilization: 0 } }),
+        requestBatchedUsage: vi.fn(),
+        batchedUsage: { source: 'passive', five_hour: window, seven_day: { utilization: 4, resets_at: '2099-11-28T02:00:00Z' } },
+      },
+      global: { stubs: {
+        UsageProgressBar: { props: ['label', 'utilization'], template: '<div class="usage-bar">{{ label }}|{{ utilization }}</div>' },
+        ClaudeResetCreditsCell: { template: '<div data-test="claude-actions"><slot name="pre-actions" /></div>' },
+      } },
+    })
+    await flushPromises()
+    const bars = wrapper.findAll('.usage-bar').map(bar => bar.text())
+    expect(bars.some(bar => bar.startsWith('5h|'))).toBe(visible)
+    expect(bars).toContain('7d|4')
+    expect(wrapper.find('[data-test="claude-actions"]').exists()).toBe(true)
+    expect(getUsage).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('keeps Claude weekly fields distinct and already normalized, including a reported zero', async () => {
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({ platform: 'anthropic', type: 'oauth' }),
+        requestBatchedUsage: vi.fn(),
+        batchedUsage: { source: 'passive', five_hour: null,
+          seven_day: { utilization: 4, resets_at: '2099-11-28T02:00:00Z' },
+          seven_day_sonnet: { utilization: 0, resets_at: '2099-11-28T03:00:00Z' },
+          seven_day_fable: { utilization: 85, resets_at: '2026-11-21T02:00:00Z' } },
+      },
+      global: { stubs: {
+        UsageProgressBar: { props: ['label', 'utilization', 'resetsAt', 'expireAtReset'], template: '<div class="usage-bar">{{ label }}|{{ utilization }}|{{ resetsAt }}|{{ expireAtReset }}</div>' },
+        ClaudeResetCreditsCell: true,
+      } },
+    })
+    await flushPromises()
+    expect(wrapper.findAll('.usage-bar').map(bar => bar.text())).toEqual([
+      '7d|4|2099-11-28T02:00:00Z|true',
+      '7d S|0|2099-11-28T03:00:00Z|true',
+      '7d F|85|2026-11-21T02:00:00Z|true',
+    ])
+    wrapper.unmount()
+  })
+
   it('keeps cached Claude quota visible while a replacement batch is loading', async () => {
     const requestBatchedUsage = vi.fn()
     const wrapper = mount(AccountUsageCell, {

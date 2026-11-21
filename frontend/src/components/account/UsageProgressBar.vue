@@ -7,6 +7,7 @@
         <HelpTooltip :content="windowExplanation" width-class="w-80" />
       </div>
       <div
+        v-if="measurementAvailable"
         class="ag-usage-meter"
         role="progressbar"
         :aria-label="`${fullLabel} · ${t(remainingCapacity ? 'admin.accounts.usageWindow.remaining' : 'admin.accounts.usageWindow.used')}`"
@@ -16,6 +17,9 @@
         :aria-valuetext="displayPercent"
       >
         <span :style="{ width: barWidth }"></span>
+      </div>
+      <div v-if="expiredMeasurement && validUtilization" class="text-xs text-gray-500 dark:text-gray-400">
+        {{ t('admin.accounts.usageWindow.lastReported', { percent: reportedPercent }) }}
       </div>
       <div class="ag-usage-reset-time">
         <span>{{ t('admin.accounts.usageWindow.automaticRecovery') }}</span>
@@ -75,7 +79,7 @@
       </span>
 
       <!-- Progress bar container -->
-      <div class="h-1.5 w-8 shrink-0 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+      <div v-if="measurementAvailable" class="h-1.5 w-8 shrink-0 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
         <div
           :class="['h-full transition-all duration-300', barClass]"
           :style="{ width: barWidth }"
@@ -117,6 +121,8 @@ const props = withDefaults(
     estimatedTotalCost?: number | null
     showNowWhenIdle?: boolean
     remainingCapacity?: boolean
+    /** A previous Claude quota window is not a measurement of the new window. */
+    expireAtReset?: boolean
     /** fixed: 定宽居中徽章（账号页纵向对齐）；auto: 限宽截断左对齐（监控页组合标签） */
     labelWidth?: 'fixed' | 'auto'
     detailed?: boolean
@@ -229,8 +235,14 @@ const barWidth = computed(() => {
   return `${Math.min(Math.max(props.utilization, 0), 100)}%`
 })
 
-// Display percentage (cap at 999% for readability)
-const displayPercent = computed(() => {
+const validUtilization = computed(() => Number.isFinite(props.utilization) && props.utilization >= 0)
+const expiredMeasurement = computed(() => Boolean(
+  props.expireAtReset && props.resetsAt && Date.parse(props.resetsAt) <= now.value.getTime()
+))
+const measurementAvailable = computed(() => validUtilization.value && !expiredMeasurement.value)
+
+// API utilization is already a percentage; never rescale values below 1.
+const reportedPercent = computed(() => {
   const percent = Math.round(
     props.remainingCapacity
       ? Math.min(Math.max(props.utilization, 0), 100)
@@ -238,6 +250,9 @@ const displayPercent = computed(() => {
   )
   return percent > 999 ? '>999%' : `${percent}%`
 })
+const displayPercent = computed(() => expiredMeasurement.value
+  ? t('usage.resetPending')
+  : validUtilization.value ? reportedPercent.value : t('admin.accounts.usageWindow.notReported'))
 
 const summaries = inject(accountUsageSummaryKey, null)
 // Accounts use the same measurement layout for every provider, including nested quota cells.
@@ -247,7 +262,7 @@ summaries?.set(summaryId, computed(() => ({
   label: fullLabel.value,
   caption: t(props.remainingCapacity ? 'admin.accounts.usageWindow.remaining' : 'admin.accounts.usageWindow.used'),
   percent: displayPercent.value,
-  utilization: Math.min(Math.max(props.utilization, 0), 100),
+  utilization: measurementAvailable.value ? Math.min(Math.max(props.utilization, 0), 100) : null,
 })))
 onBeforeUnmount(() => summaries?.delete(summaryId))
 
@@ -269,7 +284,7 @@ const formatResetTime = computed(() => {
   // resetsAt 已过期：utilization>0 说明后端窗口数据还没刷新（active poll 没回写），
   // 显示「待刷新」以区别于真正可用的「现在」。
   if (diffMs <= 0) {
-    return props.utilization > 0 ? t('usage.resetPending') : t('usage.resetNow')
+    return props.expireAtReset || props.utilization > 0 ? t('usage.resetPending') : t('usage.resetNow')
   }
 
   const diffHours = Math.floor(diffMs / (1000 * 60 * 60))

@@ -125,7 +125,7 @@ onBeforeUnmount(removeListeners)
               <strong>{{ window.label }}</strong>
               <span>{{ window.caption }} {{ window.percent }}</span>
             </div>
-            <div class="ag-usage-meter" role="progressbar" :aria-label="`${window.label} · ${window.caption}`" :aria-valuenow="window.utilization" aria-valuemin="0" aria-valuemax="100" :aria-valuetext="window.percent">
+            <div v-if="window.utilization !== null" class="ag-usage-meter" role="progressbar" :aria-label="`${window.label} · ${window.caption}`" :aria-valuenow="window.utilization" aria-valuemin="0" aria-valuemax="100" :aria-valuetext="window.percent">
               <span :style="{ width: `${window.utilization}%` }"></span>
             </div>
           </div>

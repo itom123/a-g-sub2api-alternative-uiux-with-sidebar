@@ -43,7 +43,8 @@
         <!-- 5h Window -->
         <UsageProgressBar
           :detailed="true"
-          v-if="usageInfo.five_hour"
+          v-if="usageInfo.five_hour && anthropicFiveHourWindowReported"
+          :expire-at-reset="true"
           label="5h"
           :utilization="usageInfo.five_hour.utilization"
           :resets-at="usageInfo.five_hour.resets_at"
@@ -55,6 +56,7 @@
         <UsageProgressBar
           :detailed="true"
           v-if="usageInfo.seven_day"
+          :expire-at-reset="true"
           label="7d"
           :utilization="usageInfo.seven_day.utilization"
           :resets-at="usageInfo.seven_day.resets_at"
@@ -65,6 +67,7 @@
         <UsageProgressBar
           :detailed="true"
           v-if="usageInfo.seven_day_sonnet"
+          :expire-at-reset="true"
           label="7d S"
           :utilization="usageInfo.seven_day_sonnet.utilization"
           :resets-at="usageInfo.seven_day_sonnet.resets_at"
@@ -75,6 +78,7 @@
         <UsageProgressBar
           :detailed="true"
           v-if="usageInfo.seven_day_fable"
+          :expire-at-reset="true"
           label="7d F"
           :utilization="usageInfo.seven_day_fable.utilization"
           :resets-at="usageInfo.seven_day_fable.resets_at"
@@ -883,6 +887,18 @@ const hasOpenAIUsageFallback = computed(() => {
 
 // Plans with only a weekly limit report a zero-length 5h window; its bar would read 0% forever.
 const openAIFiveHourWindowReported = computed(() => props.account.extra?.codex_5h_window_minutes !== 0)
+
+// The Claude API synthesizes { utilization: 0, resets_at: null } when no
+// session window is reported (or the old window has expired). Local request
+// statistics alone do not establish a provider quota. Keep genuine zero usage
+// when its window is reported; do not special-case account names or plans.
+const anthropicFiveHourWindowReported = computed(() => {
+  const window = usageInfo.value?.five_hour
+  return !!window && Number.isFinite(window.utilization) && window.utilization >= 0 && (
+    window.utilization > 0 ||
+    (!!window.resets_at && Number.isFinite(Date.parse(window.resets_at)))
+  )
+})
 
 const openAISevenDayEstimatedTotalCost = computed(() => {
   const sevenDay = usageInfo.value?.seven_day

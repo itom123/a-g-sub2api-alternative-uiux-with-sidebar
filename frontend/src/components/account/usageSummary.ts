@@ -4,7 +4,7 @@ export interface UsageSummary {
   label: string
   caption: string
   percent: string
-  utilization: number
+  utilization: number | null
 }
 
 // The table preview shares measurements with the mounted detail controls.

@@ -552,6 +552,7 @@ export default {
         remainingHint: "上游上报的剩余额度比例。此进度条只显示状态，不能点击修改额度。",
         automaticRecovery: "自动恢复",
         notReported: "未上报",
+        lastReported: "上次上报：{percent}",
         recoveryHint: "上游用量窗口自动滚动恢复；此处是预计恢复时间，不是重置按钮。时间到期后若仍显示“待刷新”，请刷新窗口数据。",
         recoveryTime: "上游报告的恢复时间（本地时区）：{time}",
         refreshHint: "重新读取用量窗口并更新显示，不消耗重置次数。刷新不会解除上游限额。",

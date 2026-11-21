@@ -1752,6 +1752,7 @@ export default {
         remainingHint: "Remaining capacity reported by the provider. This bar displays status; clicking it does not change the quota.",
         automaticRecovery: "Automatic recovery",
         notReported: "Not reported",
+        lastReported: "Last reported: {percent}",
         recoveryHint: "The provider restores usage when the window rolls over. This is the expected recovery time, not a reset button. If it says “Pending refresh” after that time, refresh the usage data.",
         recoveryTime: "Provider recovery time (your local time zone): {time}",
         refreshHint: "Read the latest usage windows and update the display. This does not spend a reset credit or lift the provider limit.",

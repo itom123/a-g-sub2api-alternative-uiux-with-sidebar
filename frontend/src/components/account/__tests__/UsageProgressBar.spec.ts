@@ -7,7 +7,7 @@ vi.mock('vue-i18n', async () => {
   return {
     ...actual,
     useI18n: () => ({
-      t: (key: string, params?: Record<string, unknown>) => params?.time ? `${key}:${params.time}` : key,
+      t: (key: string, params?: Record<string, unknown>) => params?.time ? `${key}:${params.time}` : params?.percent ? `${key}:${params.percent}` : key,
       locale: { value: 'en' }
     })
   }
@@ -21,6 +21,49 @@ describe('UsageProgressBar', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it.each([0, 85])('does not present an expired Claude weekly value of %s as current usage', (utilization) => {
+    const wrapper = mount(UsageProgressBar, {
+      props: { label: '7d F', utilization, resetsAt: '2026-03-16T02:00:00Z', color: 'amber', detailed: true, expireAtReset: true },
+    })
+    expect(wrapper.find('[role="progressbar"]').exists()).toBe(false)
+    expect(wrapper.get('.ag-usage-window-heading').text()).toContain('usage.resetPending')
+    expect(wrapper.text()).toContain(`admin.accounts.usageWindow.lastReported:${utilization}%`)
+    expect(wrapper.text()).not.toContain('usage.resetNow')
+    wrapper.unmount()
+  })
+
+  it('expires at the window boundary and resumes only when a new sample arrives', async () => {
+    const wrapper = mount(UsageProgressBar, {
+      props: { label: '7d F', utilization: 85, resetsAt: '2026-03-17T00:01:00Z', color: 'amber', detailed: true, expireAtReset: true },
+    })
+    expect(wrapper.get('[role="progressbar"]').attributes('aria-valuenow')).toBe('85')
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(wrapper.find('[role="progressbar"]').exists()).toBe(false)
+    await wrapper.setProps({ utilization: 0, resetsAt: '2026-03-24T00:01:00Z' })
+    expect(wrapper.get('[role="progressbar"]').attributes('aria-valuenow')).toBe('0')
+    expect(wrapper.text()).not.toContain('usage.resetPending')
+    wrapper.unmount()
+  })
+
+  it.each([0, 0.85, 4, 85, 120])('keeps API percentage %s unchanged in the meter', (utilization) => {
+    const wrapper = mount(UsageProgressBar, {
+      props: { label: '7d', utilization, resetsAt: null, color: 'emerald', detailed: true, expireAtReset: true },
+    })
+    expect(wrapper.get('[role="progressbar"]').attributes('aria-valuenow')).toBe(String(Math.min(utilization, 100)))
+    expect(wrapper.text()).toContain('admin.accounts.usageWindow.notReported')
+    expect(wrapper.text()).not.toContain('usage.resetPending')
+    wrapper.unmount()
+  })
+
+  it.each([null, undefined, Number.NaN, Number.POSITIVE_INFINITY])('does not fabricate zero for missing or invalid usage (%s)', (utilization) => {
+    const wrapper = mount(UsageProgressBar, {
+      props: { label: '7d', utilization: utilization as number, color: 'emerald', detailed: true, expireAtReset: true },
+    })
+    expect(wrapper.find('[role="progressbar"]').exists()).toBe(false)
+    expect(wrapper.get('.ag-usage-window-heading').text()).toContain('admin.accounts.usageWindow.notReported')
+    wrapper.unmount()
   })
 
   it('showNowWhenIdle=true 且利用率为 0 但有未来 resetsAt 时显示倒计时', () => {

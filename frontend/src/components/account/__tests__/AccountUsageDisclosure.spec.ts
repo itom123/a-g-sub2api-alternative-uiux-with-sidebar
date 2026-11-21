@@ -66,6 +66,23 @@ describe('AccountUsageDisclosure', () => {
     wrapper.unmount()
   })
 
+  it('keeps expired weekly usage out of both the table summary and details meters', async () => {
+    const Usage = defineComponent({
+      components: { UsageProgressBar },
+      template: '<div><UsageProgressBar detailed label="7d" :utilization="4" resets-at="2099-11-28T02:00:00Z" color="emerald" expire-at-reset/><UsageProgressBar detailed label="7d F" :utilization="85" resets-at="2020-11-21T02:00:00Z" color="amber" expire-at-reset/></div>',
+    })
+    const wrapper = mount(AccountUsageDisclosure, { attachTo: document.body, props: { accountName: 'Review' }, slots: { default: Usage } })
+    await flushPromises()
+    expect(wrapper.findAll('[role="progressbar"]').map(e => e.attributes('aria-valuenow'))).toEqual(['4'])
+    await wrapper.get('.ag-usage-details-trigger').trigger('click')
+    await flushPromises()
+    const summary = wrapper.get('.ag-usage-retained-summary')
+    expect(summary.findAll('[role="progressbar"]').map(e => e.attributes('aria-valuenow'))).toEqual(['4'])
+    expect(summary.text()).toContain('usage.resetPending')
+    expect(document.querySelectorAll('.ag-usage-popover [role="progressbar"]')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
   it('lets Escape close details and returns focus to the disclosure', async () => {
     const wrapper = mountDisclosure()
     const trigger = wrapper.get('.ag-usage-details-trigger')
