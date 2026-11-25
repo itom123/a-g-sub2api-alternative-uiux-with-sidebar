@@ -43,9 +43,7 @@
         class="mt-1 flex items-start gap-1 text-xs text-red-600 dark:text-red-400"
         data-testid="header-override-row-error"
       >
-        <svg class="mt-0.5 h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m0 3.75h.008M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
+        <Icon name="exclamationCircle" size="compact" class="mt-0.5 flex-shrink-0" aria-hidden="true" />
         <span>{{ t(`admin.accounts.headerOverride.${rowErrors[index]}`) }}</span>
       </p>
       <p
@@ -85,9 +83,7 @@
     data-testid="header-override-variables"
   >
     <div class="flex items-center gap-1.5">
-      <svg class="h-4 w-4 text-primary-600 dark:text-primary-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7.5 3.75H6A2.25 2.25 0 003.75 6v1.5M16.5 3.75H18A2.25 2.25 0 0120.25 6v1.5m0 9V18A2.25 2.25 0 0118 20.25h-1.5m-9 0H6A2.25 2.25 0 013.75 18v-1.5M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-      </svg>
+      <Icon name="terminal" size="sm" class="text-primary-600 dark:text-primary-400" aria-hidden="true" />
       <span class="text-sm font-medium text-gray-800 dark:text-gray-100">
         {{ t('admin.accounts.headerOverride.variablesTitle') }}
       </span>
@@ -117,9 +113,7 @@
             {{ t(`admin.accounts.headerOverride.variables.${variable}.desc`) }}
           </span>
         </span>
-        <svg class="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-gray-300 transition-colors group-hover:text-primary-500 dark:text-dark-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-        </svg>
+        <Icon name="plus" size="compact" class="mt-0.5 flex-shrink-0 text-gray-300 transition-colors group-hover:text-primary-500 dark:text-dark-400" aria-hidden="true" />
       </button>
     </div>
 
@@ -135,9 +129,7 @@
     class="flex items-start gap-1.5 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-500 dark:bg-dark-700/40 dark:text-gray-400"
     data-testid="header-override-variables-unavailable"
   >
-    <svg class="mt-0.5 h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
-    </svg>
+    <Icon name="lock" size="compact" class="mt-0.5 flex-shrink-0" aria-hidden="true" />
     <span>{{ t('admin.accounts.headerOverride.variablesUnavailable') }}</span>
   </p>
 
