@@ -139,7 +139,8 @@ function mountView(stubActionMenu = true, realUsageCell = false) {
         UpstreamBillingRateCell: true,
         HelpTooltip: true,
         Icon: true,
-        Teleport: stubActionMenu
+        // The usage disclosure preserves its mounted child when teleporting the details.
+        Teleport: stubActionMenu && !realUsageCell
       }
     }
   })
