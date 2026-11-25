@@ -923,7 +923,17 @@ def runner(a):
         a.hook("before_backend_swap")
         # A final attested old runtime check prevents preparing against one
         # listener and activating after it has been replaced out of band.
-        if a.probe("old", True, deadline, "runner") != read_json(a.path / "baseline.json"):
+        while True:
+            if a.decision():
+                return
+            if not remaining(deadline):
+                raise Failure("old listener readiness deadline expired before activation")
+            try:
+                old_identity = a.probe("old", True, deadline, "runner")
+                break
+            except NotReady:
+                time.sleep(min(a.t["interval"], remaining(deadline)))
+        if old_identity != read_json(a.path / "baseline.json"):
             raise Failure("old listener changed after prepare")
         with gate(a.path / "mutation.lock"):
             if a.decision() or not remaining(deadline):
