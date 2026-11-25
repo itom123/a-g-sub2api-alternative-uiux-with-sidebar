@@ -149,7 +149,7 @@ describe('TokenUsageTrend', () => {
     expect(tooltip).toContain('Cache Hit Rate: 50.0%')
   })
 
-  it('plots all four token series against one zero-based left axis', () => {
+  it('plots all four token series against one zero-based left axis with an optional title', async () => {
     const wrapper = mount(TokenUsageTrend, {
       props: {
         trendData: [
@@ -176,11 +176,17 @@ describe('TokenUsageTrend', () => {
     expect(chartData.datasets).toHaveLength(4)
     expect(chartData.datasets.every((ds: any) => ds.yAxisID === 'y')).toBe(true)
     expect(chartData.datasets.map((ds: any) => ds.label)).toEqual(['Input', 'Output', 'Cache Creation', 'Cache Read'])
-    const options = wrapper.findComponent({ name: 'Line' }).props('options') as any
+    const line = wrapper.findComponent({ name: 'Line' })
+    const options = line.props('options') as any
     expect(Object.keys(options.scales)).toEqual(['x', 'y'])
     expect(options.scales.y.position).toBe('left')
     expect(options.scales.y.beginAtZero).toBe(true)
+    expect(options.scales.y.title.display).toBe(true)
 
+    await wrapper.setProps({ hideYAxisTitle: true })
+    const hiddenTitleOptions = line.props('options') as any
+    expect(hiddenTitleOptions.scales.y.title.display).toBe(false)
+    expect(hiddenTitleOptions.scales.y.ticks.callback(10_000_000)).toBe('10.00M')
   })
 
   it('uses shared dashboard labels when provided', () => {

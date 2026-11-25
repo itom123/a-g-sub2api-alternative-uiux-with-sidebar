@@ -62,6 +62,7 @@ const props = defineProps<{
   labels?: string[]
   loading?: boolean
   embedded?: boolean
+  hideYAxisTitle?: boolean
   comparison?: { layout: TrendComparisonLayout; plugins: Plugin<'line'>[] }
 }>()
 
@@ -204,7 +205,7 @@ const lineOptions = computed(() => ({
       position: 'left' as const,
       beginAtZero: true,
       title: {
-        display: true,
+        display: !props.hideYAxisTitle,
         text: t('admin.dashboard.tokens'),
         color: chartColors.value.text,
         font: {

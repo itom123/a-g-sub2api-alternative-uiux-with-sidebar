@@ -290,6 +290,7 @@
           />
           <TokenUsageTrend
             data-testid="dashboard-token-trend"
+            hide-y-axis-title
             :trend-data="trendData"
             :labels="dashboardChartLabels"
             :loading="chartsLoading"
