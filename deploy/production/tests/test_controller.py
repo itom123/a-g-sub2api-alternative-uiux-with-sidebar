@@ -73,6 +73,76 @@ class ProbeTimeoutTests(unittest.TestCase):
         self.assert_probe_timeout(3, "probe timed out")
 
 
+class RunnerPreflightTests(unittest.TestCase):
+    baseline = {"pid": 12345, "token": "prepared-birth-token", "build": OLD}
+
+    def run_attempt(self, *outcomes, expires=False, fenced=False):
+        not_before = {"timer": "start"}
+        deadline = {"timer": "activation"}
+        pending = list(outcomes)
+        attempt = mock.Mock(spec=dc.Attempt, t={"interval": 2, "poll": 0.25})
+        attempt.register.return_value = self.baseline
+
+        def remaining(timer):
+            if timer == not_before:
+                return 0
+            self.assertEqual(timer, deadline)
+            return 2 * len(pending) if expires else 60
+
+        def probe(*args):
+            result = pending.pop(0)
+            if isinstance(result, Exception):
+                raise result
+            return result
+
+        attempt.probe.side_effect = probe
+        with tempfile.TemporaryDirectory(prefix=".runner-preflight-", dir=HERE) as directory, \
+                mock.patch.object(dc, "verify_manifest"), mock.patch.object(dc, "remaining", remaining), \
+                mock.patch.object(dc.time, "sleep"), mock.patch.object(dc, "gate") as mutation_gate:
+            attempt.path = Path(directory)
+            # Fence at the gate to isolate preflight from the rest of activation.
+            attempt.decision.side_effect = lambda: (
+                {"decision": "rollback"} if mutation_gate.called or (fenced and not pending) else None
+            )
+            dc.save(attempt.path / "activation.json", {"not_before": not_before, "deadline": deadline})
+            dc.save(attempt.path / "baseline.json", self.baseline)
+            dc.runner(attempt)
+
+        self.assertEqual(attempt.probe.call_args_list,
+                         [mock.call("old", True, deadline, "runner")] * len(outcomes))
+        attempt.swap_binary.assert_not_called()
+        return attempt, mutation_gate
+
+    def test_transient_listener_failure_retries_and_accepts_the_prepared_identity(self):
+        attempt, mutation_gate = self.run_attempt(dc.NotReady("listener inspection unavailable"), self.baseline)
+        mutation_gate.assert_called_once_with(attempt.path / "mutation.lock")
+        attempt.decide.assert_not_called()
+
+    def test_preflight_rejects_a_replaced_listener_or_a_hard_probe_failure(self):
+        changed_token = dict(self.baseline, token="replacement-birth-token")
+        cases = (
+            ((dc.NotReady("listener inspection unavailable"), changed_token), "old listener changed after prepare"),
+            ((dc.Failure("HTTP status mismatch for /api/v1/admin/accounts: 200"),),
+             "HTTP status mismatch for /api/v1/admin/accounts: 200"),
+        )
+        for outcomes, reason in cases:
+            with self.subTest(reason=reason):
+                attempt, mutation_gate = self.run_attempt(*outcomes)
+                mutation_gate.assert_not_called()
+                attempt.decide.assert_called_once_with("rollback", reason)
+
+    def test_permanent_listener_failure_preserves_activation_deadline(self):
+        unavailable = dc.NotReady("listener inspection unavailable")
+        attempt, mutation_gate = self.run_attempt(unavailable, unavailable, expires=True)
+        mutation_gate.assert_not_called()
+        attempt.decide.assert_called_once_with("rollback", "old listener readiness deadline expired before activation")
+
+    def test_preflight_stops_after_an_immutable_decision(self):
+        attempt, mutation_gate = self.run_attempt(dc.NotReady("listener inspection unavailable"), fenced=True)
+        mutation_gate.assert_not_called()
+        attempt.decide.assert_not_called()
+
+
 class ControllerTests(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp(prefix=".fake-test-", dir=HERE))
