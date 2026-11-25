@@ -15,6 +15,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/apicompat"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -58,6 +59,7 @@ func TestGPT62IdentityEffortAndSampling(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, changed)
 		require.JSONEq(t, `{"include":["reasoning.encrypted_content"]}`, string(body))
+		require.Equal(t, "ultrafast", openAIGroupForcedServiceTier(context.WithValue(context.Background(), ctxkey.Group, &Group{ID: 1, Platform: PlatformOpenAI, Status: StatusActive, Hydrated: true, ForceOpenAIUltrafast: true}), &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}, base))
 	}
 	for _, model := range []string{"gpt-6.2", "gpt-6.2-foo", "gpt-6.2-sol-preview", "gpt-6.2-astra-law"} {
 		require.Empty(t, normalizeKnownOpenAICodexModel(model))
@@ -188,8 +190,15 @@ func TestGPT62OfflineCodexCatalogAndAccountTiers(t *testing.T) {
 				require.Contains(t, string(caps["service_tiers"]), fmt.Sprintf("%gx", openAIUltrafastMultiplier(tc.model, time.Now())))
 			} else {
 				require.NotContains(t, string(caps["service_tiers"]), "ultrafast")
+				group := &Group{ID: 1, Status: StatusActive, Hydrated: true, Platform: PlatformOpenAI, ForceOpenAIUltrafast: true}
+				ctx := context.WithValue(context.Background(), ctxkey.Group, group)
+				require.Empty(t, openAIGroupForcedServiceTier(ctx, account, tc.model))
+				group.ForceOpenAIFast = true
+				account.SetUpstreamModelMetadataSnapshot(UpstreamModelMetadataSnapshot{Models: map[string]UpstreamModelMetadata{tc.model: {ID: tc.model, CodexToolCapabilities: map[string]json.RawMessage{"service_tiers": json.RawMessage(`[{"id":"priority"}]`)}}}})
+				require.Equal(t, "priority", openAIGroupForcedServiceTier(ctx, account, tc.model))
 				// An account which actually advertises Ultrafast keeps that capability.
 				account.SetUpstreamModelMetadataSnapshot(UpstreamModelMetadataSnapshot{Models: map[string]UpstreamModelMetadata{tc.model: {ID: tc.model, CodexToolCapabilities: map[string]json.RawMessage{"service_tiers": json.RawMessage(`[{"id":"ultrafast","name":"Ultrafast"}]`)}}}})
+				require.Equal(t, "ultrafast", openAIGroupForcedServiceTier(ctx, account, tc.model+"-max"))
 				require.Contains(t, string(accountCodexToolCapabilities(account, tc.model)["service_tiers"]), "ultrafast")
 			}
 		}
@@ -236,7 +245,7 @@ func TestGPT62ResponsesToChatDropsSamplingAfterMapping(t *testing.T) {
 	require.NotContains(t, outbound, "top_p")
 }
 
-func TestGPT62SubscriptionUltrafastInManifest(t *testing.T) {
+func TestGPT62SubscriptionUltrafastInManifestAndForcedRequests(t *testing.T) {
 	const fastOnly = `[{"id":"priority","name":"Fast","description":"account Fast"}]`
 	const both = `[{"id":"priority","name":"Fast"},{"id":"ultrafast","name":"Ultrafast","description":"workspace grant"}]`
 	for _, tc := range []struct {
@@ -258,7 +267,7 @@ func TestGPT62SubscriptionUltrafastInManifest(t *testing.T) {
 			if tc.snapshot != "" {
 				account.SetUpstreamModelMetadataSnapshot(UpstreamModelMetadataSnapshot{Models: map[string]UpstreamModelMetadata{tc.model: {ID: tc.model, CodexToolCapabilities: map[string]json.RawMessage{"service_tiers": json.RawMessage(tc.snapshot)}}}})
 			}
-			group := &Group{ID: 1, Platform: PlatformOpenAI, Status: StatusActive, Hydrated: true, ForceOpenAIFast: true}
+			group := &Group{ID: 1, Platform: PlatformOpenAI, Status: StatusActive, Hydrated: true, ForceOpenAIFast: true, ForceOpenAIUltrafast: true}
 			gateway := &GatewayService{accountRepo: codexModelsVisibilityAccountRepo{byGroup: map[int64][]Account{1: {account}}}}
 			body, err := gateway.BuildCodexModelsManifestForGroup(context.Background(), group, "", []string{"public"})
 			require.NoError(t, err)
@@ -269,14 +278,18 @@ func TestGPT62SubscriptionUltrafastInManifest(t *testing.T) {
 			if tc.snapshot == fastOnly {
 				require.Equal(t, "account Fast", tiers[0].(map[string]any)["description"])
 			}
+			ctx := context.WithValue(context.Background(), ctxkey.Group, group)
+			forced := openAIGroupForcedServiceTier(ctx, &account, account.GetMappedModel("public")+"-max")
 			if tc.want {
 				require.Len(t, tiers, 2)
 				require.Equal(t, "ultrafast", tiers[1].(map[string]any)["id"])
+				require.Equal(t, OpenAIFastTierUltrafast, forced)
 				if tc.snapshot == both {
 					require.Equal(t, "workspace grant", tiers[1].(map[string]any)["description"])
 				}
 			} else {
 				require.Len(t, tiers, 1)
+				require.Equal(t, OpenAIFastTierPriority, forced)
 			}
 		})
 	}

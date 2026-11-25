@@ -1000,6 +1000,8 @@ var ProviderSet = wire.NewSet(
 	NewConfiguredOpenClawFleetClient,
 	ProvideOpenClawService,
 	ProvideUserPlatformQuotaUsageFlusher,
+	NewUsageBillingLaneCombiner,
+	ProvideUsageBillingRepository,
 )
 
 func ProvideOpenClawService(db *sql.DB, fleet OpenClawFleetClient, apiKeys *APIKeyService) *OpenClawService {
@@ -1012,6 +1014,11 @@ func ProvideOpenClawService(db *sql.DB, fleet OpenClawFleetClient, apiKeys *APIK
 	// Keeps every live cell's model list equal to the billing group's.
 	svc.StartModelSyncWorker(30*time.Second, 2*time.Minute)
 	return svc
+}
+
+// ProvideUsageBillingRepository 以按用户合并结算的通道作为各服务使用的计费仓储。
+func ProvideUsageBillingRepository(lanes *UsageBillingLaneCombiner) UsageBillingRepository {
+	return lanes
 }
 
 // ProvideUserPlatformQuotaUsageFlusher 创建并启动 UserPlatformQuotaUsageFlusher。

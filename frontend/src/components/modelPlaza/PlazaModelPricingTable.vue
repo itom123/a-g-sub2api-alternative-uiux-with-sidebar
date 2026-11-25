@@ -66,7 +66,13 @@
           <td class="border-r border-gray-100 py-2.5 pl-5 pr-4 align-middle dark:border-dark-700/60">
             <div class="flex flex-wrap items-center gap-1.5">
               <span class="ag-model-id">{{ m.name }}</span>
-              <button v-if="!period" type="button" class="ag-model-copy" :aria-label="`复制模型 ${m.name}`" @click="copyModel(m.name)">{{ copied === m.name ? '已复制' : '复制' }}</button>
+              <button
+                type="button"
+                class="ag-model-copy"
+                :title="t('modelPlaza.table.copyModelId', { model: m.name })"
+                :aria-label="t('modelPlaza.table.copyModelId', { model: m.name })"
+                @click="copyModel(m.name)"
+              >{{ copied === m.name ? '已复制' : '复制' }}</button>
               <!-- 时段徽章紧跟模型名,其余徽章排在后面,空间不足时先换行的是它们 -->
               <span
                 v-if="period"
@@ -329,6 +335,7 @@
 import { computed, ref } from 'vue'
 import ModelHealth from '@/components/goblin/ModelHealth.vue'
 import { useI18n } from 'vue-i18n'
+import { useClipboard } from '@/composables/useClipboard'
 import { formatScaled, resolveIntervalPrices } from '@/utils/pricing'
 import { platformBadgeLightClass, platformLabel } from '@/utils/platformColors'
 import {
@@ -376,12 +383,16 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
+const { copyToClipboard } = useClipboard()
 const copied = ref('')
 async function copyModel(name: string) {
-  try { await navigator.clipboard.writeText(name); copied.value = name }
-  catch { copied.value = ''; window.prompt('请复制模型 ID', name) }
+  if (await copyToClipboard(name)) {
+    copied.value = name
+  } else {
+    copied.value = ''
+    window.prompt('请复制模型 ID', name)
+  }
 }
-
 
 /** 实付分区只从平台拿一个主色,浅底/标题/下划线全部由 scoped CSS 用 color-mix 派生。 */
 const accentStyle = { '--plaza-accent': 'var(--ag-ink)' }

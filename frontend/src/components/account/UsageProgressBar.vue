@@ -115,6 +115,7 @@ const props = withDefaults(
   defineProps<{
     label: string
     utilization: number // Percentage (0-100+)
+    utilizationUnknown?: boolean
     resetsAt?: string | null
     color: 'indigo' | 'emerald' | 'purple' | 'amber'
     windowStats?: WindowStats | null
@@ -138,7 +139,7 @@ const fullLabel = computed(() => {
 })
 const windowExplanation = computed(() => `${fullLabel.value} · ${t(props.remainingCapacity ? 'admin.accounts.usageWindow.remainingHint' : 'admin.accounts.usageWindow.usedHint')}`)
 const resetExplanation = computed(() => {
-  const timestamp = props.resetsAt ? new Date(props.resetsAt) : null
+  const timestamp = !props.utilizationUnknown && props.resetsAt ? new Date(props.resetsAt) : null
   const exactTime = timestamp && Number.isFinite(timestamp.getTime())
     ? new Intl.DateTimeFormat(locale.value, { dateStyle: 'medium', timeStyle: 'long' }).format(timestamp)
     : t('admin.accounts.usageWindow.notReported')
@@ -232,10 +233,11 @@ const textClass = computed(() => {
 
 // Bar width (capped at 100%)
 const barWidth = computed(() => {
+  if (props.utilizationUnknown) return '0%'
   return `${Math.min(Math.max(props.utilization, 0), 100)}%`
 })
 
-const validUtilization = computed(() => Number.isFinite(props.utilization) && props.utilization >= 0)
+const validUtilization = computed(() => !props.utilizationUnknown && Number.isFinite(props.utilization) && props.utilization >= 0)
 const expiredMeasurement = computed(() => Boolean(
   props.expireAtReset && props.resetsAt && Date.parse(props.resetsAt) <= now.value.getTime()
 ))
@@ -250,9 +252,11 @@ const reportedPercent = computed(() => {
   )
   return percent > 999 ? '>999%' : `${percent}%`
 })
-const displayPercent = computed(() => expiredMeasurement.value
-  ? t('usage.resetPending')
-  : validUtilization.value ? reportedPercent.value : t('admin.accounts.usageWindow.notReported'))
+const displayPercent = computed(() => {
+  if (props.utilizationUnknown) return '—'
+  if (!validUtilization.value) return t('admin.accounts.usageWindow.notReported')
+  return expiredMeasurement.value ? t('usage.resetPending') : reportedPercent.value
+})
 
 const summaries = inject(accountUsageSummaryKey, null)
 // Accounts use the same measurement layout for every provider, including nested quota cells.
@@ -267,6 +271,7 @@ summaries?.set(summaryId, computed(() => ({
 onBeforeUnmount(() => summaries?.delete(summaryId))
 
 const shouldShowResetTime = computed(() => {
+  if (props.utilizationUnknown) return false
   if (props.resetsAt) return true
   return Boolean(props.showNowWhenIdle && props.utilization <= 0)
 })
