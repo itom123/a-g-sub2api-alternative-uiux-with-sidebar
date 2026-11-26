@@ -93,7 +93,7 @@
         </div>
 
         <!-- Single compact toolbar row: range · filters · view controls -->
-        <div class="monitor-toolbar flex flex-wrap items-center gap-3 px-5 py-4">
+        <div class="monitor-toolbar flex flex-wrap items-center gap-3 px-5 py-4 sm:px-6">
           <div
             class="tabs inline-flex shrink-0"
             role="group"
@@ -295,7 +295,7 @@
             </button>
           </nav>
         </div>
-        <div class="min-h-0 max-h-[min(52vh,520px)] overflow-auto p-4 sm:p-5">
+        <div class="min-h-0 max-h-[min(52vh,520px)] overflow-auto px-5 py-4 sm:px-6 sm:py-5">
           <div v-if="activeTab === 'models'" class="table-container border-0">
             <table class="table monitor-table ag-monitor-models">
               <thead>
@@ -853,4 +853,9 @@ onBeforeUnmount(() => {
 details > summary::-webkit-details-marker {
   display: none;
 }
+/* The toolbar is one dense row of small controls: tab groups, filter menus, the reset button and the grouping
+   menu all share a 32px height, so whatever ends up on the same line lines up top and bottom. */
+.monitor-toolbar .tabs { height: 32px; padding: 2px; align-items: stretch; }
+.monitor-toolbar .tabs > .tab { display: inline-flex; align-items: center; padding-top: 0 !important; padding-bottom: 0 !important; }
+.monitor-toolbar :deep(.select-trigger), .monitor-toolbar .btn-sm { height: 32px; min-height: 32px; padding-top: 0; padding-bottom: 0; }
 </style>

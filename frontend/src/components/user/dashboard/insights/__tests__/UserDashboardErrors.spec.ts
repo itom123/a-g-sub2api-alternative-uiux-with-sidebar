@@ -27,10 +27,10 @@ describe('UserDashboardErrors', () => {
 
   it('renders responsive stacked cards and a fitting desktop table without horizontal clipping', async () => {
     const wrapper = mount(UserDashboardErrors, { props: { items: [item], loading: false, unavailable: false } })
-    expect(wrapper.find('.md\\:hidden').exists()).toBe(true)
-    expect(wrapper.find('.md\\:hidden article').text()).toContain('/v1/messages')
-    expect(wrapper.find('.md\\:block table').classes()).toContain('table-fixed')
-    expect(wrapper.find('.md\\:block table').classes()).not.toContain('min-w-[680px]')
+    expect(wrapper.find('.xl\\:hidden').exists()).toBe(true)
+    expect(wrapper.find('.xl\\:hidden article').text()).toContain('/v1/messages')
+    expect(wrapper.find('.xl\\:block table').classes()).toContain('table-fixed')
+    expect(wrapper.find('.xl\\:block table').classes()).not.toContain('min-w-[680px]')
     expect(wrapper.find('colgroup col:nth-child(1)').classes()).toContain('min-w-[8rem]')
     expect(wrapper.find('colgroup col:nth-child(4)').classes()).toContain('min-w-[3.5rem]')
     expect(wrapper.find('colgroup col:nth-child(5)').classes()).toContain('min-w-[7rem]')
@@ -45,7 +45,7 @@ describe('UserDashboardErrors', () => {
     expect(wrapper.find('tbody td:nth-child(6)').classes()).toContain('break-words')
     expect(wrapper.find('tbody td:nth-child(7)').classes()).toContain('break-words')
     expect(wrapper.find('tbody td:nth-child(7)').classes()).toContain('[overflow-wrap:break-word]')
-    await wrapper.find('.md\\:hidden article').trigger('click')
+    await wrapper.find('.xl\\:hidden article').trigger('click')
     expect(wrapper.emitted('select-error')).toEqual([[4]])
   })
 })

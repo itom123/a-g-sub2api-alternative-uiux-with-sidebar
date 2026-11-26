@@ -145,6 +145,8 @@ label { display: grid; min-width: 0; gap: .35rem; font-weight: 600; }
 input, textarea { width: 100%; min-width: 0; border: 1px solid var(--ag-rule); padding: .65rem; font: inherit; background: var(--ag-paper); color: var(--ag-ink); }
 .checkbox { display: flex; grid-template-columns: auto 1fr; margin: 1rem 0; align-items: center; }
 .checkbox input { width: auto; }
+/* Single-line fields match the 42px buttons they sit next to. */
+input:not([type="checkbox"]):not([type="radio"]) { height: 42px; padding-block: 0; }
 .btn { border: 0; border-radius: 8px; padding: .6rem .9rem; cursor: pointer; }
 .btn-sm { padding: .35rem .6rem; }
 .pair-row, .schedule-row, .section-heading, .schedule-item { display: flex; align-items: center; gap: .75rem; }

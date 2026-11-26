@@ -118,9 +118,18 @@
 
       <!-- Regular User View -->
       <template v-else-if="!appStore.backendModeEnabled">
-        <div class="sidebar-section">
+        <div
+          v-for="group in userNavGroups"
+          :key="group.key"
+          class="sidebar-section"
+          :role="group.label ? 'group' : undefined"
+          :aria-labelledby="group.label ? `nav-section-${group.key}` : undefined"
+        >
+          <div v-if="group.label" :id="`nav-section-${group.key}`" class="sidebar-section-title">
+            <span class="sidebar-section-title-text">{{ group.label }}</span>
+          </div>
           <router-link
-            v-for="item in userNavItems"
+            v-for="item in group.items"
             :key="item.path"
             :to="item.path"
             class="sidebar-link mb-1"
@@ -189,11 +198,16 @@ import { useBatchImageAccess } from '@/composables/useBatchImageAccess'
 import { paymentAPI } from '@/api/payment'
 import { useTelegramAvailability } from '@/composables/useTelegramAvailability'
 
+// Short labels for runs of related user pages. Items keep their order; a label is shown
+// where a run starts. Items without a section (the pages opened most) have no label.
+type NavSection = 'tools' | 'usage' | 'billing' | 'account'
+
 interface NavItem {
   path: string
   label: string
   icon: unknown
   iconSvg?: string
+  section?: NavSection
   hideInSimpleMode?: boolean
   children?: NavItem[]
   /**
@@ -338,29 +352,52 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
   }
   items.push(
     { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon },
-    { path: '/connections', label: t('nav.openclawWorkspace'), icon: LinkIcon },
-    { path: '/career-concierge', label: 'Career advice', icon: ConsultantIcon },
-    { path: '/batch-image', label: t('nav.batchImage'), icon: BatchImageIcon, hideInSimpleMode: true, featureFlag: flagBatchImageAccess },
-    { path: '/usage', label: t('nav.usage'), icon: UsageIcon, hideInSimpleMode: true },
-    { path: '/available-channels', label: t('nav.availableChannels'), icon: RouteIcon, hideInSimpleMode: true, featureFlag: flagAvailableChannels },
-    { path: '/monitor', label: t('nav.channelStatus'), icon: ModelStatusIcon, featureFlag: flagChannelMonitor },
-    { path: '/subscription', label: t('nav.subscribe'), icon: CreditCardIcon, hideInSimpleMode: true, featureFlag: flagSubscription },
-    { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true, featureFlag: flagSubscription },
-    { path: '/purchase', label: purchaseNavLabel.value, icon: RechargeSubscriptionIcon, hideInSimpleMode: true, featureFlag: flagPayment },
-    { path: '/orders', label: t('nav.myOrders'), icon: OrderListIcon, hideInSimpleMode: true, featureFlag: flagPayment },
-    { path: '/redeem', label: t('nav.redeem'), icon: GiftIcon, hideInSimpleMode: true },
-    { path: '/affiliate', label: t('nav.affiliate'), icon: UsersIcon, hideInSimpleMode: true, featureFlag: flagAffiliate },
-    { path: '/telegram', label: t('nav.telegram'), icon: ChatIcon, featureFlag: flagTelegram },
-    { path: '/profile', label: t('nav.profile'), icon: UserIcon },
-    { path: '/settings/mcp', label: t('mcp.title'), icon: MCPIcon, featureFlag: flagMCP },
+    { path: '/connections', label: t('nav.openclawWorkspace'), icon: LinkIcon, section: 'tools' },
+    { path: '/career-concierge', label: 'Career advice', icon: ConsultantIcon, section: 'tools' },
+    { path: '/batch-image', label: t('nav.batchImage'), icon: BatchImageIcon, hideInSimpleMode: true, featureFlag: flagBatchImageAccess, section: 'tools' },
+    { path: '/usage', label: t('nav.usage'), icon: UsageIcon, hideInSimpleMode: true, section: 'usage' },
+    { path: '/available-channels', label: t('nav.availableChannels'), icon: RouteIcon, hideInSimpleMode: true, featureFlag: flagAvailableChannels, section: 'usage' },
+    { path: '/monitor', label: t('nav.channelStatus'), icon: ModelStatusIcon, featureFlag: flagChannelMonitor, section: 'usage' },
+    { path: '/subscription', label: t('nav.subscribe'), icon: CreditCardIcon, hideInSimpleMode: true, featureFlag: flagSubscription, section: 'billing' },
+    { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true, featureFlag: flagSubscription, section: 'billing' },
+    { path: '/purchase', label: purchaseNavLabel.value, icon: RechargeSubscriptionIcon, hideInSimpleMode: true, featureFlag: flagPayment, section: 'billing' },
+    { path: '/orders', label: t('nav.myOrders'), icon: OrderListIcon, hideInSimpleMode: true, featureFlag: flagPayment, section: 'billing' },
+    { path: '/redeem', label: t('nav.redeem'), icon: GiftIcon, hideInSimpleMode: true, section: 'billing' },
+    { path: '/affiliate', label: t('nav.affiliate'), icon: UsersIcon, hideInSimpleMode: true, featureFlag: flagAffiliate, section: 'billing' },
+    { path: '/telegram', label: t('nav.telegram'), icon: ChatIcon, featureFlag: flagTelegram, section: 'account' },
+    { path: '/profile', label: t('nav.profile'), icon: UserIcon, section: 'account' },
+    { path: '/settings/mcp', label: t('mcp.title'), icon: MCPIcon, featureFlag: flagMCP, section: 'account' },
     ...customMenuItemsForUser.value.map((item): NavItem => ({
       path: `/custom/${item.id}`,
       label: item.label,
       icon: null,
       iconSvg: item.icon_svg,
+      section: 'account',
     })),
   )
   return items
+}
+
+// groupNav splits a nav list into consecutive runs that share a section, so the rendered
+// order is always the item order. Each run after the first unlabelled one gets its label.
+interface NavGroup {
+  key: string
+  section: NavSection | ''
+  label: string
+  items: NavItem[]
+}
+function groupNav(items: NavItem[]): NavGroup[] {
+  const groups: NavGroup[] = []
+  for (const item of items) {
+    const section = item.section ?? ''
+    const last = groups[groups.length - 1]
+    if (last && last.section === section) {
+      last.items.push(item)
+    } else {
+      groups.push({ key: `${section || 'main'}-${groups.length}`, section, label: section ? t(`nav.sections.${section}`) : '', items: [item] })
+    }
+  }
+  return groups
 }
 
 // finalizeNav 合并三重过滤：featureFlag 过滤 + simple 模式过滤。
@@ -371,6 +408,7 @@ function finalizeNav(items: NavItem[]): NavItem[] {
 
 // User navigation items (for regular users)
 const userNavItems = computed((): NavItem[] => finalizeNav(buildSelfNavItems(true)))
+const userNavGroups = computed(() => groupNav(userNavItems.value))
 
 // Personal navigation items (for admin's "My Account" section). It includes the
 // 用量与余额 page (/dashboard), which shows the admin's own account usage; the

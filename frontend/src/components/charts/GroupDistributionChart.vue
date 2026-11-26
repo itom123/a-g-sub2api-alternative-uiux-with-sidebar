@@ -10,7 +10,7 @@
       >
         <button
           type="button"
-          class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
+          class="whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
           :aria-pressed="metric === 'tokens'"
           :class="metric === 'tokens'
             ? 'bg-white text-gray-900 shadow-sm dark:bg-dark-700 dark:text-white'
@@ -21,7 +21,7 @@
         </button>
         <button
           type="button"
-          class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
+          class="whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
           :aria-pressed="metric === 'actual_cost'"
           :class="metric === 'actual_cost'
             ? 'bg-white text-gray-900 shadow-sm dark:bg-dark-700 dark:text-white'
