@@ -4,7 +4,7 @@
       <template #filters>
         <div class="flex flex-wrap items-center gap-3">
           <!-- Left: Search + Filters -->
-          <div class="flex-1 sm:max-w-64">
+          <div class="min-w-[12rem] flex-1 sm:max-w-64">
             <input
               v-model="searchQuery"
               type="text"

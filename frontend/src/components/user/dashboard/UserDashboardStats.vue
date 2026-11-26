@@ -1,6 +1,6 @@
 <template>
   <div class="space-y-4" data-testid="account-insights-stats">
-    <div class="account-overview" data-testid="account-overview">
+    <div class="account-overview grid" data-testid="account-overview">
       <section class="card min-w-0 p-4 account-overview-balance" data-testid="balance-card">
         <p class="account-overview-label text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('accountInsights.balance.title') }}</p>
         <p class="account-overview-value text-2xl font-semibold text-gray-900 dark:text-white" data-testid="account-balance">

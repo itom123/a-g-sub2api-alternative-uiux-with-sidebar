@@ -1440,7 +1440,7 @@ function handleToolbarRefresh() {
 
     <!-- Integrated: System health (cards) -->
     <div v-if="overview" class="mt-2 border-t border-gray-100 pt-4 dark:border-dark-700">
-      <div class="ag-ops-system grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <div class="ag-ops-system grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
         <!-- CPU -->
         <div class="rounded-xl bg-gray-50 p-3 dark:bg-dark-900">
           <div class="flex items-center gap-1">

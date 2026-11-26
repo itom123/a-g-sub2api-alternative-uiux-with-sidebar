@@ -225,7 +225,7 @@ html.dark { --ag-paper: #000000; --ag-ink: #ffffff; --ag-paper-rgb: 0 0 0; --ag-
 .ag-platform-grid { display: grid !important; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 8px; padding: 0 !important; }
 :root body .ag-platform-grid > div { display: contents !important; }
 .ag-platform-grid .ag-choice { padding: 12px 28px 12px 12px; }
-:root body .ag-switch { min-height: 30px; padding: 4px 8px; border: 1px solid var(--ag-rule); background: var(--ag-paper) !important; color: var(--ag-ink) !important; font-size: 12px; white-space: nowrap; }
+:root body .ag-switch { min-width: 5.75rem; justify-content: center; min-height: 30px; padding: 4px 8px; border: 1px solid var(--ag-rule); background: var(--ag-paper) !important; color: var(--ag-ink) !important; font-size: 12px; white-space: nowrap; }
 :root body .ag-switch > span { background: transparent !important; border: 0; color: inherit !important; }
 :root body .ag-switch[aria-checked="true"] { background: var(--ag-ink) !important; color: var(--ag-paper) !important; }
 :root body .ag-switch[aria-checked="true"] > span { background: transparent !important; color: var(--ag-paper) !important; }
@@ -478,6 +478,11 @@ html.dark { --ag-paper: #000000; --ag-ink: #ffffff; --ag-paper-rgb: 0 0 0; --ag-
 /* A table's frame ends at its last row; pagination follows it instead of an empty framed area. */
 :root body .table-page-layout:not(.mobile-mode) .layout-section-scrollable { flex: 0 1 auto; }
 :root body .table-page-layout:not(.mobile-mode) .table-scroll-container { height: auto; max-height: 100%; }
+/* On short windows the table keeps room for several rows: when filters and pagination need more height than the
+   window has, the page scrolls instead of squeezing the table down to its header row. */
+:root body .table-page-layout:not(.mobile-mode) .layout-section-scrollable { min-height: min(360px, 55vh); }
+/* No space is held back for a scrollbar a table does not have, so header and row rules reach the frame's edge. */
+:root body .table-scroll-container .table-wrapper { scrollbar-gutter: auto; }
 /* One line weight: every box line is 1px, whatever width utility the markup asks for.
    Loading spinners, pulse rings and CSS arrow tips are not box lines and keep their widths. */
 :root body :is([class~="border-4"], [class~="border-8"]):not(.animate-spin):not(.animate-pulse):not([class~="border-transparent"]) { border-width: 1px !important; }
@@ -487,4 +492,40 @@ html.dark { --ag-paper: #000000; --ag-ink: #ffffff; --ag-paper-rgb: 0 0 0; --ag-
 :root body :is([class~="border-r-2"], [class~="border-r-4"]) { border-right-width: 1px !important; }
 :root body :is([class~="border-x-2"], [class~="border-y-2"]) { border-width: 1px !important; }
 /* Touching lines share one pixel: a header row with no rows under it does not stack its rule on the frame's edge. */
-:root body .table-container table:not(:has(tbody > tr)) > thead > tr > th { border-bottom-color: transparent !important; }
+:root body :is(.table-container, .card) table:not(:has(tbody > tr)) > thead > tr > th { border-bottom-color: transparent !important; }
+/* The same goes for a panel header with nothing visible under it. */
+:root body .card > .card-header:not(:has(~ :not([style*="display: none"]):not(:empty))) { border-bottom-color: transparent !important; }
+
+/* One control height, so controls that share a row line up exactly: text fields, native selects, date and time
+   fields, the date-range button and default buttons are 42px tall; small buttons are 30px. Icon buttons and
+   buttons that set their own height or small padding keep their size. */
+:root body :is(select.input, input.input:is([type="date"], [type="time"], [type="datetime-local"], [type="month"], [type="week"], [type="search"])) { height: 42px; }
+:root body :is(.btn:not(.btn-sm):not(.btn-xs):not(.btn-lg):not(.btn-icon):not([class*="py-0"]):not([class*="py-1"]):not(.text-xs):not([class^="h-"]):not([class*=" h-"]), .date-picker-trigger) { min-height: 42px; }
+:root body .btn-sm:not([class*="py-0"]) { min-height: 30px; }
+
+/* Progress bars: a short rounded track holding a full-height fill with an inline width. The theme turns colour
+   fills into paper, so every such bar is drawn like the usage meter: paper track, 1px rule, ink fill. */
+:root body [class~="overflow-hidden"]:is([class~="h-1"], [class~="h-1.5"], [class~="h-2"], [class~="h-2.5"], [class~="h-3"]):has(> [class~="h-full"][style*="width"]) { background: var(--ag-paper) !important; border: 1px solid var(--ag-rule) !important; }
+:root body [class~="overflow-hidden"]:is([class~="h-1"], [class~="h-1.5"], [class~="h-2"], [class~="h-2.5"], [class~="h-3"]) > [class~="h-full"][style*="width"] { background: var(--ag-ink) !important; }
+
+/* On phones a table becomes a list of framed cards. Inside a framed panel the list keeps the panel's 16px inset, so the
+   cards' edges never sit on the panel's own edge and double up. (A table page's own frame is removed on phones.) */
+:root body .card:not(.table-scroll-container) .data-card-list { padding: 16px; }
+
+/* Sidebar sections: labels sit close to their links, and on short desktop windows the link rows tighten so
+   the menu fits without scrolling where it can. */
+:root body .sidebar .sidebar-section { margin-bottom: 12px; }
+:root body .sidebar .sidebar-section-title { min-height: 16px; margin-bottom: 4px; font-size: 12px; line-height: 16px; }
+@media (min-width: 1024px) and (max-height: 960px) { :root body .sidebar .sidebar-link { padding-top: 6px; padding-bottom: 6px; } }
+@media (min-width: 1024px) and (max-height: 820px) { :root body .sidebar .sidebar-link { padding-top: 4px; padding-bottom: 4px; } }
+
+/* Tab labels stay on one line. On phones a row of tabs that runs out of room scrolls sideways instead of
+   wrapping its labels into tall, uneven tabs. */
+:root body :is(.tab, [role="tab"]) { white-space: nowrap; }
+@media (max-width: 639px) { :root body .tabs { max-width: 100%; overflow-x: auto; scrollbar-width: none; } }
+
+/* Phones: fixed-width filter menus in a table page's filter row stretch to share their line, so every line of
+   filters ends at the same right edge as the search box above it. */
+@media (max-width: 639px) {
+  :root body .table-page-layout .layout-section-fixed .flex-wrap > :is([class~="w-32"], [class~="w-36"], [class~="w-40"], [class~="w-44"], [class~="w-48"], [class~="w-52"], [class~="w-56"]) { flex: 1 1 9rem; width: auto; }
+}
