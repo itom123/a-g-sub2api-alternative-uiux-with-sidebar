@@ -1,8 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
-  <title id="title">AG</title>
-  <path fill="#000" d="M0 0H512V512H0Z"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">AG_&gt;</title>
+  <!-- The name as a 2x2 grid of Futura's primitives: Λ G / _ >. Every glyph uses the same 5-unit stroke. -->
+  <rect width="64" height="64" fill="#000"/>
   <g fill="#fff">
-    <path d="M58 356L96 164H224L264 356H186L176 342H144L138 356Z"/>
-    <path d="M288 164H454V223H349V297H396V274H375V239H454V356H288Z"/>
+    <path d="M9.00 28.00 L18.50 8.25 L28.00 28.00 L22.45 28.00 L18.50 19.78 L14.55 28.00Z"/>
+    <rect x="9" y="50.0" width="19.0" height="5.0"/>
+    <path d="M36.00 36.00 L55.75 45.50 L36.00 55.00 L36.00 49.45 L44.22 45.50 L36.00 41.55Z"/>
   </g>
+  <g fill="none" stroke="#fff" stroke-width="5.0">
+    <path d="M51.07 13.48 A7.50 7.50 0 1 0 53.00 18.50"/>
+    <path d="M55.50 18.50 H45.50"/>
+  </g>
+  <!-- 1px paper keyline on the tile edge (half of a non-scaling 2px stroke): invisible on paper, keeps the square on ink. -->
+  <rect width="64" height="64" fill="none" stroke="#fff" stroke-width="2" vector-effect="non-scaling-stroke"/>
 </svg>

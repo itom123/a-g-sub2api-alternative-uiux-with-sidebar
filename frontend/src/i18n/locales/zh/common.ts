@@ -229,6 +229,13 @@ export default {
     contentModeration: '内容审计',
     promptAudit: '提示词审计',
     auditLogs: '操作日志',
+    // Sidebar section labels
+    sections: {
+      tools: '工具',
+      usage: '用量与模型',
+      billing: '账单',
+      account: '账户',
+    },
   },
 
   // Auth

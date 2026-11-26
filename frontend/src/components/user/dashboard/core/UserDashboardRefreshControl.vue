@@ -1,7 +1,7 @@
 <template>
   <div class="account-refresh-control flex w-full flex-wrap items-start justify-start gap-2 sm:w-auto" data-testid="refresh-control">
     <label class="basis-full text-xs leading-5 text-gray-500" for="account-refresh-interval">{{ t('accountInsights.refreshInterval.label') }}</label>
-    <div class="flex w-full items-center gap-2"><select id="account-refresh-interval" class="input min-w-0 flex-1" :value="seconds" @change="emit('update:seconds', Number(($event.target as HTMLSelectElement).value))" aria-label="Refresh interval">
+    <div class="flex w-full flex-wrap items-center gap-2"><select id="account-refresh-interval" class="input min-w-[7.5rem] flex-1" :value="seconds" @change="emit('update:seconds', Number(($event.target as HTMLSelectElement).value))" aria-label="Refresh interval">
       <option :value="0">{{ t('accountInsights.refreshInterval.off') }}</option>
       <option :value="30">{{ t('accountInsights.refreshInterval.thirtySeconds') }}</option>
       <option :value="60">{{ t('accountInsights.refreshInterval.oneMinute') }}</option>

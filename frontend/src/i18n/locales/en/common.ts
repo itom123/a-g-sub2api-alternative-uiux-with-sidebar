@@ -229,6 +229,13 @@ export default {
     contentModeration: 'Content Moderation',
     promptAudit: 'Prompt Audit',
     auditLogs: 'Audit Logs',
+    // Sidebar section labels
+    sections: {
+      tools: 'Tools',
+      usage: 'Usage & models',
+      billing: 'Billing',
+      account: 'Account',
+    },
   },
 
   // Auth

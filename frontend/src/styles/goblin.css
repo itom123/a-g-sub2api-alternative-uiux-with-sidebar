@@ -47,9 +47,9 @@ html.dark { --ag-paper: #000000; --ag-ink: #ffffff; --ag-paper-rgb: 0 0 0; --ag-
 :root body .switch-thumb, :root body .switch-active .switch-thumb { background: var(--ag-paper) !important; border: 1px solid var(--ag-ink); }
 :root body .switch:not(.switch-active) .switch-thumb { background: var(--ag-ink) !important; }
 :root body :is([class~="bg-transparent"], [class*="hover:bg-"]) { background-image: none !important; }
-/* Dialogs float over the page: the scrim keeps the page in view and the heavier frame marks the active layer. */
+/* Dialogs float over the page: the scrim keeps the page in view and marks the active layer, so the frame keeps the standard 1px line. */
 :root body :is(.modal-overlay, .ag-modal-scrim, .fixed.inset-0[class*="bg-black/"]) { background: rgb(var(--ag-paper-rgb) / .8) !important; }
-:root body :is(.modal-content, .ag-modal-panel) { background: var(--ag-surface) !important; border: 2px solid var(--ag-rule) !important; }
+:root body :is(.modal-content, .ag-modal-panel) { background: var(--ag-surface) !important; border: 1px solid var(--ag-rule) !important; }
 :root body .modal-content { max-height: min(90dvh, 900px); }
 :root body .modal-body { min-height: 0; overscroll-behavior: contain; }
 :root body .modal-header { gap: 16px; align-items: flex-start; }
@@ -88,7 +88,6 @@ html.dark { --ag-paper: #000000; --ag-ink: #ffffff; --ag-paper-rgb: 0 0 0; --ag-
 .ag-freshness details { max-width: 66ch; }
 .ag-status { display: inline-flex; border: 1px solid var(--ag-ink); padding: 2px 8px; font-size: 12px; line-height: 1.7; white-space: nowrap; }
 :root body :is(.ag-status-warning, .ag-status-critical) { background: var(--ag-ink) !important; color: var(--ag-paper) !important; }
-.ag-status-critical { border: 3px double var(--ag-paper); outline: 1px solid var(--ag-ink); }
 .ag-status-unknown { border-style: dashed; }
 .ag-model-health { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin: 8px 0; }
 .ag-model-health small { font-size: 12px; line-height: 1.7; }
@@ -123,7 +122,9 @@ html.dark { --ag-paper: #000000; --ag-ink: #ffffff; --ag-paper-rgb: 0 0 0; --ag-
   transform: none !important;
   transition: none !important;
 }
-:root body .sidebar .sidebar-link:is(:hover, :focus, .sidebar-link-active) { font-weight: 700; }
+/* Only the current page is bold; hover underlines the label instead, so the two never look alike. */
+:root body .sidebar .sidebar-link.sidebar-link-active { font-weight: 700; }
+:root body .sidebar .sidebar-link:hover :is(.sidebar-label, span:only-of-type) { text-decoration: underline; text-underline-offset: 3px; }
 :root body .sidebar-section-title { letter-spacing: 0; text-transform: none; color: var(--ag-ink); }
 :root body .divider { background: var(--ag-rule); }
 :root body .font-sans { font-family: var(--ag-font); }
@@ -219,9 +220,8 @@ html.dark { --ag-paper: #000000; --ag-ink: #ffffff; --ag-paper-rgb: 0 0 0; --ag-
 .ag-filter-row button { border: 1px solid var(--ag-rule); }
 :root body .ag-choice { position: relative; border: 1px solid var(--ag-rule) !important; padding-right: 28px; min-width: 0; }
 :root body .ag-choice[aria-pressed="true"], :root body .ag-choice[aria-pressed="true"] * { background: var(--ag-paper) !important; color: var(--ag-ink) !important; }
-.ag-choice[aria-pressed="true"]::after { content: ''; position: absolute; inset: 0; border: 2px solid var(--ag-ink) !important; pointer-events: none; }
-:root body .ag-choice[aria-pressed="true"]::before { content: '✓'; position: absolute; right: 6px; top: 3px; color: var(--ag-ink) !important; font-size: 12px; }
-:root body .ag-choice:hover:not([aria-pressed="true"]) { outline: 2px solid var(--ag-ink); outline-offset: -3px; }
+:root body .ag-choice[aria-pressed="true"]::before { content: '✓'; position: absolute; top: 0; right: 0; display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; background: var(--ag-ink); color: var(--ag-paper) !important; font-size: 12px; line-height: 1; pointer-events: none; }
+:root body .ag-choice:hover:not([aria-pressed="true"]) { outline: 1px solid var(--ag-ink); outline-offset: -4px; }
 .ag-platform-grid { display: grid !important; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 8px; padding: 0 !important; }
 :root body .ag-platform-grid > div { display: contents !important; }
 .ag-platform-grid .ag-choice { padding: 12px 28px 12px 12px; }
@@ -307,7 +307,7 @@ html.dark { --ag-paper: #000000; --ag-ink: #ffffff; --ag-paper-rgb: 0 0 0; --ag-
 :root body .ag-usage-action-help { margin-left: 0; max-width: 100%; }
 :root body .ag-usage-action, :root body [data-testid="reset-credit-expiry-toggle"] { min-height: 36px; padding: 6px 8px; border: 1px solid var(--ag-rule); display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: 13px !important; white-space: normal; overflow-wrap: anywhere; text-align: left; }
 :root body .ag-usage-action svg { height: 14px; width: 14px; flex-shrink: 0; }
-:root body .ag-usage-action:not(:disabled):hover { outline: 2px solid var(--ag-ink); outline-offset: -3px; }
+:root body .ag-usage-action:not(:disabled):hover { outline: 1px solid var(--ag-ink); outline-offset: -4px; }
 :root body .ag-usage-reset-action:not(:disabled), :root body .ag-usage-reset-action:not(:disabled) * { background: var(--ag-ink) !important; color: var(--ag-paper) !important; }
 :root body .ag-account-usage button:disabled { opacity: 1 !important; border-style: dashed; }
 :root body .ag-usage-action:disabled::after { content: '×'; font-weight: 600; }
@@ -470,3 +470,21 @@ html.dark { --ag-paper: #000000; --ag-ink: #ffffff; --ag-paper-rgb: 0 0 0; --ag-
   .ag-user-distribution-table { min-width: 0; }
   .ag-user-distribution-table :is(th, td) { padding-inline: 0; }
 }
+
+/* Sort direction cannot rely on colour in this theme: the active arrow stays solid, idle arrows are outlines. */
+:root body thead th svg.text-gray-300[viewBox="0 0 10 10"] path { fill: none; stroke: currentColor; stroke-width: 1px; }
+/* Table headings and their phone card labels use sentence case, like every other label. */
+:root body :is(thead th, .data-card-label) { text-transform: none; letter-spacing: 0; }
+/* A table's frame ends at its last row; pagination follows it instead of an empty framed area. */
+:root body .table-page-layout:not(.mobile-mode) .layout-section-scrollable { flex: 0 1 auto; }
+:root body .table-page-layout:not(.mobile-mode) .table-scroll-container { height: auto; max-height: 100%; }
+/* One line weight: every box line is 1px, whatever width utility the markup asks for.
+   Loading spinners, pulse rings and CSS arrow tips are not box lines and keep their widths. */
+:root body :is([class~="border-4"], [class~="border-8"]):not(.animate-spin):not(.animate-pulse):not([class~="border-transparent"]) { border-width: 1px !important; }
+:root body [class~="border-t-2"]:not(.animate-spin) { border-top-width: 1px !important; }
+:root body [class~="border-b-2"]:not(.animate-spin) { border-bottom-width: 1px !important; }
+:root body :is([class~="border-l-2"], [class~="border-l-4"]) { border-left-width: 1px !important; }
+:root body :is([class~="border-r-2"], [class~="border-r-4"]) { border-right-width: 1px !important; }
+:root body :is([class~="border-x-2"], [class~="border-y-2"]) { border-width: 1px !important; }
+/* Touching lines share one pixel: a header row with no rows under it does not stack its rule on the frame's edge. */
+:root body .table-container table:not(:has(tbody > tr)) > thead > tr > th { border-bottom-color: transparent !important; }
