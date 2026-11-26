@@ -29,7 +29,7 @@
           class="w-36"
           @change="emitFiltersChanged"
         />
-        <div class="flex flex-1 flex-wrap items-center justify-end gap-2">
+        <div class="flex flex-1 basis-full flex-wrap items-center justify-end gap-2 sm:basis-0">
           <button
             @click="emit('refresh')"
             :disabled="loading"

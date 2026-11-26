@@ -978,6 +978,20 @@ defineExpose({
   overflow-wrap: anywhere;
 }
 
+/* A value sits at the card's right edge whatever markup its cell renders. Text and badges already follow
+   text-align: right; block content (flex rows, stacks of lines) shrinks to its own width and moves right,
+   and the lines of a stack line up on their right edge too. */
+.data-card-field:not(.data-card-field-stacked) > .data-card-value > :deep(:is(div, p, ul, dl)) {
+  width: fit-content;
+  max-width: 100%;
+  margin-left: auto;
+}
+.data-card-field:not(.data-card-field-stacked) > .data-card-value :deep(:is(.space-y-0\.5, .space-y-1, .space-y-1\.5, .space-y-2)) {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
 .data-card-field-stacked {
   flex-direction: column;
   gap: 4px;
