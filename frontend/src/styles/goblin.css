@@ -30,6 +30,9 @@ html.dark { --ag-paper: #000000; --ag-ink: #ffffff; --ag-paper-rgb: 0 0 0; --ag-
 /* Native fields also appear without utility classes, including teleported options. */
 :root body :is(input:where(:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"])), textarea, select, option, optgroup) { background: var(--ag-paper); color: var(--ag-ink) !important; }
 :root body :is(.badge, [class*="badge-"]) { border: 1px solid var(--ag-rule); background: var(--ag-paper) !important; color: var(--ag-ink) !important; }
+/* Tinted pills (a small rounded span with a pale background) are badges too: the tint becomes paper, so the same
+   1px rule keeps their box visible and lines them up with other values by their edge, not by invisible padding. */
+:root body span:is([class~="rounded"], [class~="rounded-md"], [class~="rounded-full"])[class*="px-"]:is([class*="py-0.5"], [class*="py-px"], [class*="py-1"]):is([class*="bg-"][class*="-50 "], [class*="bg-"][class*="-100"], [class*="bg-"][class*="-200"]) { border: 1px solid var(--ag-rule); }
 :root body :is(.card-hover:hover, [class*="hover:-translate"]:hover) { transform: none; }
 :root body :is(a, button, input, select, textarea, summary, [tabindex]):focus-visible { outline: 2px solid var(--ag-ink) !important; outline-offset: 3px; }
 :root body :is(button, input):disabled { opacity: .55 !important; border-style: dashed; cursor: not-allowed; }
@@ -518,6 +521,15 @@ html.dark { --ag-paper: #000000; --ag-ink: #ffffff; --ag-paper-rgb: 0 0 0; --ag-
 :root body .sidebar .sidebar-section-title { min-height: 16px; margin-bottom: 4px; font-size: 12px; line-height: 16px; }
 @media (min-width: 1024px) and (max-height: 960px) { :root body .sidebar .sidebar-link { padding-top: 6px; padding-bottom: 6px; } }
 @media (min-width: 1024px) and (max-height: 820px) { :root body .sidebar .sidebar-link { padding-top: 4px; padding-bottom: 4px; } }
+
+/* Small labels use sentence case, like table headings: no all-caps and no extra letter spacing. Rounded tags
+   and plain spans that show raw values (platform names, key prefixes) keep their capitals. */
+:root body :is(th, [class*="tracking-"])[class~="uppercase"]:not([class*="rounded"]):not(code):not(kbd) { text-transform: none; letter-spacing: 0; }
+/* The ops dashboard's compact metric captions follow the same rule; lower-case source captions start with a capital. */
+:root body .ag-ops-dashboard-header [class~="uppercase"]:not([class*="rounded"]) { text-transform: none; letter-spacing: 0; }
+:root body .ag-ops-dashboard-header div[class~="uppercase"]:not([class*="rounded"])::first-letter { text-transform: uppercase; }
+/* Toolbar buttons keep their label on one line; a row that runs out of room wraps whole buttons instead. */
+:root body .table-page-layout .layout-section-fixed .btn { white-space: nowrap; }
 
 /* Tab labels stay on one line. On phones a row of tabs that runs out of room scrolls sideways instead of
    wrapping its labels into tall, uneven tabs. */
