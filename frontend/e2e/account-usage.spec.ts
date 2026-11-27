@@ -473,7 +473,8 @@ test('failed refresh keeps the last good snapshot and account switch cannot show
   await expect(page.getByTestId('account-balance')).toHaveText('¥700.00')
   fixture.failRefresh()
   await page.getByRole('button', { name: 'Refresh', exact: true }).click()
-  await expect(page.getByRole('status')).toContainText('last successful snapshot')
+  // Section spinners are status regions too while a refresh is in flight; look for the snapshot notice itself.
+  await expect(page.getByRole('status').filter({ hasText: 'last successful snapshot' })).toBeVisible()
   await expect(page.getByTestId('account-balance')).toHaveText('¥700.00')
   await expect(page.locator('body')).not.toContainText('Other account')
   await assertRenderedBoundary(page)
