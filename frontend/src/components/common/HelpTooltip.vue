@@ -6,9 +6,14 @@ const props = withDefaults(defineProps<{
   content?: string
   trigger?: 'hover' | 'click'
   widthClass?: string
+  /** Small gap before the trigger, for a help icon placed after a label. Turn it off when the tooltip wraps
+   *  content (a badge, a chip, a name) that has to line up with its neighbours: a parent cannot cancel the gap
+   *  with a negative margin class, because ml-1 wins over -ml-1 in the stylesheet. */
+  spaced?: boolean
 }>(), {
   trigger: 'hover',
   widthClass: 'w-64',
+  spaced: true,
 })
 
 const show = ref(false)
@@ -116,7 +121,8 @@ onBeforeUnmount(() => {
 <template>
   <div
     ref="trigger"
-    class="group relative ml-1 inline-flex items-center align-middle"
+    class="group relative inline-flex items-center align-middle"
+    :class="{ 'ml-1': props.spaced }"
     tabindex="0"
     :role="props.trigger === 'click' ? 'button' : undefined"
     :aria-describedby="show ? tooltipId : undefined"

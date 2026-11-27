@@ -1,20 +1,20 @@
 <template>
   <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
     <!-- Rate Limit Display (429) - Two-line layout -->
-    <div v-if="isRateLimited" class="flex flex-col items-center gap-1">
+    <div v-if="isRateLimited" class="flex flex-col items-start gap-1">
       <span class="badge text-xs badge-warning">{{ t('admin.accounts.status.rateLimited') }}</span>
       <span class="text-[11px] text-gray-400 dark:text-gray-500">{{ rateLimitResumeText }}</span>
     </div>
 
     <!-- Overload Display (529) - Two-line layout -->
-    <div v-else-if="isOverloaded" class="flex flex-col items-center gap-1">
+    <div v-else-if="isOverloaded" class="flex flex-col items-start gap-1">
       <span class="badge text-xs badge-danger">{{ t('admin.accounts.status.overloaded') }}</span>
       <span class="text-[11px] text-gray-400 dark:text-gray-500">{{ overloadCountdown }}</span>
     </div>
 
     <!-- Main Status Badge (shown when not rate limited/overloaded) -->
     <template v-else>
-      <div v-if="isTempUnschedulable" class="flex flex-col items-center gap-1">
+      <div v-if="isTempUnschedulable" class="flex flex-col items-start gap-1">
         <button
           type="button"
           :class="['badge text-xs', statusClass, 'cursor-pointer']"
@@ -23,7 +23,7 @@
         >
           {{ statusText }}
         </button>
-        <span class="max-w-[180px] text-center text-[11px] leading-4 text-gray-500 dark:text-gray-400">
+        <span class="max-w-[180px] text-left text-[11px] leading-4 text-gray-500 dark:text-gray-400">
           {{ tempUnschedRecoveryText }}
         </span>
       </div>
@@ -33,7 +33,7 @@
     </template>
 
     <!-- Error Info Indicator -->
-    <HelpTooltip v-if="hasError && account.error_message" class="-ml-1" width-class="w-max max-w-[300px]">
+    <HelpTooltip v-if="hasError && account.error_message" :spaced="false" width-class="w-max max-w-[300px]">
       <template #trigger>
         <Icon name="questionCircle" size="sm" class="cursor-help text-red-500 transition-colors hover:text-red-600 dark:text-red-400 dark:hover:text-red-300" :stroke-width="2" />
       </template>
@@ -41,7 +41,7 @@
     </HelpTooltip>
 
     <!-- Rate Limit Indicator (429) -->
-    <HelpTooltip v-if="isRateLimited" class="-ml-1" width-class="w-56">
+    <HelpTooltip v-if="isRateLimited" :spaced="false" width-class="w-56">
       <template #trigger>
         <span
           class="inline-flex cursor-help items-center gap-1 whitespace-nowrap rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
@@ -67,7 +67,8 @@
       <HelpTooltip
         v-for="item in activeModelStatuses"
         :key="`${item.kind}-${item.model}`"
-        class="-ml-1 mb-1 !flex break-inside-avoid"
+        class="mb-1 !flex break-inside-avoid"
+        :spaced="false"
         width-class="w-max max-w-[320px]"
       >
         <template #trigger>
@@ -110,7 +111,7 @@
     </div>
 
     <!-- Overload Indicator (529) -->
-    <HelpTooltip v-if="isOverloaded" class="-ml-1" width-class="w-56">
+    <HelpTooltip v-if="isOverloaded" :spaced="false" width-class="w-56">
       <template #trigger>
         <span
           class="inline-flex cursor-help items-center gap-1 whitespace-nowrap rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400"

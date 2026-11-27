@@ -236,7 +236,8 @@
                   v-if="accountHomepageUrl(row)"
                   :content="accountHomepageUrl(row)"
                   width-class="w-max max-w-sm break-all"
-                  class="-ml-1 min-w-0 self-start"
+                  class="min-w-0 self-start"
+                  :spaced="false"
                 >
                   <template #trigger>
                     <a
@@ -1870,7 +1871,8 @@ const allColumns = computed(() => {
   c.push({ key: 'usage', label: t('admin.accounts.columns.usageWindows'), sortable: false })
   c.push(
     { key: 'proxy', label: t('admin.accounts.columns.proxy'), sortable: false },
-    { key: 'priority', label: t('admin.accounts.columns.priority'), sortable: true },
+    // The priority stepper is symmetrical (− value +), so heading and control centre on the same line.
+    { key: 'priority', label: t('admin.accounts.columns.priority'), sortable: true, class: 'text-center' },
     { key: 'scheduler_score', label: t('admin.accounts.columns.schedulerScore'), sortable: false },
     { key: 'rate_multiplier', label: t('admin.accounts.columns.billingRateMultiplier'), sortable: true },
     // Only API-key accounts can report an upstream rate; without one the column has nothing to show.
@@ -1887,7 +1889,8 @@ const allColumns = computed(() => {
     ...col,
     fullLabel: col.label,
     width: ACCOUNT_COLUMN_WIDTHS[col.key],
-    class: `ag-account-col-${col.key}`
+    // Keep a column's own alignment class (e.g. text-center) next to its width hook.
+    class: [`ag-account-col-${col.key}`, (col as { class?: string }).class].filter(Boolean).join(' ')
   }))
 })
 

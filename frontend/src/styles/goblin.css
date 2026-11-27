@@ -32,7 +32,19 @@ html.dark { --ag-paper: #000000; --ag-ink: #ffffff; --ag-paper-rgb: 0 0 0; --ag-
 :root body :is(.badge, [class*="badge-"]) { border: 1px solid var(--ag-rule); background: var(--ag-paper) !important; color: var(--ag-ink) !important; }
 /* Tinted pills (a small rounded span with a pale background) are badges too: the tint becomes paper, so the same
    1px rule keeps their box visible and lines them up with other values by their edge, not by invisible padding. */
-:root body span:is([class~="rounded"], [class~="rounded-md"], [class~="rounded-full"])[class*="px-"]:is([class*="py-0.5"], [class*="py-px"], [class*="py-1"]):is([class*="bg-"][class*="-50 "], [class*="bg-"][class*="-100"], [class*="bg-"][class*="-200"]) { border: 1px solid var(--ag-rule); }
+:root body span:is([class~="rounded"], [class~="rounded-md"], [class~="rounded-full"])[class*="px-"]:is([class*="py-0.5"], [class*="py-px"], [class*="py-1"]):is([class^="bg-"], [class*=" bg-"]):is([class*="-50 "], [class*="-100"], [class*="-200"]) { border: 1px solid var(--ag-rule); }
+/* Status dots and latency bars say "good" or "not" by colour, which this theme removes; left as paper they vanish
+   but still push their label sideways. Drawn in ink instead: solid for green states, an outline for the rest. */
+:root body :is(span, div, i)[class~="rounded-full"]:is([class~="h-1"][class~="w-1"], [class~="h-1.5"][class~="w-1.5"], [class~="h-2"][class~="w-2"], [class~="h-2.5"][class~="w-2.5"], [class~="h-3"][class~="w-3"], [class~="w-1"][class~="shrink-0"]):is([class^="bg-"], [class*=" bg-"]) { background: var(--ag-paper) !important; border: 1px solid var(--ag-ink) !important; }
+:root body :is(span, div, i)[class~="rounded-full"]:is([class~="h-1"][class~="w-1"], [class~="h-1.5"][class~="w-1.5"], [class~="h-2"][class~="w-2"], [class~="h-2.5"][class~="w-2.5"], [class~="h-3"][class~="w-3"], [class~="w-1"][class~="shrink-0"]):is([class^="bg-green-"], [class*=" bg-green-"], [class^="bg-emerald-"], [class*=" bg-emerald-"]) { background: var(--ag-ink) !important; }
+/* Tinted circles (avatars, icon holders, step numbers) keep a 1px rule so the letter, number or icon inside stays
+   framed instead of floating where the tint used to be. */
+:root body :is(div, span)[class~="rounded-full"]:is([class~="h-6"][class~="w-6"], [class~="h-7"][class~="w-7"], [class~="h-8"][class~="w-8"], [class~="h-9"][class~="w-9"], [class~="h-10"][class~="w-10"], [class~="h-12"][class~="w-12"]):is([class^="bg-"], [class*=" bg-"]):is([class*="-50 "], [class*="-100"], [class*="-200"]) { border: 1px solid var(--ag-rule); }
+/* Row actions keep their padded hit area, but the group moves left by that padding so the first icon lines up
+   with the column heading. */
+:root body td :has(> :is(button, a)[class~="flex-col"][class~="p-1.5"]:first-child) { margin-left: -6px; }
+:root body .ag-account-actions { margin-left: -6px; }
+:root body .ag-account-action { justify-content: flex-start; }
 :root body :is(.card-hover:hover, [class*="hover:-translate"]:hover) { transform: none; }
 :root body :is(a, button, input, select, textarea, summary, [tabindex]):focus-visible { outline: 2px solid var(--ag-ink) !important; outline-offset: 3px; }
 :root body :is(button, input):disabled { opacity: .55 !important; border-style: dashed; cursor: not-allowed; }
