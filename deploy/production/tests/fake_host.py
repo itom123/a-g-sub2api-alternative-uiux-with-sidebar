@@ -3,6 +3,10 @@
 
 No socket, privilege, launchctl, real executable, app path, or database access.
 The fake wrapper models mtime+size detection and stop/wait/start replacement.
+Each listener starts from one read of the binary taken after the debounce, as
+exec binds one file, so swaps during the debounce coalesce into a single start
+and a listener whose signature matches the installed binary is never replaced
+until the binary changes again.
 """
 import argparse
 import importlib.util
@@ -19,34 +23,54 @@ dc = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(dc)
 
 
-def listener(root):
-    artifact = dc.read_json(root / "bin/sub2api")
-    binary = root / "bin/sub2api"
+def signature(binary):
+    info = binary.stat()
+    return [info.st_mtime_ns, info.st_size]
+
+
+def image(binary):
+    """Read build and signature from one open file, so they always describe the same binary."""
+    with binary.open("rb") as handle:
+        info = os.fstat(handle.fileno())
+        content = handle.read()
+    try:
+        build = json.loads(content)["build"]
+    except (ValueError, KeyError, TypeError):
+        build = None  # not a runnable fake binary
+    return {"build": build, "signature": [info.st_mtime_ns, info.st_size]}
+
+
+def listener(root, loaded):
+    if loaded["build"] is None:
+        raise SystemExit("installed fake binary is not runnable")  # never becomes ready
     dc.save(root / "runtime.json", {"pid": os.getpid(), "token": dc.process_token(os.getpid()),
-                                   "build": artifact["build"],
-                                   "signature": [binary.stat().st_mtime_ns, binary.stat().st_size]})
+                                   "build": loaded["build"], "signature": loaded["signature"]})
     while not (root / "stop-listener").exists():
         time.sleep(0.02)
     time.sleep(0.03)  # model graceful shutdown without changing production services
 
 
 def wrapper(root):
+    binary = root / "bin/sub2api"
     child = None
-    last = None
+    running = None  # signature of the binary the current listener was started from
     try:
         while not (root / "stop-wrapper").exists():
-            binary = root / "bin/sub2api"
-            signature = (binary.stat().st_mtime_ns, binary.stat().st_size)
-            if child is None or signature != last:
-                last = signature
+            if child is None or signature(binary) != running:
                 if child is not None:
                     time.sleep(0.08)  # model existing wrapper's 2s debounce
                     (root / "stop-listener").touch()
                     child.wait(timeout=4)
                     (root / "stop-listener").unlink()
+                # Read the binary only now, not when the change was noticed: a listener
+                # started from a stale reading would run the newest binary yet be replaced
+                # again moments after the controller had accepted it as stable.
+                loaded = image(binary)
+                running = loaded["signature"]
                 with (root / "listener.log").open("ab", buffering=0) as log:
                     child = subprocess.Popen([sys.executable, "-I", str(HERE / "fake_host.py"),
-                                              "listener", "--root", str(root)],
+                                              "listener", "--root", str(root),
+                                              "--image", json.dumps(loaded)],
                                              stdin=subprocess.DEVNULL, stdout=log, stderr=log,
                                              **dc.windowless_process_options())
                 dc.save(root / "listener-record.json", {"pid": child.pid,
@@ -67,8 +91,14 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("command", choices=("wrapper", "listener"))
     p.add_argument("--root", required=True)
+    p.add_argument("--image", help="listener only: the build and signature the wrapper read")
     args = p.parse_args()
     root = Path(args.root).resolve()
     if not (root / ".fake-host").is_file():
         raise SystemExit("isolated fake-host marker required")
-    (wrapper if args.command == "wrapper" else listener)(root)
+    if args.command == "wrapper":
+        wrapper(root)
+    else:
+        if not args.image:
+            raise SystemExit("listener requires --image from the wrapper")
+        listener(root, json.loads(args.image))

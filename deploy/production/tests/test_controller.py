@@ -865,6 +865,111 @@ class ControllerTests(unittest.TestCase):
         self.assertTrue(self.attempt.pointer().endswith("-recovered"))
 
 
+class FakeWrapperTests(unittest.TestCase):
+    """The controller tests rely on the fake wrapper replacing listeners faithfully.
+
+    The fake probe accepts a live listener whose signature matches the installed
+    binary. If the wrapper could still replace such a listener, the controller could
+    report a stable rollback before that restart, and a check made a moment later
+    would find runtime.json naming a process that has exited.
+    """
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp(prefix=".fake-wrapper-test-", dir=HERE))
+        self.addCleanup(self.remove_root)
+        (self.root / ".fake-host").write_text("isolated fake host\n")
+        (self.root / "bin").mkdir()
+        self.binary = self.root / "bin" / "sub2api"
+        dc.save(self.binary, {"build": OLD})
+        with (self.root / "wrapper.log").open("ab", buffering=0) as log:
+            self.wrapper = subprocess.Popen([sys.executable, "-I", str(HERE / "fake_host.py"),
+                                             "wrapper", "--root", str(self.root)],
+                                            stdin=subprocess.DEVNULL, stdout=log, stderr=log,
+                                            **dc.windowless_process_options())
+        self.addCleanup(self.stop_wrapper)
+        wait_until(lambda: (self.root / "runtime.json").exists())
+
+    def stop_wrapper(self):
+        (self.root / "stop-wrapper").touch()
+        try:
+            self.wrapper.wait(timeout=6)
+        except subprocess.TimeoutExpired:
+            self.wrapper.kill()
+            self.wrapper.wait(timeout=4)
+        if (self.root / "listener-record.json").exists():
+            dc.terminate_record(dc.read_json(self.root / "listener-record.json"))
+
+    def remove_root(self):
+        # Windows may hold Popen image/log handles briefly after termination.
+        until = time.monotonic() + 5
+        while True:
+            try:
+                shutil.rmtree(self.root)
+                return
+            except PermissionError:
+                if time.monotonic() >= until:
+                    raise
+                time.sleep(0.05)
+
+    def install(self, build=None, raw=None):
+        """Swap the binary as Attempt.swap_binary does: mtime forced 2 s newer, atomic replace."""
+        temp = self.binary.with_name(self.binary.name + ".next")
+        if raw is None:
+            dc.save(temp, {"build": build})
+        else:
+            temp.write_bytes(raw)
+        stamp = max(time.time_ns(), self.binary.stat().st_mtime_ns + 2_000_000_000)
+        os.utime(temp, ns=(stamp, stamp))
+        os.replace(temp, self.binary)
+
+    def accepted_listener(self):
+        """The fake probe's rule: a live listener whose signature matches the binary."""
+        runtime = dc.read_json(self.root / "runtime.json")
+        info = self.binary.stat()
+        if (dc.process_token(runtime["pid"]) == runtime["token"]
+                and runtime["signature"] == [info.st_mtime_ns, info.st_size]):
+            return runtime
+        return None
+
+    def replacing(self, first):
+        """True once the wrapper has begun replacing the listener started first."""
+        if (self.root / "stop-listener").exists():
+            return True
+        try:
+            return dc.read_json(self.root / "listener-record.json")["pid"] != first
+        except (OSError, ValueError):
+            return False
+
+    def test_swap_back_during_replacement_never_replaces_an_accepted_listener(self):
+        # A runner killed straight after its backend swap is rolled back while the wrapper
+        # is still replacing the listener for that swap. If a stall hides the brief stop
+        # signal, the swap back simply comes later and the same guarantee must hold.
+        first = wait_until(lambda: dc.read_json(self.root / "listener-record.json")["pid"])
+        self.install(NEW)
+        until = time.monotonic() + 10
+        while not self.replacing(first):
+            self.assertLess(time.monotonic(), until, "wrapper never began replacing the listener")
+            time.sleep(0.002)
+        self.install(OLD)
+        listener = wait_until(self.accepted_listener)
+        self.assertEqual(listener["build"], OLD)
+        watch_until = time.monotonic() + 0.6  # several debounce periods
+        while time.monotonic() < watch_until:
+            self.assertEqual(dc.read_json(self.root / "runtime.json")["pid"], listener["pid"],
+                             "wrapper replaced a listener already running the installed binary")
+            self.assertEqual(dc.process_token(listener["pid"]), listener["token"])
+            time.sleep(0.02)
+
+    def test_unrunnable_binary_does_not_stop_the_wrapper(self):
+        # Same-size arbitrary bytes, as the forced-mtime swap test installs: that listener
+        # never becomes ready, but the wrapper must still replace it on the next swap.
+        first = wait_until(lambda: dc.read_json(self.root / "listener-record.json")["pid"])
+        self.install(raw=b"X" * self.binary.stat().st_size)
+        wait_until(lambda: dc.read_json(self.root / "listener-record.json")["pid"] != first)
+        self.install(NEW)
+        self.assertEqual(wait_until(self.accepted_listener)["build"], NEW)
+
+
 class TerminalWaitTests(unittest.TestCase):
     def setUp(self):
         directory = tempfile.TemporaryDirectory(prefix=".terminal-wait-test-", dir=HERE)
