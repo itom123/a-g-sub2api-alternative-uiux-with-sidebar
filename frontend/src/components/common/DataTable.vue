@@ -584,8 +584,11 @@ const getColumnAriaSort = (key: string) => {
 
 const getHeaderContentAlignmentClass = (column: Column) => {
   const className = column.class || ''
-  if (className.includes('text-center')) return 'justify-center'
-  if (className.includes('text-right')) return 'justify-end'
+  // The sort arrows hang beside the label instead of shifting it, so a centred or right-aligned label lines up
+  // with the column's values: a centred label is balanced by padding as wide as the arrows (w-4 + space-x-1),
+  // and a right-aligned one puts the arrows on its left.
+  if (className.includes('text-center')) return column.sortable ? 'justify-center pl-5' : 'justify-center'
+  if (className.includes('text-right')) return column.sortable ? 'flex-row-reverse justify-start space-x-reverse' : 'justify-end'
   return 'justify-start'
 }
 
